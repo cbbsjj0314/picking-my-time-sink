@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cod]
+
+# Virtual environment
+.venv/
+
+# Test / lint cache
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Env files
+.env
+.env.*
+!.env.example
+
+# Local Poetry config
+poetry.toml
+
+# Editor / OS
+.DS_Store
+.vscode/
+.idea/
+
+# Local runtime artifacts
+logs/
+tmp/
+data/
