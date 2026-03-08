@@ -1,0 +1,46 @@
+{
+  "attempts": [
+    {
+      "attempt": 1,
+      "error": null,
+      "sleep_seconds": 0.0,
+      "status_code": 200
+    }
+  ],
+  "collected_at_utc": "2026-03-06T21:46:10Z",
+  "error": null,
+  "probe_name": "price_kr",
+  "request": {
+    "method": "GET",
+    "params": {
+      "appids": "730",
+      "cc": "kr",
+      "filters": "price_overview",
+      "l": "koreana"
+    },
+    "timeout_seconds": 10.0,
+    "url": "https://store.steampowered.com/api/appdetails"
+  },
+  "response": {
+    "body_sha256": "cdc3b9138ca087c869a38db782e08276c103bcf12579367200cc77ce31729e4a",
+    "body_size": 34,
+    "is_empty": false,
+    "payload_excerpt_or_json": {
+      "730": {
+        "data": [],
+        "success": true
+      }
+    },
+    "selected_headers": {
+      "cache-control": "public,max-age=3600",
+      "content-length": "34",
+      "content-type": "application/json; charset=utf-8",
+      "date": "Fri, 06 Mar 2026 21:46:10 GMT",
+      "etag": null,
+      "last-modified": "Fri, 06 Mar 2026 21:00:00 GMT",
+      "retry-after": null
+    },
+    "status_code": 200
+  },
+  "schema_version": "1.0"
+}

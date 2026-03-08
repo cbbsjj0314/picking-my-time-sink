@@ -1,0 +1,1069 @@
+{
+  "attempts": [
+    {
+      "attempt": 1,
+      "error": null,
+      "sleep_seconds": 0.0,
+      "status_code": 200
+    }
+  ],
+  "collected_at_utc": "2026-03-06T21:46:06Z",
+  "error": null,
+  "probe_name": "reviews",
+  "request": {
+    "method": "GET",
+    "params": {
+      "filter": "all",
+      "json": "1",
+      "language": "all",
+      "num_per_page": "20",
+      "purchase_type": "all"
+    },
+    "timeout_seconds": 10.0,
+    "url": "https://store.steampowered.com/appreviews/730"
+  },
+  "response": {
+    "body_sha256": "b7cddadf785d7f26e1cf6395723d67712e54bfe265e82067c57be86fbb176303",
+    "body_size": 31259,
+    "is_empty": false,
+    "payload_excerpt_or_json": {
+      "cursor": "AoMFQFUNByAAAAAFP+rf0mAAAAB4tZK+Bg==",
+      "query_summary": {
+        "num_reviews": 20,
+        "review_score": 8,
+        "review_score_desc": "Very Positive",
+        "total_negative": 1292196,
+        "total_positive": 8145515,
+        "total_reviews": 9437711
+      },
+      "reviews": [
+        {
+          "app_release_date": "1345568400",
+          "author": {
+            "avatar": "543bb32f9249e6738288c0d3ac6987ee25983c41",
+            "last_played": 1772808903,
+            "num_games_owned": 51,
+            "num_reviews": 2,
+            "persona_status": "offline",
+            "personaname": "otika",
+            "playtime_at_review": 28224,
+            "playtime_forever": 35148,
+            "playtime_last_two_weeks": 2369,
+            "profile_url": "https://steamcommunity.com/profiles/76561199178212721/",
+            "steamid": "76561199178212721"
+          },
+          "comment_count": 10,
+          "language": "schinese",
+          "primarily_steam_deck": false,
+          "reactions": [
+            {
+              "count": 5,
+              "reaction_type": 32
+            },
+            {
+              "count": 3,
+              "reaction_type": 24
+            },
+            {
+              "count": 1,
+              "reaction_type": 26
+            },
+            {
+              "count": 1,
+              "reaction_type": 33
+            },
+            {
+              "count": 1,
+              "reaction_type": 35
+            }
+          ],
+          "received_for_free": false,
+          "recommendationid": "217599833",
+          "refunded": false,
+          "review": "如果把所有fps游戏作为饮品，那么cs就是唯一的水。\n\nIf all FPS games were drinks, then Counter-Strike would be the only water.",
+          "steam_purchase": true,
+          "timestamp_created": 1770258718,
+          "timestamp_updated": 1770258718,
+          "voted_up": true,
+          "votes_funny": 27,
+          "votes_up": 464,
+          "weighted_vote_score": "0.960129141807556152",
+          "written_during_early_access": false
+        },
+        {
+          "app_release_date": "1345568400",
+          "author": {
+            "avatar": "9d1a61241f6bede8fecbce2ea5204aa187c646a8",
+            "last_played": 1772822406,
+            "num_games_owned": 0,
+            "num_reviews": 4,
+            "persona_status": "offline",
+            "personaname": "⚡- RΞLΛXΞR-MΛRTY -⚡",
+            "playtime_at_review": 15685,
+            "playtime_forever": 20252,
+            "playtime_last_two_weeks": 2854,
+            "profile_url": "https://steamcommunity.com/profiles/76561198261151230/",
+            "steamid": "76561198261151230"
+          },
+          "comment_count": 3,
+          "language": "english",
+          "primarily_steam_deck": false,
+          "reactions": [
+            {
+              "count": 22,
+              "reaction_type": 28
+            },
+            {
+              "count": 5,
+              "reaction_type": 26
+            },
+            {
+              "count": 3,
+              "reaction_type": 24
+            },
+            {
+              "count": 3,
+              "reaction_type": 27
+            },
+            {
+              "count": 3,
+              "reaction_type": 29
+            },
+            {
+              "count": 3,
+              "reaction_type": 31
+            },
+            {
+              "count": 3,
+              "reaction_type": 32
+            },
+            {
+              "count": 2,
+              "reaction_type": 34
+            }
+          ],
+          "received_for_free": false,
+          "recommendationid": "217963121",
+          "refunded": false,
+          "review": "Russian language course and case opening simulator.\nLaunch the game.\nGet headshotted across the map by a guy with an anime profile pic.\nYour teammates scream things at you that you don't understand, but they sound very aggressive.\nBuy a case, get a grey skin worth $0.03.\nRepeat.\n10/10, best game I've ever hated.",
+          "steam_purchase": true,
+          "timestamp_created": 1770671720,
+          "timestamp_updated": 1770671720,
+          "voted_up": true,
+          "votes_funny": 185,
+          "votes_up": 457,
+          "weighted_vote_score": "0.943942070007324219",
+          "written_during_early_access": false
+        },
+        {
+          "app_release_date": "1345568400",
+          "author": {
+            "avatar": "aeab676d692e7e96c0753129bd79882d2262c266",
+            "last_played": 1772821629,
+            "num_games_owned": 34,
+            "num_reviews": 2,
+            "persona_status": "offline",
+            "personaname": "Yonatsu",
+            "playtime_at_review": 135,
+            "playtime_forever": 6108,
+            "playtime_last_two_weeks": 3529,
+            "profile_url": "https://steamcommunity.com/id/yonatsu/",
+            "steamid": "76561198742100198"
+          },
+          "comment_count": 6,
+          "language": "russian",
+          "primarily_steam_deck": false,
+          "reactions": [
+            {
+              "count": 8,
+              "reaction_type": 24
+            },
+            {
+              "count": 3,
+              "reaction_type": 29
+            },
+            {
+              "count": 2,
+              "reaction_type": 26
+            },
+            {
+              "count": 2,
+              "reaction_type": 35
+            },
+            {
+              "count": 1,
+              "reaction_type": 31
+            },
+            {
+              "count": 1,
+              "reaction_type": 32
+            }
+          ],
+          "received_for_free": false,
+          "recommendationid": "217673726",
+          "refunded": false,
+          "review": "9 читеров из 10 игроков\nКак играть против читеров?\nШаг 1:\nОбматерить читера в чате\nШаг 2:\nКинуть гигантское количество репортов\nШаг 3:\nОткрыть стим\nШаг 4:\nОткрыть вкладку с игрой в библиотеке\nШаг 5:\nНажать кнопку \"Удалить с устройства\"\n",
+          "steam_purchase": true,
+          "timestamp_created": 1770351878,
+          "timestamp_updated": 1770351878,
+          "voted_up": true,
+          "votes_funny": 91,
+          "votes_up": 487,
+          "weighted_vote_score": "0.935950815677642822",
+          "written_during_early_access": false
+        },
+        {
+          "app_release_date": "1345568400",
+          "author": {
+            "avatar": "54aeec8edaf2e7ede085dc705fc83316c1a2a249",
+            "last_played": 1772791022,
+            "num_games_owned": 0,
+            "num_reviews": 1,
+            "persona_status": "offline",
+            "personaname": "dartman",
+            "playtime_at_review": 212008,
+            "playtime_forever": 216491,
+            "playtime_last_two_weeks": 3400,
+            "profile_url": "https://steamcommunity.com/profiles/76561198169290918/",
+            "steamid": "76561198169290918"
+          },
+          "comment_count": 8,
+          "language": "english",
+          "primarily_steam_deck": false,
+          "reactions": [
+            {
+              "count": 18,
+              "reaction_type": 28
+            },
+            {
+              "count": 7,
+              "reaction_type": 29
+            },
+            {
+              "count": 6,
+              "reaction_type": 31
+            },
+            {
+              "count": 6,
+              "reaction_type": 34
+            },
+            {
+              "count": 3,
+              "reaction_type": 25
+            },
+            {
+              "count": 2,
+              "reaction_type": 27
+            },
+            {
+              "count": 2,
+              "reaction_type": 32
+            },
+            {
+              "count": 2,
+              "reaction_type": 35
+            },
+            {
+              "count": 1,
+              "reaction_type": 26
+            }
+          ],
+          "received_for_free": false,
+          "recommendationid": "218357799",
+          "refunded": false,
+          "review": "I installed Counter-Strike 2 thinking I was going to have fun.\r\n\r\nWhat I got instead was a highly advanced psychological experiment conducted by Valve to measure how long five strangers can blame each other before someone rage-quits.\r\n\r\nThe game promises:\r\n\r\n“Sub-tick precision”\r\n\r\n“Enhanced graphics”\r\n\r\n“Improved smoke physics”\r\n\r\nWhat it actually delivers:\r\n\r\nGetting one-tapped by someone who appears to be pre-aiming your future grandchildren\r\n\r\nTeammates who bought a Negev on pistol round because “trust me bro”\r\n\r\nSmokes so realistic you can’t see anything... including your will to win\r\n\r\nThe ranking system is a masterpiece. You can top frag, entry, clutch twice, plant the bomb, defuse the bomb, solve global warming and still lose 480 rating because your teammate decided to disconnect after round three to “fix his mic.”\r\n\r\nEvery match follows the same five stages:\r\n\r\nOptimism\r\n\r\nConfusion\r\n\r\nBlame\r\n\r\nCopium\r\n\r\n“One more game”\r\n\r\nHit registration feels like you’re politely asking the enemy if they’d consider taking damage. Meanwhile, they shoot in your general postcode and you’re instantly back in spectator mode.\r\n\r\nAnd yet… somehow… you queue again.\r\n\r\n10/10 worst experience of my life.\r\nSee you tomorrow.",
+          "steam_purchase": true,
+          "timestamp_created": 1771134948,
+          "timestamp_updated": 1771134948,
+          "voted_up": true,
+          "votes_funny": 158,
+          "votes_up": 251,
+          "weighted_vote_score": "0.926500201225280762",
+          "written_during_early_access": false
+        },
+        {
+          "app_release_date": "1345568400",
+          "author": {
+            "avatar": "59b517309c8ce3169eaf7afb7fc2cfd135b01df5",
+            "last_played": 1772736220,
+            "num_games_owned": 5,
+            "num_reviews": 1,
+            "persona_status": "offline",
+            "personaname": "L1rui",
+            "playtime_at_review": 77085,
+            "playtime_forever": 81115,
+            "playtime_last_two_weeks": 2019,
+            "profile_url": "https://steamcommunity.com/id/wxSssss20050503/",
+            "steamid": "76561199515635034"
+          },
+          "comment_count": 0,
+          "language": "schinese",
+          "primarily_steam_deck": false,
+          "reactions": [
+            {
+              "count": 1,
+              "reaction_type": 24
+            },
+            {
+              "count": 1,
+              "reaction_type": 34
+            }
+          ],
+          "received_for_free": false,
+          "recommendationid": "217567286",
+          "refunded": false,
+          "review": "1285个小时，77100分钟，你明明可以用动这些时间去好好学习，去健身强身健体，但你选择了CS。你感受着耳机里响起此起彼伏的笑声和兄弟们高喊的“好枪”，还有你艰难地拿下一个又一个残局后迅速飙升的肾上腺素，你享受着这一属于你的时刻。你不得不承认，你爱这款游戏，他已经成为了你生活的一部分。",
+          "steam_purchase": true,
+          "timestamp_created": 1770221713,
+          "timestamp_updated": 1770221713,
+          "voted_up": true,
+          "votes_funny": 24,
+          "votes_up": 224,
+          "weighted_vote_score": "0.919017493724822998",
+          "written_during_early_access": false
+        },
+        {
+          "app_release_date": "1345568400",
+          "author": {
+            "avatar": "181f52b20ea156bd568876f7559fc1499e81ad2b",
+            "last_played": 1772721323,
+            "num_games_owned": 42,
+            "num_reviews": 3,
+            "persona_status": "offline",
+            "personaname": "踏雪寻梅",
+            "playtime_at_review": 105403,
+            "playtime_forever": 106184,
+            "playtime_last_two_weeks": 2052,
+            "profile_url": "https://steamcommunity.com/profiles/76561199026223126/",
+            "steamid": "76561199026223126"
+          },
+          "comment_count": 5,
+          "language": "schinese",
+          "primarily_steam_deck": false,
+          "reactions": [
+            {
+              "count": 4,
+              "reaction_type": 26
+            },
+            {
+              "count": 1,
+              "reaction_type": 29
+            },
+            {
+              "count": 1,
+              "reaction_type": 31
+            }
+          ],
+          "received_for_free": false,
+          "recommendationid": "218882079",
+          "refunded": false,
+          "review": "玩了1700小时了，心情有点五味杂陈，首先就是建议打算长期玩的话，我建议是买个优先，或者直接打平台，但是神人平台的神人匹配机制，经常能给你匹神人队友，容易把人整红温，而且买优先可以刷箱子，是可以卖rmb的，基本上很快就能回本。以上的建议是为了避免挂哥，因为官匹官方是不怎么管的，所以你很容易遇到大陀螺。但是买了优先就能很大程度上避免遇到挂哥。\n新人朋友的话，还是建议从休闲模式玩把图熟明白后再去打竞技（哦对了记得不要起连狙），这样可以让你有个不错的游戏体验，现在很多萌新上来就打平台是一个很不好的习惯，走路都不会走那不是瞎搞嘛；还有就是只打沙二，我知道你们只认识沙二这张图，但是每天都打沙二不会腻嘛（捂脸笑哭），我反正是打一把沙二就够够的了，感觉这张图很公式化，没太有意思。前期主要还是枪法，道具学点基本的和会扔自助道具就可以；我身边的朋友不喜欢玩这游戏的很大原因就是被人一脚踹死，所以体会不到爽感，这证明了枪法很重要，当然本人也不是“天才少年”玩了这么长时间才B，平台水分也很大，而且经常匹神人队友，所以我打平台一般都是练心态去的，当然本人枪法也不是很好，b站上教学一大堆可以自行搜索学习。当然说了这么多这游戏的爽感不只有踢人，赢下残局队友的欢呼，激动的双手，怦怦跳的心脏，肾上腺素的飙升，还有粑粑博弈，都能给人带来爽感。同时这个游戏非常公平，不像隔壁分为各个职位，在这个游戏里，你们是五个独立的个体，每个人没有具体的职责，所以更需要你们的交流和配合，我希望大家读到这里不开麦的兄弟尽量开麦，开不了麦也可以打字，因为你的队友需要你的信息！准星以及游戏内的各个设置怎么设置是最好的b站上都有人做过视频，地图的报点等等等等都是有教学视频的，玩这个游戏需要耗费大量的实践与精力，还在为这个游戏奋斗的同志们，你们辛苦了！重新说回公平性，每个人都是100血，能买的东西都大差不差，不会有什么杀人回血和复活的机制，死了就是死了，可以运用各种技巧例如近大远小，peek，旋转跳等等去拿到对枪优势，没有能放墙的技能以及炸飞自己的技能。读到这里有些兄弟可能觉得我就是在处处贬低隔壁游戏，我在隔壁游戏也是充过2000+以上米的，3把刀等等深度游玩后还是回到了CS2，技能啥的太花哨了，以及在适应了CS的枪械手感后，感觉隔壁的枪都有点肌无力的感觉，就很怪。\nCS2应该是我所有游戏里玩的最长的一款了，不管是apex，还是LOL（而且我入坑LOL比CS早很多）还是新秀三角篓子，我都是有在玩的，我也说不清为什么喜欢玩，玩到现在虽然没有了刚开始的热情了，但是依旧感觉每天不玩几把不舒服。\n突然想起来饰品这个东西，还是希望大家量力而行，不要指望这玩意赚钱，这东西稳定性还没股票稳，v社随便改条规则都能让这个b皮肤暴涨或暴跌，喜欢某个皮肤的话如果在自己承受范围之内，可以买，也是建议大家买一套长期自用；其次不要加那些什么导购的会员群什么的，你想想，人家有赚钱的项目凭啥带你赚，你救过他命？？割韭菜割的就是这批人。\n展望过去，自己从一个什么都不懂的小萌新，再到逐渐适应，再到现在能独当一面的玩家，内心还是五味杂陈，展望未来，希望自己和CS2越来越好，也希望读到这篇评测的你们万事如意，平安喜乐。\n                                                                                                                        时二〇二六年正月初六丑时1：42\n                                                                                                                            一个普通的热爱CS2的玩家",
+          "steam_purchase": true,
+          "timestamp_created": 1771695811,
+          "timestamp_updated": 1772508019,
+          "voted_up": true,
+          "votes_funny": 14,
+          "votes_up": 132,
+          "weighted_vote_score": "0.901585757732391357",
+          "written_during_early_access": false
+        },
+        {
+          "app_release_date": "1345568400",
+          "author": {
+            "avatar": "d860e05db46ad1bd0ea2f6b5daf5c8acf1e9c38a",
+            "last_played": 1772732091,
+            "num_games_owned": 32,
+            "num_reviews": 1,
+            "persona_status": "offline",
+            "personaname": "TheUZN",
+            "playtime_at_review": 23805,
+            "playtime_forever": 24993,
+            "playtime_last_two_weeks": 556,
+            "profile_url": "https://steamcommunity.com/profiles/76561199853525753/",
+            "steamid": "76561199853525753"
+          },
+          "comment_count": 3,
+          "language": "turkish",
+          "primarily_steam_deck": false,
+          "reactions": [
+            {
+              "count": 1,
+              "reaction_type": 31
+            }
+          ],
+          "received_for_free": false,
+          "recommendationid": "217961114",
+          "refunded": false,
+          "review": "Oyun güzel ama çok hile var valvenin buna çözüm bulması lazım...",
+          "steam_purchase": true,
+          "timestamp_created": 1770669682,
+          "timestamp_updated": 1770669682,
+          "voted_up": true,
+          "votes_funny": 9,
+          "votes_up": 685,
+          "weighted_vote_score": "0.886543512344360352",
+          "written_during_early_access": false
+        },
+        {
+          "app_release_date": "1345568400",
+          "author": {
+            "avatar": "6b66094267a27309c3724d2191ece0187237ebbf",
+            "last_played": 1772831372,
+            "num_games_owned": 26,
+            "num_reviews": 1,
+            "persona_status": "online",
+            "personaname": "Oksi",
+            "playtime_at_review": 36619,
+            "playtime_forever": 39536,
+            "playtime_last_two_weeks": 856,
+            "profile_url": "https://steamcommunity.com/id/Oxf4/",
+            "steamid": "76561199258894030"
+          },
+          "comment_count": 0,
+          "language": "polish",
+          "primarily_steam_deck": false,
+          "reactions": [
+            {
+              "count": 9,
+              "reaction_type": 32
+            },
+            {
+              "count": 4,
+              "reaction_type": 28
+            },
+            {
+              "count": 3,
+              "reaction_type": 24
+            },
+            {
+              "count": 1,
+              "reaction_type": 25
+            },
+            {
+              "count": 1,
+              "reaction_type": 29
+            },
+            {
+              "count": 1,
+              "reaction_type": 31
+            },
+            {
+              "count": 1,
+              "reaction_type": 34
+            }
+          ],
+          "received_for_free": false,
+          "recommendationid": "218177951",
+          "refunded": false,
+          "review": "Ta gra jest jak mefedron, wiesz że ci szkodzi ale dalej w nią grasz, do tego pochłania tyle samo kasy",
+          "steam_purchase": true,
+          "timestamp_created": 1770934094,
+          "timestamp_updated": 1770934094,
+          "voted_up": true,
+          "votes_funny": 20,
+          "votes_up": 89,
+          "weighted_vote_score": "0.869280874729156494",
+          "written_during_early_access": false
+        },
+        {
+          "app_release_date": "1345568400",
+          "author": {
+            "avatar": "f5209794039f1178c51fcd503a527a470f11da82",
+            "last_played": 1772748897,
+            "num_games_owned": 1,
+            "num_reviews": 1,
+            "persona_status": "offline",
+            "personaname": "ุ",
+            "playtime_at_review": 430,
+            "playtime_forever": 1547,
+            "playtime_last_two_weeks": 472,
+            "profile_url": "https://steamcommunity.com/profiles/76561198745257340/",
+            "steamid": "76561198745257340"
+          },
+          "comment_count": 2,
+          "language": "english",
+          "primarily_steam_deck": false,
+          "reactions": [
+            {
+              "count": 4,
+              "reaction_type": 24
+            },
+            {
+              "count": 1,
+              "reaction_type": 34
+            }
+          ],
+          "received_for_free": false,
+          "recommendationid": "218112755",
+          "refunded": false,
+          "review": "After a hard day of work you queue up for a game, only to hear russian guys screaming at eachother the whole game. Would recommend.",
+          "steam_purchase": true,
+          "timestamp_created": 1770855043,
+          "timestamp_updated": 1770855043,
+          "voted_up": true,
+          "votes_funny": 44,
+          "votes_up": 93,
+          "weighted_vote_score": "0.861551940441131592",
+          "written_during_early_access": false
+        },
+        {
+          "app_release_date": "1345568400",
+          "author": {
+            "avatar": "0530d112be66140f6cf76afd0e43f92524ab9389",
+            "last_played": 1772830923,
+            "num_games_owned": 135,
+            "num_reviews": 2,
+            "persona_status": "offline",
+            "personaname": "Aika",
+            "playtime_at_review": 7330,
+            "playtime_forever": 8482,
+            "playtime_last_two_weeks": 737,
+            "profile_url": "https://steamcommunity.com/id/peaceforallandformetoo/",
+            "steamid": "76561199810960090"
+          },
+          "comment_count": 0,
+          "language": "brazilian",
+          "primarily_steam_deck": false,
+          "reactions": [
+            {
+              "count": 8,
+              "reaction_type": 31
+            },
+            {
+              "count": 4,
+              "reaction_type": 26
+            },
+            {
+              "count": 2,
+              "reaction_type": 30
+            },
+            {
+              "count": 1,
+              "reaction_type": 24
+            },
+            {
+              "count": 1,
+              "reaction_type": 29
+            }
+          ],
+          "received_for_free": false,
+          "recommendationid": "218279942",
+          "refunded": false,
+          "review": "ate pagando prime esse jogo tem cheater se vc acha que é igual csgo esquece esse jogo não tem anti cheater nenhum , só tem cassino , bot de farm e cheater muitooo cheater parece ate point blank horrivel",
+          "steam_purchase": true,
+          "timestamp_created": 1771056698,
+          "timestamp_updated": 1771056698,
+          "voted_up": false,
+          "votes_funny": 3,
+          "votes_up": 83,
+          "weighted_vote_score": "0.857263445854187012",
+          "written_during_early_access": false
+        },
+        {
+          "app_release_date": "1345568400",
+          "author": {
+            "avatar": "659d0ec26ace867f43548cc1cf3d98d65af7b344",
+            "last_played": 1772811764,
+            "num_games_owned": 0,
+            "num_reviews": 1,
+            "persona_status": "offline",
+            "personaname": "Денис Колбасенко",
+            "playtime_at_review": 108519,
+            "playtime_forever": 109668,
+            "playtime_last_two_weeks": 898,
+            "profile_url": "https://steamcommunity.com/profiles/76561199170552547/",
+            "steamid": "76561199170552547"
+          },
+          "comment_count": 10,
+          "language": "russian",
+          "primarily_steam_deck": false,
+          "reactions": [
+            {
+              "count": 4,
+              "reaction_type": 29
+            },
+            {
+              "count": 2,
+              "reaction_type": 31
+            },
+            {
+              "count": 1,
+              "reaction_type": 32
+            },
+            {
+              "count": 1,
+              "reaction_type": 35
+            }
+          ],
+          "received_for_free": false,
+          "recommendationid": "218092628",
+          "refunded": false,
+          "review": "Игра ужас, после многолетних часов игры в нее, понимаю на сколько ее испортили и сколько появилось лагов. Игра стала отвратительной максимально, выстрелы не регает, фпс скачет, сервера сходят с ума. про подбор игроков в прайм режиме вообще молчу, там играют все вместе от новичка до опытного ( и все это в одном матче)!!\nЭлементарно не могут за столько лет исправить с превью при входе в игру. \nК большому сожалению игру сильно забросили, и теперь мылят игрокам глаза всяческими звуками ножа нежели исправлять баги и улучшать гемплей. \nМое личное мнение, да и думаю многие со мной согласятся что если бы была возможность вернуть деньги за нее многие так бы и поступили!  Да и нервов побольше сохранилось бы.",
+          "steam_purchase": true,
+          "timestamp_created": 1770833877,
+          "timestamp_updated": 1770833877,
+          "voted_up": false,
+          "votes_funny": 15,
+          "votes_up": 163,
+          "weighted_vote_score": "0.84199148416519165",
+          "written_during_early_access": false
+        },
+        {
+          "app_release_date": "1345568400",
+          "author": {
+            "avatar": "d3ac8bafc06e6669a7bf4d16facbc0d9df0d4cb9",
+            "last_played": 1772810044,
+            "num_games_owned": 1,
+            "num_reviews": 1,
+            "persona_status": "offline",
+            "personaname": "✪x1gn",
+            "playtime_at_review": 2325,
+            "playtime_forever": 22795,
+            "playtime_last_two_weeks": 12308,
+            "profile_url": "https://steamcommunity.com/id/4449848949/",
+            "steamid": "76561199861066862"
+          },
+          "comment_count": 7,
+          "language": "koreana",
+          "primarily_steam_deck": false,
+          "reactions": [
+            {
+              "count": 1,
+              "reaction_type": 24
+            },
+            {
+              "count": 1,
+              "reaction_type": 27
+            },
+            {
+              "count": 1,
+              "reaction_type": 29
+            }
+          ],
+          "received_for_free": false,
+          "recommendationid": "217829509",
+          "refunded": false,
+          "review": "csgo는 제 인생의 전부입니다. csgo 때문에 직장에서 해고되고, 사랑하는 아내와 이혼했으며, 사랑하는 두 아이를 다시는 볼 수 없지만 IDGAF입니다",
+          "steam_purchase": true,
+          "timestamp_created": 1770520583,
+          "timestamp_updated": 1770520583,
+          "voted_up": true,
+          "votes_funny": 30,
+          "votes_up": 64,
+          "weighted_vote_score": "0.829267740249633789",
+          "written_during_early_access": false
+        },
+        {
+          "app_release_date": "1345568400",
+          "author": {
+            "avatar": "117293cc22e02e600c1fbca247dbcab8a7f21e99",
+            "last_played": 1772769508,
+            "num_games_owned": 42,
+            "num_reviews": 4,
+            "persona_status": "offline",
+            "personaname": "vorkish",
+            "playtime_at_review": 218606,
+            "playtime_forever": 222797,
+            "playtime_last_two_weeks": 2888,
+            "profile_url": "https://steamcommunity.com/id/vorkishfps/",
+            "steamid": "76561198069672823"
+          },
+          "comment_count": 5,
+          "language": "english",
+          "primarily_steam_deck": false,
+          "reactions": [
+            {
+              "count": 3,
+              "reaction_type": 24
+            },
+            {
+              "count": 2,
+              "reaction_type": 26
+            },
+            {
+              "count": 1,
+              "reaction_type": 31
+            },
+            {
+              "count": 1,
+              "reaction_type": 32
+            },
+            {
+              "count": 1,
+              "reaction_type": 33
+            },
+            {
+              "count": 1,
+              "reaction_type": 34
+            },
+            {
+              "count": 1,
+              "reaction_type": 35
+            }
+          ],
+          "received_for_free": false,
+          "recommendationid": "218113140",
+          "refunded": false,
+          "review": "This was my main game, but it has serious issues because the anti-cheat system doesn’t seem to work properly. The game often feels overrun by cheaters, and there’s usually nothing you can do except forfeit.\r\n\r\nI’d like to play more and continue supporting the game, but nowadays it only feels enjoyable if you play with a full 5-stack and use a third-party competitive platform like FACEIT.\r\n\r\nI’ve also tried several things to improve my Trust Factor. I’m an experienced player, but it feels like no matter what you do, you end up with low Trust Factor — play well and you get reported, new players get low Trust Factor, and actual cheaters do too. It doesn’t seem like the developers are taking proper care of players who genuinely want to play fairly and maintain a good environment. I’ve already tried everything people recommend to improve Trust Factor, including reading discussions, guides, and watching YouTube videos, but nothing has worked.",
+          "steam_purchase": true,
+          "timestamp_created": 1770855536,
+          "timestamp_updated": 1770855536,
+          "voted_up": false,
+          "votes_funny": 6,
+          "votes_up": 110,
+          "weighted_vote_score": "0.821783304214477539",
+          "written_during_early_access": false
+        },
+        {
+          "app_release_date": "1345568400",
+          "author": {
+            "avatar": "aee7f2ccfdfbf10cead4dc59c6b241b08ec4fe75",
+            "last_played": 1772036912,
+            "num_games_owned": 0,
+            "num_reviews": 2,
+            "persona_status": "offline",
+            "personaname": "Recker",
+            "playtime_at_review": 63500,
+            "playtime_forever": 63657,
+            "playtime_last_two_weeks": 279,
+            "profile_url": "https://steamcommunity.com/profiles/76561198082832648/",
+            "steamid": "76561198082832648"
+          },
+          "comment_count": 3,
+          "language": "polish",
+          "primarily_steam_deck": false,
+          "reactions": [
+            {
+              "count": 2,
+              "reaction_type": 29
+            },
+            {
+              "count": 1,
+              "reaction_type": 32
+            }
+          ],
+          "received_for_free": false,
+          "recommendationid": "218820521",
+          "refunded": false,
+          "review": "CS2 to niestety krok wstecz w porównaniu do CS:GO. Casuale to śmietnik pełen dzieciaków, frustratów i ludzi, którzy myślą, że grają w finał Majora. Kickowanie za słabe granie, brak dropów, tonę cheaterów i zero moderacji — to normalne. Serwery turniejowe też nie dają frajdy, bo nagradzają agresję, lucky shoty i losowość.\n\nDo tego wszystkiego: gra jest w pełni monetyzowana. Skórki, klucze, market – wszystko po to, żeby ciągnąć kasę, a nie dawać przyjemność z gry. Dawniej CS:GO dawało motywację i frajdę, teraz CS2 to po prostu stres i frustracja.\n\nNie polecam, chyba że chcesz sobie zepsuć nerwy i przy okazji dokładać do kasy Valve.",
+          "steam_purchase": true,
+          "timestamp_created": 1771632844,
+          "timestamp_updated": 1771632844,
+          "voted_up": false,
+          "votes_funny": 1,
+          "votes_up": 59,
+          "weighted_vote_score": "0.816642940044403076",
+          "written_during_early_access": false
+        },
+        {
+          "app_release_date": "1345568400",
+          "author": {
+            "avatar": "1554cd16b50360324fa4fe92e63ad9bc5cb9a091",
+            "last_played": 1772743031,
+            "num_games_owned": 56,
+            "num_reviews": 40,
+            "persona_status": "in-game",
+            "personaname": "Fazler",
+            "playtime_at_review": 9178,
+            "playtime_forever": 15339,
+            "playtime_last_two_weeks": 4904,
+            "profile_url": "https://steamcommunity.com/id/FazleStream/",
+            "steamid": "76561198211460364"
+          },
+          "comment_count": 2,
+          "language": "french",
+          "primarily_steam_deck": false,
+          "reactions": [
+            {
+              "count": 3,
+              "reaction_type": 31
+            },
+            {
+              "count": 1,
+              "reaction_type": 24
+            },
+            {
+              "count": 1,
+              "reaction_type": 29
+            }
+          ],
+          "received_for_free": false,
+          "recommendationid": "218654635",
+          "refunded": false,
+          "review": "jeu parfait , si on oublie : \n\n- les De-sync\n- les Russes\n- les cheaters\n- j'ai cité les Russes ? \n-( Les russes ) \n- les cheaters Russe aussi",
+          "steam_purchase": true,
+          "timestamp_created": 1771452258,
+          "timestamp_updated": 1771452258,
+          "voted_up": true,
+          "votes_funny": 11,
+          "votes_up": 40,
+          "weighted_vote_score": "0.812243640422821045",
+          "written_during_early_access": false
+        },
+        {
+          "app_release_date": "1345568400",
+          "author": {
+            "avatar": "75e2af3baabd186bbda639f9bd492a8be9dde22b",
+            "last_played": 1772770463,
+            "num_games_owned": 38,
+            "num_reviews": 1,
+            "persona_status": "offline",
+            "personaname": "Cakal",
+            "playtime_at_review": 35348,
+            "playtime_forever": 35597,
+            "playtime_last_two_weeks": 221,
+            "profile_url": "https://steamcommunity.com/profiles/76561199498652612/",
+            "steamid": "76561199498652612"
+          },
+          "comment_count": 1,
+          "language": "turkish",
+          "primarily_steam_deck": false,
+          "reactions": [
+            {
+              "count": 1,
+              "reaction_type": 27
+            },
+            {
+              "count": 1,
+              "reaction_type": 32
+            }
+          ],
+          "received_for_free": false,
+          "recommendationid": "218778327",
+          "refunded": false,
+          "review": "CS2 tam olarak toxic bir ilişki. Giriyorsun “2 maç atıp çıkarım” diyorsun, 4 saat sonra kendini Mirage’da sinir krizi geçirirken buluyorsun. Takım arkadaşların ya 9 yaşında ya da dünya şampiyonasında scout’la entry deniyor.\n\nHitbox ayrı bir evrende, smoke atıyorsun fizik kuralları istifa etmiş gibi davranıyor. Rank sistemi zaten psikolojik deney gibi. Kazanıyorsun +100, kaybediyorsun -400. Teşekkürler Valve, özgüvenim yerle bir oldu.\n\nAma gel gör ki… bırakamıyorsun.\nO clutch var ya… 1v3 alıyorsun, bütün sinir, bütün toxiclik bir anda uçuyor. O ses efekti, o “Terrorists Win” yazısı… İşte o an tekrar bağlanıyorsun.\n\nTopluluk %70 toxic, %20 sus pus, %10 efsane insan. Ama o %10 için bile değer diyorsun. Sonra yine biri mikrofona bağırıyor ve hayat sorgulaması başlıyor.",
+          "steam_purchase": true,
+          "timestamp_created": 1771598763,
+          "timestamp_updated": 1771598763,
+          "voted_up": true,
+          "votes_funny": 3,
+          "votes_up": 475,
+          "weighted_vote_score": "0.808288753032684326",
+          "written_during_early_access": false
+        },
+        {
+          "app_release_date": "1345568400",
+          "author": {
+            "avatar": "0b00a65f6afeb4d5c61c97cac3552546f32fca79",
+            "last_played": 1772828801,
+            "num_games_owned": 2,
+            "num_reviews": 1,
+            "persona_status": "online",
+            "personaname": "SoNeR",
+            "playtime_at_review": 10925,
+            "playtime_forever": 12108,
+            "playtime_last_two_weeks": 3467,
+            "profile_url": "https://steamcommunity.com/profiles/76561198303302538/",
+            "steamid": "76561198303302538"
+          },
+          "comment_count": 0,
+          "language": "turkish",
+          "primarily_steam_deck": false,
+          "reactions": [],
+          "received_for_free": false,
+          "recommendationid": "219716948",
+          "refunded": false,
+          "review": "Oyun gayet eğlenceli ancak oyun içerisinde çok fazla hileli oyuncu mevcut",
+          "steam_purchase": true,
+          "timestamp_created": 1772553410,
+          "timestamp_updated": 1772553410,
+          "voted_up": true,
+          "votes_funny": 247,
+          "votes_up": 1249,
+          "weighted_vote_score": "0.80058896541595459",
+          "written_during_early_access": false
+        },
+        {
+          "app_release_date": "1345568400",
+          "author": {
+            "avatar": "c408e72a0a49a1eb35bd778e1fd0e31d42743987",
+            "last_played": 1772808860,
+            "num_games_owned": 112,
+            "num_reviews": 1,
+            "persona_status": "offline",
+            "personaname": "katze",
+            "playtime_at_review": 74070,
+            "playtime_forever": 75146,
+            "playtime_last_two_weeks": 486,
+            "profile_url": "https://steamcommunity.com/id/tvc97/",
+            "steamid": "76561198381713753"
+          },
+          "comment_count": 26,
+          "language": "english",
+          "primarily_steam_deck": false,
+          "reactions": [
+            {
+              "count": 13,
+              "reaction_type": 28
+            },
+            {
+              "count": 9,
+              "reaction_type": 29
+            },
+            {
+              "count": 4,
+              "reaction_type": 24
+            },
+            {
+              "count": 3,
+              "reaction_type": 26
+            },
+            {
+              "count": 3,
+              "reaction_type": 31
+            },
+            {
+              "count": 2,
+              "reaction_type": 34
+            },
+            {
+              "count": 1,
+              "reaction_type": 27
+            },
+            {
+              "count": 1,
+              "reaction_type": 32
+            }
+          ],
+          "received_for_free": false,
+          "recommendationid": "217628532",
+          "refunded": false,
+          "review": "After 1234.5 hours of playtime, I would rate this game 6 7 out of 10.\n\nJust a little bit more things that will make this a better game:\n- Good anti-cheat\n- 128-tick (Yes, subtick didn't work)\n- Better hit registration / netcode\n- Consistent movement & spray behavior\n- Less peekers advantage\n- Ban waves that actually scare cheaters\n- MM ranks that actually mean something\n- Better solo-queue experience\n- Less rank decay nonsense\n- Less stuttering / frame drops\n- Fewer random packet loss issues\n- More global server coverage\n- Better map rotation\n- More operation?\n- Less stale active duty pool\n- Better demo system\n- More useful practice tools\n- Cleaner inventory UI\n- Less buggy skin finishes\n- More transparency with drops\n- No random skin breakage after updates\n- Actual communication from Valve\n- Roadmaps\n- Listening to long-term players",
+          "steam_purchase": true,
+          "timestamp_created": 1770301223,
+          "timestamp_updated": 1770301223,
+          "voted_up": true,
+          "votes_funny": 68,
+          "votes_up": 254,
+          "weighted_vote_score": "0.797057211399078369",
+          "written_during_early_access": false
+        },
+        {
+          "app_release_date": "1345568400",
+          "author": {
+            "avatar": "d9f8463ffdc2e81e114de67afa1de1d9819b5378",
+            "last_played": 1772807320,
+            "num_games_owned": 18,
+            "num_reviews": 1,
+            "persona_status": "offline",
+            "personaname": "bur4kbullet",
+            "playtime_at_review": 1630,
+            "playtime_forever": 4979,
+            "playtime_last_two_weeks": 1951,
+            "profile_url": "https://steamcommunity.com/profiles/76561199478601200/",
+            "steamid": "76561199478601200"
+          },
+          "comment_count": 1,
+          "language": "turkish",
+          "primarily_steam_deck": false,
+          "reactions": [],
+          "received_for_free": false,
+          "recommendationid": "217858154",
+          "refunded": false,
+          "review": "Gerçekten rakipsiz bir oyun. Ama gerçekten vac sisteminin güncellenmesi gerek oyuncuları kaybetmemesi için.",
+          "steam_purchase": true,
+          "timestamp_created": 1770555599,
+          "timestamp_updated": 1770555599,
+          "voted_up": true,
+          "votes_funny": 162,
+          "votes_up": 351,
+          "weighted_vote_score": "0.796617686748504639",
+          "written_during_early_access": false
+        },
+        {
+          "app_release_date": "1345568400",
+          "author": {
+            "avatar": "8df051aa1e3ee396944b59039a2764f6c41bffbf",
+            "last_played": 1772832628,
+            "num_games_owned": 0,
+            "num_reviews": 1,
+            "persona_status": "online",
+            "personaname": "designer03500",
+            "playtime_at_review": 91022,
+            "playtime_forever": 98884,
+            "playtime_last_two_weeks": 2848,
+            "profile_url": "https://steamcommunity.com/profiles/76561199179746163/",
+            "steamid": "76561199179746163"
+          },
+          "comment_count": 2,
+          "language": "turkish",
+          "primarily_steam_deck": false,
+          "reactions": [
+            {
+              "count": 4,
+              "reaction_type": 34
+            },
+            {
+              "count": 2,
+              "reaction_type": 26
+            },
+            {
+              "count": 2,
+              "reaction_type": 29
+            },
+            {
+              "count": 2,
+              "reaction_type": 31
+            },
+            {
+              "count": 1,
+              "reaction_type": 24
+            },
+            {
+              "count": 1,
+              "reaction_type": 25
+            },
+            {
+              "count": 1,
+              "reaction_type": 27
+            },
+            {
+              "count": 1,
+              "reaction_type": 28
+            },
+            {
+              "count": 1,
+              "reaction_type": 30
+            },
+            {
+              "count": 1,
+              "reaction_type": 32
+            },
+            {
+              "count": 1,
+              "reaction_type": 33
+            },
+            {
+              "count": 1,
+              "reaction_type": 35
+            }
+          ],
+          "received_for_free": false,
+          "recommendationid": "217617240",
+          "refunded": false,
+          "review": "Her yer hile doldu. Seçkin satın aldık belki orada hile görmeyiz diye, seçkin alanlarla oynarız diye ama onlar da hile. Aim hack özellikle son zamanlar o kadar arttı ki; artık hilecileri oyundan atmaya çalışınca hileciler bizi atmaya başladı. Kısacası Valve'ın A.Q.",
+          "steam_purchase": true,
+          "timestamp_created": 1770287216,
+          "timestamp_updated": 1770287216,
+          "voted_up": false,
+          "votes_funny": 3,
+          "votes_up": 61,
+          "weighted_vote_score": "0.839821875095367432",
+          "written_during_early_access": false
+        }
+      ],
+      "success": 1
+    },
+    "selected_headers": {
+      "cache-control": "private,max-age=600",
+      "content-length": "31259",
+      "content-type": "application/json; charset=utf-8",
+      "date": "Fri, 06 Mar 2026 21:46:06 GMT",
+      "etag": null,
+      "last-modified": null,
+      "retry-after": null
+    },
+    "status_code": 200
+  },
+  "schema_version": "1.0"
+}
