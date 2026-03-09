@@ -10,6 +10,14 @@ import os
 from pathlib import Path
 from typing import Any
 
+from steam.common.execution_meta import (
+    build_execution_meta,
+    default_meta_path,
+    save_execution_meta,
+    sum_attempt_stats,
+    summarize_attempts,
+    utc_now_iso,
+)
 from steam.normalize.bronze_to_silver_ccu import floor_to_kst_half_hour, format_kst_iso
 from steam.probe.common import decode_json_payload, request_with_retry
 
@@ -155,11 +163,14 @@ def fetch_ccu_for_app(
         else:
             missing_reason = "missing_player_count"
 
+    attempt_stats = summarize_attempts(result.attempts)
+
     return {
         "status_code": result.status_code,
         "ccu": ccu,
         "missing_reason": missing_reason,
         "attempts": result.attempts,
+        "attempt_stats": attempt_stats,
     }
 
 
@@ -206,6 +217,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--backoff-base-sec", type=float, default=0.5)
     parser.add_argument("--jitter-max-sec", type=float, default=0.3)
     parser.add_argument("--max-backoff-sec", type=float, default=8.0)
+    parser.add_argument("--meta-path", type=Path, default=None)
     return parser
 
 
@@ -217,39 +229,93 @@ def run(
     backoff_base_seconds: float,
     jitter_max_seconds: float,
     max_backoff_seconds: float,
+    meta_path: Path | None = None,
 ) -> list[dict[str, Any]]:
     """Fetch CCU for all tracked Steam games and write bronze output."""
 
-    psycopg = require_psycopg()
-    conninfo = build_pg_conninfo_from_env()
+    started_at_utc = utc_now_iso()
+    resolved_meta_path = meta_path or default_meta_path(
+        job_name="fetch_ccu_30m",
+        started_at_utc=started_at_utc,
+    )
 
-    with psycopg.connect(conninfo=conninfo) as conn:
-        targets = load_tracked_steam_games(conn)
+    success = False
+    http_status: int | None = None
+    retry_count = 0
+    timeout_count = 0
+    rate_limit_count = 0
+    records_in = 0
+    records_out = 0
+    error_type: str | None = None
+    error_message: str | None = None
 
-    records: list[dict[str, Any]] = []
-    for target in targets:
-        collected_at = dt.datetime.now(dt.UTC)
-        result = fetch_ccu_for_app(
-            steam_appid=target["steam_appid"],
-            timeout_seconds=timeout_seconds,
-            max_attempts=max_attempts,
-            backoff_base_seconds=backoff_base_seconds,
-            jitter_max_seconds=jitter_max_seconds,
-            max_backoff_seconds=max_backoff_seconds,
-        )
+    try:
+        psycopg = require_psycopg()
+        conninfo = build_pg_conninfo_from_env()
 
-        records.append(
-            build_bronze_record(
-                canonical_game_id=target["canonical_game_id"],
+        with psycopg.connect(conninfo=conninfo) as conn:
+            targets = load_tracked_steam_games(conn)
+
+        records_in = len(targets)
+        records: list[dict[str, Any]] = []
+        attempt_summaries: list[dict[str, int]] = []
+
+        for target in targets:
+            collected_at = dt.datetime.now(dt.UTC)
+            result = fetch_ccu_for_app(
                 steam_appid=target["steam_appid"],
-                collected_at=collected_at,
-                fetch_result=result,
+                timeout_seconds=timeout_seconds,
+                max_attempts=max_attempts,
+                backoff_base_seconds=backoff_base_seconds,
+                jitter_max_seconds=jitter_max_seconds,
+                max_backoff_seconds=max_backoff_seconds,
             )
-        )
+            attempt_summaries.append(result["attempt_stats"])
 
-    write_jsonl(output_path, records)
-    LOGGER.info("Wrote %s bronze rows to %s", len(records), output_path)
-    return records
+            records.append(
+                build_bronze_record(
+                    canonical_game_id=target["canonical_game_id"],
+                    steam_appid=target["steam_appid"],
+                    collected_at=collected_at,
+                    fetch_result=result,
+                )
+            )
+
+        write_jsonl(output_path, records)
+        LOGGER.info("Wrote %s bronze rows to %s", len(records), output_path)
+
+        aggregated_attempt_stats = sum_attempt_stats(attempt_summaries)
+        retry_count = aggregated_attempt_stats["retry_count"]
+        timeout_count = aggregated_attempt_stats["timeout_count"]
+        rate_limit_count = aggregated_attempt_stats["rate_limit_count"]
+        records_out = len(records)
+        if len(records) == 1:
+            http_status = records[0]["http_status"]
+        success = all(record["missing_reason"] is None for record in records)
+
+        return records
+    except Exception as exc:  # pragma: no cover - defensive runtime guard
+        error_type = type(exc).__name__
+        error_message = str(exc)
+        raise
+    finally:
+        finished_at_utc = utc_now_iso()
+        execution_meta = build_execution_meta(
+            job_name="fetch_ccu_30m",
+            started_at_utc=started_at_utc,
+            finished_at_utc=finished_at_utc,
+            success=success,
+            http_status=http_status,
+            retry_count=retry_count,
+            timeout_count=timeout_count,
+            rate_limit_count=rate_limit_count,
+            records_in=records_in,
+            records_out=records_out,
+            error_type=error_type,
+            error_message=error_message,
+        )
+        saved_meta_path = save_execution_meta(execution_meta, resolved_meta_path)
+        LOGGER.info("Saved fetch execution meta to %s", saved_meta_path)
 
 
 def main() -> None:
@@ -262,6 +328,7 @@ def main() -> None:
         backoff_base_seconds=args.backoff_base_sec,
         jitter_max_seconds=args.jitter_max_sec,
         max_backoff_seconds=args.max_backoff_sec,
+        meta_path=args.meta_path,
     )
 
 

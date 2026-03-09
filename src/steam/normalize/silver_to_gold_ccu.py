@@ -7,9 +7,16 @@ import datetime as dt
 import json
 import logging
 import os
+from collections.abc import Callable, Mapping
 from pathlib import Path
 from typing import Any
 
+from steam.common.execution_meta import (
+    build_execution_meta,
+    default_meta_path,
+    save_execution_meta,
+    utc_now_iso,
+)
 from steam.normalize.bronze_to_silver_ccu import (
     floor_to_kst_half_hour,
     format_kst_iso,
@@ -181,59 +188,137 @@ def build_result_row(
     }
 
 
-def run(input_path: Path, result_path: Path | None = None) -> list[dict[str, Any]]:
-    """Upsert silver rows into gold fact and compute day-over-day delta."""
-
-    silver_rows = load_jsonl(input_path)
-    psycopg = require_psycopg()
-    conninfo = build_pg_conninfo_from_env()
+def process_silver_rows(
+    silver_rows: list[Mapping[str, Any]],
+    *,
+    upsert_row: Callable[[int, dt.datetime, int, dt.datetime], None],
+    fetch_prev_day_ccu: Callable[[int, dt.datetime], int | None],
+) -> list[dict[str, Any]]:
+    """Process normalized silver rows with injected storage operations."""
 
     results: list[dict[str, Any]] = []
-    with psycopg.connect(conninfo=conninfo) as conn:
-        with conn.cursor() as cursor:
-            for row in silver_rows:
-                canonical_game_id = int(row["canonical_game_id"])
-                bucket_time = floor_to_kst_half_hour(parse_timestamp(str(row["bucket_time"])))
-                collected_at = to_kst_datetime(parse_timestamp(str(row["collected_at"])))
-                ccu = normalize_ccu(row.get("ccu"))
+    for row in silver_rows:
+        canonical_game_id = int(row["canonical_game_id"])
+        bucket_time = floor_to_kst_half_hour(parse_timestamp(str(row["bucket_time"])))
+        collected_at = to_kst_datetime(parse_timestamp(str(row["collected_at"])))
+        ccu = normalize_ccu(row.get("ccu"))
 
-                if ccu is None:
-                    results.append(
-                        build_result_row(
-                            canonical_game_id=canonical_game_id,
-                            bucket_time=bucket_time,
-                            ccu=None,
-                            prev_day_same_bucket_ccu=None,
-                            skipped=True,
-                        )
-                    )
-                    continue
-
-                upsert_fact_ccu_row(
-                    cursor,
+        if ccu is None:
+            results.append(
+                build_result_row(
                     canonical_game_id=canonical_game_id,
                     bucket_time=bucket_time,
-                    ccu=ccu,
-                    collected_at=collected_at,
+                    ccu=None,
+                    prev_day_same_bucket_ccu=None,
+                    skipped=True,
                 )
+            )
+            continue
 
-                prev_ccu = fetch_previous_day_ccu(cursor, canonical_game_id, bucket_time)
-                results.append(
-                    build_result_row(
+        upsert_row(canonical_game_id, bucket_time, ccu, collected_at)
+        prev_ccu = fetch_prev_day_ccu(canonical_game_id, bucket_time)
+        results.append(
+            build_result_row(
+                canonical_game_id=canonical_game_id,
+                bucket_time=bucket_time,
+                ccu=ccu,
+                prev_day_same_bucket_ccu=prev_ccu,
+                skipped=False,
+            )
+        )
+
+    return results
+
+
+def run(
+    input_path: Path,
+    result_path: Path | None = None,
+    meta_path: Path | None = None,
+) -> list[dict[str, Any]]:
+    """Upsert silver rows into gold fact and compute day-over-day delta."""
+
+    started_at_utc = utc_now_iso()
+    resolved_meta_path = meta_path or default_meta_path(
+        job_name="silver_to_gold_ccu",
+        started_at_utc=started_at_utc,
+    )
+
+    success = False
+    http_status: int | None = None
+    retry_count = 0
+    timeout_count = 0
+    rate_limit_count = 0
+    records_in = 0
+    records_out = 0
+    error_type: str | None = None
+    error_message: str | None = None
+
+    results: list[dict[str, Any]] = []
+    try:
+        silver_rows = load_jsonl(input_path)
+        records_in = len(silver_rows)
+
+        psycopg = require_psycopg()
+        conninfo = build_pg_conninfo_from_env()
+
+        with psycopg.connect(conninfo=conninfo) as conn:
+            with conn.cursor() as cursor:
+                def db_upsert(
+                    canonical_game_id: int,
+                    bucket_time: dt.datetime,
+                    ccu: int,
+                    collected_at: dt.datetime,
+                ) -> None:
+                    upsert_fact_ccu_row(
+                        cursor,
                         canonical_game_id=canonical_game_id,
                         bucket_time=bucket_time,
                         ccu=ccu,
-                        prev_day_same_bucket_ccu=prev_ccu,
-                        skipped=False,
+                        collected_at=collected_at,
                     )
+
+                def db_fetch_prev_day_ccu(
+                    canonical_game_id: int,
+                    bucket_time: dt.datetime,
+                ) -> int | None:
+                    return fetch_previous_day_ccu(cursor, canonical_game_id, bucket_time)
+
+                results = process_silver_rows(
+                    silver_rows,
+                    upsert_row=db_upsert,
+                    fetch_prev_day_ccu=db_fetch_prev_day_ccu,
                 )
 
-    if result_path is not None:
-        write_jsonl(result_path, results)
-        LOGGER.info("Wrote %s gold result rows to %s", len(results), result_path)
+        if result_path is not None:
+            write_jsonl(result_path, results)
+            LOGGER.info("Wrote %s gold result rows to %s", len(results), result_path)
 
-    LOGGER.info("Processed %s silver rows", len(results))
-    return results
+        LOGGER.info("Processed %s silver rows", len(results))
+        records_out = len(results)
+        success = True
+        return results
+    except Exception as exc:  # pragma: no cover - defensive runtime guard
+        error_type = type(exc).__name__
+        error_message = str(exc)
+        raise
+    finally:
+        finished_at_utc = utc_now_iso()
+        execution_meta = build_execution_meta(
+            job_name="silver_to_gold_ccu",
+            started_at_utc=started_at_utc,
+            finished_at_utc=finished_at_utc,
+            success=success,
+            http_status=http_status,
+            retry_count=retry_count,
+            timeout_count=timeout_count,
+            rate_limit_count=rate_limit_count,
+            records_in=records_in,
+            records_out=records_out,
+            error_type=error_type,
+            error_message=error_message,
+        )
+        saved_meta_path = save_execution_meta(execution_meta, resolved_meta_path)
+        LOGGER.info("Saved silver-to-gold execution meta to %s", saved_meta_path)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -242,13 +327,14 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Upsert Steam CCU silver JSONL into gold fact")
     parser.add_argument("--input-path", type=Path, required=True)
     parser.add_argument("--result-path", type=Path, default=None)
+    parser.add_argument("--meta-path", type=Path, default=None)
     return parser
 
 
 def main() -> None:
     configure_logging()
     args = build_parser().parse_args()
-    run(input_path=args.input_path, result_path=args.result_path)
+    run(input_path=args.input_path, result_path=args.result_path, meta_path=args.meta_path)
 
 
 if __name__ == "__main__":
