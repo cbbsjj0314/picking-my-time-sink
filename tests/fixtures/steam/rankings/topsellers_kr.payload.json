@@ -1,0 +1,569 @@
+{
+  "response": {
+    "start_date": 1771891200,
+    "ranks": [
+      {
+        "rank": 1,
+        "appid": 578080,
+        "item": {
+          "item_type": 0,
+          "id": 578080,
+          "success": 1,
+          "visible": true,
+          "name": "PUBG: BATTLEGROUNDS",
+          "store_url_path": "app/578080/PUBG_BATTLEGROUNDS",
+          "appid": 578080,
+          "type": 0,
+          "is_free": true,
+          "content_descriptorids": [
+            2,
+            5
+          ],
+          "categories": {
+            "supported_player_categoryids": [
+              1,
+              49,
+              36
+            ],
+            "feature_categoryids": [
+              15,
+              41,
+              42
+            ]
+          },
+          "basic_info": {
+            "short_description": "PUBG: BATTLEGROUNDS, the high-stakes winner-take-all shooter that started the Battle Royale craze, is free-to-play! Drop into diverse maps, loot unique weapons and supplies, and survive in an ever-shrinking zone where every turn could be your last.",
+            "publishers": [
+              {
+                "name": "KRAFTON, Inc.",
+                "creator_clan_account_id": 44295939
+              }
+            ],
+            "developers": [
+              {
+                "name": "PUBG Corporation",
+                "creator_clan_account_id": 33973721
+              }
+            ]
+          }
+        },
+        "last_week_rank": 1,
+        "consecutive_weeks": 467
+      },
+      {
+        "rank": 2,
+        "appid": 3764200,
+        "item": {
+          "item_type": 0,
+          "id": 3764200,
+          "success": 1,
+          "visible": true,
+          "name": "Resident Evil Requiem",
+          "store_url_path": "app/3764200/Resident_Evil_Requiem",
+          "appid": 3764200,
+          "type": 0,
+          "content_descriptorids": [
+            2,
+            5
+          ],
+          "categories": {
+            "supported_player_categoryids": [
+              2
+            ],
+            "feature_categoryids": [
+              22,
+              29,
+              13,
+              23,
+              61,
+              62
+            ],
+            "controller_categoryids": [
+              28
+            ]
+          },
+          "basic_info": {
+            "short_description": "Requiem for the dead. Nightmare for the living.\r\nPrepare to escape death in a heart-stopping experience that will chill you to your core.",
+            "publishers": [
+              {
+                "name": "CAPCOM Co., Ltd.",
+                "creator_clan_account_id": 33273264
+              }
+            ],
+            "developers": [
+              {
+                "name": "CAPCOM Co., Ltd.",
+                "creator_clan_account_id": 33273264
+              }
+            ],
+            "franchises": [
+              {
+                "name": "Resident Evil",
+                "creator_clan_account_id": 34827950
+              }
+            ]
+          },
+          "best_purchase_option": {
+            "packageid": 1324561,
+            "purchase_option_name": "Resident Evil Requiem",
+            "final_price_in_cents": "7980000",
+            "formatted_final_price": "₩ 79,800",
+            "user_can_purchase_as_gift": true,
+            "hide_discount_pct_for_compliance": false,
+            "included_game_count": 1,
+            "must_purchase_as_set": false
+          }
+        },
+        "last_week_rank": 12,
+        "consecutive_weeks": 8
+      },
+      {
+        "rank": 3,
+        "appid": 1973530,
+        "item": {
+          "item_type": 0,
+          "id": 1973530,
+          "success": 1,
+          "visible": true,
+          "name": "Limbus Company",
+          "store_url_path": "app/1973530/Limbus_Company",
+          "appid": 1973530,
+          "type": 0,
+          "is_free": true,
+          "content_descriptorids": [
+            2,
+            5
+          ],
+          "categories": {
+            "supported_player_categoryids": [
+              2
+            ],
+            "feature_categoryids": [
+              35
+            ]
+          },
+          "basic_info": {
+            "short_description": "As the Executive Manager of Limbus Company, lead your group of twelve Sinners, venture into the buried facilities of Lobotomy Corporation, and lay claim on the Golden Boughs.",
+            "publishers": [
+              {
+                "name": "ProjectMoon"
+              }
+            ],
+            "developers": [
+              {
+                "name": "ProjectMoon"
+              }
+            ],
+            "franchises": [
+              {
+                "name": "ProjectMoon"
+              }
+            ]
+          }
+        },
+        "last_week_rank": 3,
+        "consecutive_weeks": 158
+      },
+      {
+        "rank": 4,
+        "appid": 1049590,
+        "item": {
+          "item_type": 0,
+          "id": 1049590,
+          "success": 1,
+          "visible": true,
+          "name": "Eternal Return",
+          "store_url_path": "app/1049590/Eternal_Return",
+          "appid": 1049590,
+          "type": 0,
+          "is_free": true,
+          "categories": {
+            "supported_player_categoryids": [
+              1,
+              49,
+              36
+            ],
+            "feature_categoryids": [
+              29,
+              35,
+              66,
+              67,
+              68,
+              74
+            ]
+          },
+          "basic_info": {
+            "short_description": "Eternal Return is a free-to-play, 2.5D perspective Battle Royale game. \r\nSearch, Craft, Hunt, and Fight using a variety of characters.\r\nPlan your strategy and become the last survivor on this eternal experiment.",
+            "publishers": [
+              {
+                "name": "Nimble Neuron",
+                "creator_clan_account_id": 33309717
+              },
+              {
+                "name": "SapStaR Games",
+                "creator_clan_account_id": 44923188
+              }
+            ],
+            "developers": [
+              {
+                "name": "Nimble Neuron",
+                "creator_clan_account_id": 33309717
+              }
+            ]
+          }
+        },
+        "last_week_rank": 2,
+        "consecutive_weeks": 139
+      },
+      {
+        "rank": 5,
+        "appid": 730,
+        "item": {
+          "item_type": 0,
+          "id": 730,
+          "success": 1,
+          "visible": true,
+          "name": "Counter-Strike 2",
+          "store_url_path": "app/730/CounterStrike_2",
+          "appid": 730,
+          "type": 0,
+          "is_free": true,
+          "content_descriptorids": [
+            2,
+            5
+          ],
+          "categories": {
+            "supported_player_categoryids": [
+              1,
+              27
+            ],
+            "feature_categoryids": [
+              29,
+              30,
+              35,
+              64,
+              66,
+              67,
+              68,
+              69,
+              70,
+              74,
+              8,
+              15,
+              41,
+              42,
+              43,
+              63
+            ]
+          },
+          "basic_info": {
+            "short_description": "For over two decades, Counter-Strike has offered an elite competitive experience, one shaped by millions of players from across the globe. And now the next chapter in the CS story is about to begin. This is Counter-Strike 2.",
+            "publishers": [
+              {
+                "name": "Valve",
+                "creator_clan_account_id": 4
+              }
+            ],
+            "developers": [
+              {
+                "name": "Valve",
+                "creator_clan_account_id": 4
+              }
+            ]
+          }
+        },
+        "last_week_rank": 8,
+        "consecutive_weeks": 708
+      },
+      {
+        "rank": 6,
+        "appid": 4025700,
+        "item": {
+          "item_type": 0,
+          "id": 4025700,
+          "success": 1,
+          "visible": true,
+          "name": "Heartopia",
+          "store_url_path": "app/4025700/Heartopia",
+          "appid": 4025700,
+          "type": 0,
+          "is_free": true,
+          "categories": {
+            "supported_player_categoryids": [
+              2,
+              1,
+              27
+            ],
+            "feature_categoryids": [
+              35
+            ]
+          },
+          "basic_info": {
+            "short_description": "Welcome to Heartopia, a multiplayer life simulation game crafted for creativity, freedom, and peace. Build your dream home, explore a wide range of hobbies, and forge warm connections with friends in a town full of endless possibilities.",
+            "publishers": [
+              {
+                "name": "XD",
+                "creator_clan_account_id": 32962654
+              }
+            ],
+            "developers": [
+              {
+                "name": "XD",
+                "creator_clan_account_id": 32962654
+              }
+            ]
+          }
+        },
+        "last_week_rank": 5,
+        "consecutive_weeks": 7
+      },
+      {
+        "rank": 7,
+        "appid": 2139460,
+        "item": {
+          "item_type": 0,
+          "id": 2139460,
+          "success": 1,
+          "visible": true,
+          "name": "Once Human",
+          "store_url_path": "app/2139460/Once_Human",
+          "appid": 2139460,
+          "type": 0,
+          "is_free": true,
+          "categories": {
+            "supported_player_categoryids": [
+              1,
+              20,
+              49,
+              36,
+              9,
+              38
+            ],
+            "feature_categoryids": [
+              29,
+              35
+            ],
+            "controller_categoryids": [
+              28
+            ]
+          },
+          "basic_info": {
+            "short_description": "Once Human is a multiplayer open-world survival game set in a strange, post-apocalyptic future. Unite with friends to fight monstrous enemies, uncover secret plots, compete for resources, and build your own territory. Once, you were merely human. Now, you have the power to remake the world.",
+            "publishers": [
+              {
+                "name": "Starry Studio"
+              },
+              {
+                "name": "NetEase Games",
+                "creator_clan_account_id": 45928371
+              }
+            ],
+            "developers": [
+              {
+                "name": "Starry Studio"
+              }
+            ]
+          }
+        },
+        "last_week_rank": 17,
+        "consecutive_weeks": 86
+      },
+      {
+        "rank": 8,
+        "appid": 1086940,
+        "item": {
+          "item_type": 0,
+          "id": 1086940,
+          "success": 1,
+          "visible": true,
+          "name": "Baldur's Gate 3",
+          "store_url_path": "app/1086940/Baldurs_Gate_3",
+          "appid": 1086940,
+          "type": 0,
+          "content_descriptorids": [
+            1,
+            2,
+            5
+          ],
+          "categories": {
+            "supported_player_categoryids": [
+              2,
+              1,
+              9,
+              38,
+              48,
+              27
+            ],
+            "feature_categoryids": [
+              22,
+              29,
+              64,
+              65,
+              66,
+              67,
+              68,
+              69,
+              70,
+              74,
+              78,
+              79,
+              23,
+              43,
+              44,
+              62
+            ],
+            "controller_categoryids": [
+              28
+            ]
+          },
+          "basic_info": {
+            "short_description": "Baldur’s Gate 3 is a story-rich, party-based RPG set in the universe of Dungeons & Dragons, where your choices shape a tale of fellowship and betrayal, survival and sacrifice, and the lure of absolute power.",
+            "publishers": [
+              {
+                "name": "Larian Studios",
+                "creator_clan_account_id": 6879350
+              }
+            ],
+            "developers": [
+              {
+                "name": "Larian Studios",
+                "creator_clan_account_id": 6879350
+              }
+            ],
+            "franchises": [
+              {
+                "name": "Baldur's Gate"
+              }
+            ]
+          },
+          "best_purchase_option": {
+            "packageid": 907539,
+            "purchase_option_name": "Baldur's Gate 3",
+            "final_price_in_cents": "6600000",
+            "formatted_final_price": "₩ 66,000",
+            "user_can_purchase_as_gift": true,
+            "hide_discount_pct_for_compliance": false,
+            "included_game_count": 1,
+            "must_purchase_as_set": false
+          }
+        },
+        "last_week_rank": 77,
+        "consecutive_weeks": 13
+      },
+      {
+        "rank": 9,
+        "appid": 3321460,
+        "item": {
+          "item_type": 0,
+          "id": 3321460,
+          "success": 1,
+          "visible": true,
+          "name": "Crimson Desert",
+          "store_url_path": "app/3321460/Crimson_Desert",
+          "appid": 3321460,
+          "type": 0,
+          "content_descriptorids": [
+            2,
+            5
+          ],
+          "categories": {
+            "supported_player_categoryids": [
+              2
+            ],
+            "feature_categoryids": [
+              22,
+              65,
+              68,
+              69,
+              70,
+              79,
+              23,
+              61,
+              62
+            ],
+            "controller_categoryids": [
+              28
+            ]
+          },
+          "basic_info": {
+            "short_description": "Crimson Desert is an open-world action-adventure game set in the beautiful yet brutal continent of Pywel. Embark on a journey as the Greymane Kliff and restore what has been lost. Explore uncharted lands, fight against threats that stand in your way, and discover the wonders the world has in store.",
+            "publishers": [
+              {
+                "name": "Pearl Abyss",
+                "creator_clan_account_id": 39862715
+              }
+            ],
+            "developers": [
+              {
+                "name": "Pearl Abyss",
+                "creator_clan_account_id": 39862715
+              }
+            ]
+          },
+          "is_coming_soon": true,
+          "best_purchase_option": {
+            "packageid": 1418500,
+            "purchase_option_name": "Crimson Desert Standard Edition",
+            "final_price_in_cents": "7980000",
+            "formatted_final_price": "₩ 79,800",
+            "user_can_purchase_as_gift": true,
+            "hide_discount_pct_for_compliance": false,
+            "included_game_count": 1,
+            "must_purchase_as_set": false
+          }
+        },
+        "last_week_rank": 28,
+        "consecutive_weeks": 6
+      },
+      {
+        "rank": 10,
+        "appid": 3564740,
+        "item": {
+          "item_type": 0,
+          "id": 3564740,
+          "success": 1,
+          "visible": true,
+          "name": "Where Winds Meet",
+          "store_url_path": "app/3564740/Where_Winds_Meet",
+          "appid": 3564740,
+          "type": 0,
+          "is_free": true,
+          "categories": {
+            "supported_player_categoryids": [
+              2,
+              1,
+              49,
+              36,
+              9,
+              38,
+              27
+            ],
+            "feature_categoryids": [
+              22,
+              35
+            ],
+            "controller_categoryids": [
+              28
+            ]
+          },
+          "basic_info": {
+            "short_description": "Where Winds Meet is an epic Wuxia open-world action-adventure RPG set in ancient China at the tenth century. Players will assume the role of a young sword master as they embark on a journey to uncover the mysteries of their own identity. Let the wind carry your legend on an epic journey to the East!",
+            "publishers": [
+              {
+                "name": "NetEase Games"
+              }
+            ],
+            "developers": [
+              {
+                "name": "Everstone Studio"
+              }
+            ]
+          }
+        },
+        "last_week_rank": 6,
+        "consecutive_weeks": 16
+      }
+    ],
+    "next_page_start": 10
+  }
+}

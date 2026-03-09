@@ -148,6 +148,80 @@ def parse_rankings_html(html_text: str, *, max_rows: int = 100) -> list[dict[str
     return parser.rows
 
 
+def _coerce_int(value: object) -> int | None:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _title_from_payload_item(*, item: object, app_id: int) -> str:
+    if isinstance(item, dict):
+        name = item.get("name")
+        if isinstance(name, str) and name.strip():
+            return name.strip()
+
+        store_url_path = item.get("store_url_path")
+        if isinstance(store_url_path, str) and store_url_path.strip():
+            store_url_path = store_url_path.strip().lstrip("/")
+            match = APP_LINK_RE.search(f"/{store_url_path}")
+            if match:
+                return infer_title_from_chunks(
+                    chunks=[],
+                    slug=match.group(2) or "",
+                    app_id=app_id,
+                )
+
+    return f"app_{app_id}"
+
+
+def parse_rankings_payload(
+    payload: object,
+    *,
+    max_rows: int = 100,
+) -> list[dict[str, int | str]]:
+    """Parse rank rows from machine-readable Steam rankings payloads."""
+
+    if not isinstance(payload, dict):
+        return []
+
+    response = payload.get("response")
+    if not isinstance(response, dict):
+        return []
+
+    ranks = response.get("ranks")
+    if not isinstance(ranks, list):
+        return []
+
+    rows: list[dict[str, int | str]] = []
+    seen_app_ids: set[int] = set()
+
+    for rank_entry in ranks:
+        if len(rows) >= max_rows or not isinstance(rank_entry, dict):
+            break
+
+        app_id = _coerce_int(rank_entry.get("appid"))
+        item = rank_entry.get("item")
+        if app_id is None and isinstance(item, dict):
+            app_id = _coerce_int(item.get("appid"))
+        if app_id is None and isinstance(item, dict):
+            app_id = _coerce_int(item.get("id"))
+        if app_id is None or app_id in seen_app_ids:
+            continue
+
+        rank = _coerce_int(rank_entry.get("rank")) or len(rows) + 1
+        rows.append(
+            {
+                "rank": rank,
+                "app_id": app_id,
+                "title": _title_from_payload_item(item=item, app_id=app_id),
+            }
+        )
+        seen_app_ids.add(app_id)
+
+    return rows
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Steam probe: chart rankings")
     add_common_probe_arguments(parser)

@@ -1,0 +1,626 @@
+{
+  "response": {
+    "start_date": 1771891200,
+    "ranks": [
+      {
+        "rank": 1,
+        "appid": 3764200,
+        "item": {
+          "item_type": 0,
+          "id": 3764200,
+          "success": 1,
+          "visible": true,
+          "name": "Resident Evil Requiem",
+          "store_url_path": "app/3764200/Resident_Evil_Requiem",
+          "appid": 3764200,
+          "type": 0,
+          "content_descriptorids": [
+            2,
+            5
+          ],
+          "categories": {
+            "supported_player_categoryids": [
+              2
+            ],
+            "feature_categoryids": [
+              22,
+              29,
+              13,
+              23,
+              61,
+              62
+            ],
+            "controller_categoryids": [
+              28
+            ]
+          },
+          "basic_info": {
+            "short_description": "Requiem for the dead. Nightmare for the living.\r\nPrepare to escape death in a heart-stopping experience that will chill you to your core.",
+            "publishers": [
+              {
+                "name": "CAPCOM Co., Ltd.",
+                "creator_clan_account_id": 33273264
+              }
+            ],
+            "developers": [
+              {
+                "name": "CAPCOM Co., Ltd.",
+                "creator_clan_account_id": 33273264
+              }
+            ],
+            "franchises": [
+              {
+                "name": "Resident Evil",
+                "creator_clan_account_id": 34827950
+              }
+            ]
+          },
+          "best_purchase_option": {
+            "packageid": 1324561,
+            "purchase_option_name": "Resident Evil Requiem",
+            "final_price_in_cents": "6999",
+            "formatted_final_price": "$69.99",
+            "user_can_purchase_as_gift": true,
+            "hide_discount_pct_for_compliance": false,
+            "included_game_count": 1,
+            "must_purchase_as_set": false
+          }
+        },
+        "last_week_rank": 2,
+        "consecutive_weeks": 8
+      },
+      {
+        "rank": 2,
+        "appid": 730,
+        "item": {
+          "item_type": 0,
+          "id": 730,
+          "success": 1,
+          "visible": true,
+          "name": "Counter-Strike 2",
+          "store_url_path": "app/730/CounterStrike_2",
+          "appid": 730,
+          "type": 0,
+          "is_free": true,
+          "content_descriptorids": [
+            2,
+            5
+          ],
+          "categories": {
+            "supported_player_categoryids": [
+              1,
+              27
+            ],
+            "feature_categoryids": [
+              29,
+              30,
+              35,
+              64,
+              66,
+              67,
+              68,
+              69,
+              70,
+              74,
+              8,
+              15,
+              41,
+              42,
+              43,
+              63
+            ]
+          },
+          "basic_info": {
+            "short_description": "For over two decades, Counter-Strike has offered an elite competitive experience, one shaped by millions of players from across the globe. And now the next chapter in the CS story is about to begin. This is Counter-Strike 2.",
+            "publishers": [
+              {
+                "name": "Valve",
+                "creator_clan_account_id": 4
+              }
+            ],
+            "developers": [
+              {
+                "name": "Valve",
+                "creator_clan_account_id": 4
+              }
+            ]
+          }
+        },
+        "last_week_rank": 1,
+        "consecutive_weeks": 708
+      },
+      {
+        "rank": 3,
+        "appid": 1172470,
+        "item": {
+          "item_type": 0,
+          "id": 1172470,
+          "success": 1,
+          "visible": true,
+          "name": "Apex Legends™",
+          "store_url_path": "app/1172470/Apex_Legends",
+          "appid": 1172470,
+          "type": 0,
+          "is_free": true,
+          "categories": {
+            "supported_player_categoryids": [
+              1,
+              49,
+              36,
+              9,
+              38
+            ],
+            "feature_categoryids": [
+              22,
+              29,
+              35,
+              72,
+              74
+            ],
+            "controller_categoryids": [
+              28
+            ]
+          },
+          "basic_info": {
+            "short_description": "Apex Legends is the award-winning, free-to-play Hero Shooter from Respawn Entertainment. Master an ever-growing roster of legendary characters with powerful abilities, and experience strategic squad play and innovative gameplay in the next evolution of Hero Shooter and Battle Royale.",
+            "publishers": [
+              {
+                "name": "Electronic Arts",
+                "creator_clan_account_id": 36135791
+              }
+            ],
+            "developers": [
+              {
+                "name": "Respawn",
+                "creator_clan_account_id": 37913704
+              }
+            ],
+            "franchises": [
+              {
+                "name": "Apex Legends",
+                "creator_clan_account_id": 36135791
+              }
+            ]
+          }
+        },
+        "last_week_rank": 5,
+        "consecutive_weeks": 278
+      },
+      {
+        "rank": 4,
+        "appid": 578080,
+        "item": {
+          "item_type": 0,
+          "id": 578080,
+          "success": 1,
+          "visible": true,
+          "name": "PUBG: BATTLEGROUNDS",
+          "store_url_path": "app/578080/PUBG_BATTLEGROUNDS",
+          "appid": 578080,
+          "type": 0,
+          "is_free": true,
+          "content_descriptorids": [
+            2,
+            5
+          ],
+          "categories": {
+            "supported_player_categoryids": [
+              1,
+              49,
+              36
+            ],
+            "feature_categoryids": [
+              15,
+              41,
+              42
+            ]
+          },
+          "basic_info": {
+            "short_description": "PUBG: BATTLEGROUNDS, the high-stakes winner-take-all shooter that started the Battle Royale craze, is free-to-play! Drop into diverse maps, loot unique weapons and supplies, and survive in an ever-shrinking zone where every turn could be your last.",
+            "publishers": [
+              {
+                "name": "KRAFTON, Inc.",
+                "creator_clan_account_id": 44295939
+              }
+            ],
+            "developers": [
+              {
+                "name": "PUBG Corporation",
+                "creator_clan_account_id": 33973721
+              }
+            ]
+          }
+        },
+        "last_week_rank": 8,
+        "consecutive_weeks": 467
+      },
+      {
+        "rank": 5,
+        "appid": 1808500,
+        "item": {
+          "item_type": 0,
+          "id": 1808500,
+          "success": 1,
+          "visible": true,
+          "name": "ARC Raiders",
+          "store_url_path": "app/1808500/ARC_Raiders",
+          "appid": 1808500,
+          "type": 0,
+          "categories": {
+            "supported_player_categoryids": [
+              1,
+              49,
+              36,
+              9,
+              38,
+              27
+            ],
+            "feature_categoryids": [
+              22,
+              35,
+              15,
+              62
+            ],
+            "controller_categoryids": [
+              28
+            ]
+          },
+          "basic_info": {
+            "short_description": "ARC Raiders is a multiplayer extraction adventure, set in a lethal future earth, ravaged by a mysterious mechanized threat known as ARC.",
+            "publishers": [
+              {
+                "name": "Embark Studios"
+              }
+            ],
+            "developers": [
+              {
+                "name": "Embark Studios"
+              }
+            ]
+          },
+          "best_purchase_option": {
+            "packageid": 1399488,
+            "purchase_option_name": "Arc Raiders",
+            "final_price_in_cents": "3999",
+            "formatted_final_price": "$39.99",
+            "user_can_purchase_as_gift": true,
+            "hide_discount_pct_for_compliance": false,
+            "included_game_count": 1,
+            "must_purchase_as_set": false
+          }
+        },
+        "last_week_rank": 10,
+        "consecutive_weeks": 24
+      },
+      {
+        "rank": 6,
+        "appid": 1675200,
+        "item": {
+          "item_type": 0,
+          "id": 1675200,
+          "success": 1,
+          "visible": true,
+          "name": "Steam Deck",
+          "store_url_path": "app/1675200/Steam_Deck",
+          "appid": 1675200,
+          "type": 10,
+          "categories": {},
+          "basic_info": {
+            "short_description": "Your games, everywhere\r\nPowerful, portable PC gaming, designed for comfort and a console-like user experience\r\n",
+            "capsule_headline": "Now Shipping"
+          },
+          "best_purchase_option": {
+            "packageid": 946113,
+            "purchase_option_name": "Steam Deck 512 GB OLED",
+            "final_price_in_cents": "54900",
+            "formatted_final_price": "$549.00",
+            "user_can_purchase_as_gift": false,
+            "hide_discount_pct_for_compliance": false,
+            "included_game_count": 0,
+            "requires_shipping": true,
+            "must_purchase_as_set": false
+          }
+        },
+        "last_week_rank": 14,
+        "consecutive_weeks": 210
+      },
+      {
+        "rank": 7,
+        "appid": 1086940,
+        "item": {
+          "item_type": 0,
+          "id": 1086940,
+          "success": 1,
+          "visible": true,
+          "name": "Baldur's Gate 3",
+          "store_url_path": "app/1086940/Baldurs_Gate_3",
+          "appid": 1086940,
+          "type": 0,
+          "content_descriptorids": [
+            1,
+            2,
+            5
+          ],
+          "categories": {
+            "supported_player_categoryids": [
+              2,
+              1,
+              9,
+              38,
+              48,
+              27
+            ],
+            "feature_categoryids": [
+              22,
+              29,
+              64,
+              65,
+              66,
+              67,
+              68,
+              69,
+              70,
+              74,
+              78,
+              79,
+              23,
+              43,
+              44,
+              62
+            ],
+            "controller_categoryids": [
+              28
+            ]
+          },
+          "basic_info": {
+            "short_description": "Baldur’s Gate 3 is a story-rich, party-based RPG set in the universe of Dungeons & Dragons, where your choices shape a tale of fellowship and betrayal, survival and sacrifice, and the lure of absolute power.",
+            "publishers": [
+              {
+                "name": "Larian Studios",
+                "creator_clan_account_id": 6879350
+              }
+            ],
+            "developers": [
+              {
+                "name": "Larian Studios",
+                "creator_clan_account_id": 6879350
+              }
+            ],
+            "franchises": [
+              {
+                "name": "Baldur's Gate"
+              }
+            ]
+          },
+          "best_purchase_option": {
+            "packageid": 907539,
+            "purchase_option_name": "Baldur's Gate 3",
+            "final_price_in_cents": "5999",
+            "formatted_final_price": "$59.99",
+            "user_can_purchase_as_gift": true,
+            "hide_discount_pct_for_compliance": false,
+            "included_game_count": 1,
+            "must_purchase_as_set": false
+          }
+        },
+        "last_week_rank": 45,
+        "consecutive_weeks": 154
+      },
+      {
+        "rank": 8,
+        "appid": 2399830,
+        "item": {
+          "item_type": 0,
+          "id": 2399830,
+          "success": 1,
+          "visible": true,
+          "name": "ARK: Survival Ascended",
+          "store_url_path": "app/2399830/ARK_Survival_Ascended",
+          "appid": 2399830,
+          "type": 0,
+          "is_early_access": true,
+          "categories": {
+            "supported_player_categoryids": [
+              2,
+              1,
+              20,
+              49,
+              36,
+              47,
+              9,
+              38,
+              48,
+              39,
+              24,
+              27
+            ],
+            "feature_categoryids": [
+              22,
+              17,
+              44,
+              62
+            ],
+            "controller_categoryids": [
+              28
+            ]
+          },
+          "basic_info": {
+            "short_description": "ARK is reimagined from the ground-up into the next-generation of video game technology with Unreal Engine 5! Form a tribe, tame & breed hundreds of unique dinosaurs and primeval creatures, explore, craft, build, and fight your way to the top of the food-chain. Your new world awaits!",
+            "publishers": [
+              {
+                "name": "Studio Wildcard"
+              },
+              {
+                "name": "Snail Games USA",
+                "creator_clan_account_id": 32938488
+              }
+            ],
+            "developers": [
+              {
+                "name": "Studio Wildcard"
+              },
+              {
+                "name": "Grove Street Games",
+                "creator_clan_account_id": 32938488
+              },
+              {
+                "name": "Instinct Games"
+              }
+            ],
+            "franchises": [
+              {
+                "name": "Snail Games USA",
+                "creator_clan_account_id": 32938488
+              }
+            ]
+          },
+          "best_purchase_option": {
+            "packageid": 863377,
+            "purchase_option_name": "ARK: Survival Ascended",
+            "final_price_in_cents": "4499",
+            "formatted_final_price": "$44.99",
+            "user_can_purchase_as_gift": true,
+            "hide_discount_pct_for_compliance": false,
+            "included_game_count": 1,
+            "must_purchase_as_set": false
+          }
+        },
+        "last_week_rank": 55,
+        "consecutive_weeks": 2
+      },
+      {
+        "rank": 9,
+        "appid": 3065800,
+        "item": {
+          "item_type": 0,
+          "id": 3065800,
+          "success": 1,
+          "visible": true,
+          "name": "Marathon",
+          "store_url_path": "app/3065800/Marathon",
+          "appid": 3065800,
+          "type": 0,
+          "categories": {
+            "supported_player_categoryids": [
+              1,
+              49,
+              36,
+              27
+            ],
+            "feature_categoryids": [
+              22,
+              64,
+              65,
+              66,
+              67,
+              68,
+              69,
+              70,
+              74,
+              75,
+              76,
+              77,
+              62
+            ],
+            "controller_categoryids": [
+              18
+            ]
+          },
+          "basic_info": {
+            "short_description": "Scavenge the lost colony of Tau Ceti IV as a bio-cybernetic Runner in a PvPvE survival extraction FPS from the creators of Halo and Destiny.",
+            "publishers": [
+              {
+                "name": "Bungie",
+                "creator_clan_account_id": 42567202
+              }
+            ],
+            "developers": [
+              {
+                "name": "Bungie",
+                "creator_clan_account_id": 42567202
+              }
+            ]
+          },
+          "best_purchase_option": {
+            "packageid": 1089507,
+            "purchase_option_name": "Marathon",
+            "final_price_in_cents": "3999",
+            "formatted_final_price": "$39.99",
+            "user_can_purchase_as_gift": true,
+            "hide_discount_pct_for_compliance": false,
+            "included_game_count": 1,
+            "must_purchase_as_set": false
+          }
+        },
+        "last_week_rank": 82,
+        "consecutive_weeks": 2
+      },
+      {
+        "rank": 10,
+        "appid": 230410,
+        "item": {
+          "item_type": 0,
+          "id": 230410,
+          "success": 1,
+          "visible": true,
+          "name": "Warframe",
+          "store_url_path": "app/230410/Warframe",
+          "appid": 230410,
+          "type": 0,
+          "is_free": true,
+          "content_descriptorids": [
+            2,
+            5
+          ],
+          "categories": {
+            "supported_player_categoryids": [
+              2,
+              1,
+              9,
+              38,
+              27
+            ],
+            "feature_categoryids": [
+              22,
+              29,
+              30,
+              35,
+              66,
+              67,
+              68,
+              69,
+              70,
+              74,
+              41,
+              42,
+              43,
+              61
+            ],
+            "controller_categoryids": [
+              28
+            ]
+          },
+          "basic_info": {
+            "short_description": "Awaken as an unstoppable warrior and battle alongside your friends in this story-driven free-to-play online action game",
+            "publishers": [
+              {
+                "name": "Digital Extremes",
+                "creator_clan_account_id": 32978945
+              }
+            ],
+            "developers": [
+              {
+                "name": "Digital Extremes",
+                "creator_clan_account_id": 32978945
+              }
+            ],
+            "capsule_headline": "#label_just_updated"
+          }
+        },
+        "last_week_rank": 4,
+        "consecutive_weeks": 170
+      }
+    ],
+    "next_page_start": 10
+  }
+}
