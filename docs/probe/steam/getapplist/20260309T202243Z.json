@@ -1,0 +1,81 @@
+{
+  "attempts": [
+    {
+      "attempt": 1,
+      "error": null,
+      "sleep_seconds": 0.0,
+      "status_code": 200
+    }
+  ],
+  "collected_at_utc": "2026-03-09T20:22:43Z",
+  "error": null,
+  "probe_name": "getapplist",
+  "request": {
+    "method": "GET",
+    "params": {
+      "key": "***redacted***"
+    },
+    "timeout_seconds": 10.0,
+    "url": "https://api.steampowered.com/IStoreService/GetAppList/v1/"
+  },
+  "response": {
+    "body_sha256": "9fbe3b5d13dc9a49c7b47f6f4e81b38d075ca9acbca0b2b68384cc04df6fc6db",
+    "body_size": 1035476,
+    "is_empty": false,
+    "payload_excerpt_or_json": {
+      "app_count": 10000,
+      "apps_excerpt": [
+        {
+          "appid": 10,
+          "last_modified": 1745368572,
+          "name": "Counter-Strike",
+          "price_change_number": 33078735
+        },
+        {
+          "appid": 20,
+          "last_modified": 1745368565,
+          "name": "Team Fortress Classic",
+          "price_change_number": 33078735
+        },
+        {
+          "appid": 30,
+          "last_modified": 1745368580,
+          "name": "Day of Defeat",
+          "price_change_number": 33078735
+        },
+        {
+          "appid": 40,
+          "last_modified": 1745368570,
+          "name": "Deathmatch Classic",
+          "price_change_number": 33078735
+        },
+        {
+          "appid": 50,
+          "last_modified": 1745368539,
+          "name": "Half-Life: Opposing Force",
+          "price_change_number": 33078735
+        }
+      ],
+      "pagination": {
+        "have_more_results": true,
+        "last_appid": 507030
+      },
+      "top_level_keys": [
+        "apps",
+        "have_more_results",
+        "last_appid"
+      ]
+    },
+    "selected_headers": {
+      "cache-control": null,
+      "content-length": null,
+      "content-type": "application/json; charset=UTF-8",
+      "date": "Mon, 09 Mar 2026 20:22:42 GMT",
+      "etag": null,
+      "last-modified": null,
+      "retry-after": null
+    },
+    "status_code": 200
+  },
+  "schema_version": "1.0"
+}
