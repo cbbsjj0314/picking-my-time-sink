@@ -32,6 +32,34 @@ from steam.probe.common import (
 LOGGER = logging.getLogger(__name__)
 PROBE_NAME = "ccu"
 REQUEST_URL = "https://api.steampowered.com/ISteamUserStats/GetNumberOfCurrentPlayers/v1/"
+CCU_RETRYABLE_STATUS_CODES = frozenset({404, 429, 500, 502, 503, 504})
+
+
+def ccu_response_retry_reason(status_code: int | None, body: bytes) -> str | None:
+    """Return a retry reason for abnormal CCU payloads."""
+
+    del status_code
+
+    if not body:
+        return "empty_body"
+
+    payload = decode_json_payload(body)
+    if payload is None:
+        return "invalid_json"
+
+    if not isinstance(payload, dict):
+        return "missing_player_count"
+
+    response = payload.get("response")
+    if not isinstance(response, dict):
+        return "missing_player_count"
+
+    try:
+        player_count = int(response.get("player_count"))
+    except (TypeError, ValueError):
+        return "missing_player_count"
+
+    return None if player_count >= 0 else "missing_player_count"
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -79,6 +107,8 @@ def main() -> None:
             jitter_max_seconds=runtime.jitter_max_seconds,
             max_backoff_seconds=runtime.max_backoff_seconds,
             logger=LOGGER,
+            retryable_status_codes=CCU_RETRYABLE_STATUS_CODES,
+            response_retry_reason=ccu_response_retry_reason,
         )
 
         payload = decode_json_payload(result.body)
@@ -109,6 +139,9 @@ def main() -> None:
         http_status = result.status_code
         records_out = 1 if result.status_code is not None and result.status_code < 400 else 0
         success = result.error is None and records_out == 1
+        if result.error is not None:
+            error_type = result.error.get("type")
+            error_message = result.error.get("message")
     except Exception as exc:  # pragma: no cover - defensive runtime guard
         error_type = type(exc).__name__
         error_message = str(exc)

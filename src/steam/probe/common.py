@@ -13,7 +13,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
-from collections.abc import Mapping
+from collections.abc import Callable, Collection, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -153,6 +153,8 @@ def request_with_retry(
     max_backoff_seconds: float,
     logger: logging.Logger | None = None,
     extra_headers: Mapping[str, str] | None = None,
+    retryable_status_codes: Collection[int] | None = None,
+    response_retry_reason: Callable[[int | None, bytes], str | None] | None = None,
 ) -> RequestResult:
     """Send a GET request and capture retries, failures, and response metadata."""
 
@@ -193,20 +195,41 @@ def request_with_retry(
                 response_headers = dict(response.headers.items())
 
             attempt_log["status_code"] = status_code
-            attempts.append(attempt_log)
 
             if not body:
                 log.warning("Empty response body from %s (status=%s)", final_url, status_code)
 
-            return RequestResult(
-                final_url=final_url,
-                status_code=status_code,
-                headers=response_headers,
-                body=body,
-                attempts=attempts,
-                error=None,
+            retry_reason = (
+                response_retry_reason(status_code, body)
+                if response_retry_reason is not None
+                else None
             )
+            if retry_reason is None:
+                attempts.append(attempt_log)
+                return RequestResult(
+                    final_url=final_url,
+                    status_code=status_code,
+                    headers=response_headers,
+                    body=body,
+                    attempts=attempts,
+                    error=None,
+                )
 
+            attempt_log["error"] = retry_reason
+            last_status_code = status_code
+            last_headers = response_headers
+            last_body = body
+            last_error = {
+                "type": "response_error",
+                "message": retry_reason,
+            }
+            retryable = True
+            log.warning(
+                "Retryable response anomaly from %s (attempt=%s, reason=%s)",
+                final_url,
+                attempt,
+                retry_reason,
+            )
         except urllib.error.HTTPError as exc:
             status_code = exc.code
             response_headers = dict(exc.headers.items()) if exc.headers is not None else {}
@@ -214,7 +237,10 @@ def request_with_retry(
 
             attempt_log["status_code"] = status_code
             attempt_log["error"] = f"HTTP {status_code}"
-            retryable = status_code == 429 or status_code >= 500
+            if retryable_status_codes is None:
+                retryable = status_code == 429 or status_code >= 500
+            else:
+                retryable = status_code in retryable_status_codes
 
             if status_code == 429:
                 log.warning("Received HTTP 429 from %s (attempt=%s)", final_url, attempt)

@@ -23,6 +23,7 @@ from steam.probe.common import decode_json_payload, request_with_retry
 
 LOGGER = logging.getLogger(__name__)
 CCU_ENDPOINT = "https://api.steampowered.com/ISteamUserStats/GetNumberOfCurrentPlayers/v1/"
+CCU_RETRYABLE_STATUS_CODES = frozenset({404, 429, 500, 502, 503, 504})
 
 
 def configure_logging() -> None:
@@ -122,6 +123,24 @@ def extract_player_count(payload: Any) -> int | None:
     return parsed if parsed >= 0 else None
 
 
+def ccu_response_retry_reason(status_code: int | None, body: bytes) -> str | None:
+    """Return a retry reason for abnormal CCU payloads."""
+
+    del status_code
+
+    if not body:
+        return "empty_body"
+
+    payload = decode_json_payload(body)
+    if payload is None:
+        return "invalid_json"
+
+    if extract_player_count(payload) is None:
+        return "missing_player_count"
+
+    return None
+
+
 def fetch_ccu_for_app(
     *,
     steam_appid: int,
@@ -147,6 +166,8 @@ def fetch_ccu_for_app(
         jitter_max_seconds=jitter_max_seconds,
         max_backoff_seconds=max_backoff_seconds,
         logger=LOGGER,
+        retryable_status_codes=CCU_RETRYABLE_STATUS_CODES,
+        response_retry_reason=ccu_response_retry_reason,
     )
 
     payload = decode_json_payload(result.body)
@@ -154,12 +175,19 @@ def fetch_ccu_for_app(
 
     missing_reason: str | None = None
     if ccu is None:
-        if result.error:
-            missing_reason = f"request_error:{result.error.get('type', 'unknown')}"
+        if result.status_code == 404:
+            missing_reason = "http_404"
+        elif result.error and result.error.get("type") == "response_error":
+            missing_reason = "missing_player_count"
         elif result.status_code is None:
-            missing_reason = "missing_status_code"
+            if result.error:
+                missing_reason = f"request_error:{result.error.get('type', 'unknown')}"
+            else:
+                missing_reason = "missing_status_code"
         elif result.status_code >= 400:
             missing_reason = f"http_{result.status_code}"
+        elif result.error:
+            missing_reason = f"request_error:{result.error.get('type', 'unknown')}"
         else:
             missing_reason = "missing_player_count"
 

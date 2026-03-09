@@ -4,6 +4,7 @@ import io
 import logging
 import urllib.error
 
+from steam.common.execution_meta import summarize_attempts
 from steam.probe import common
 
 
@@ -96,6 +97,154 @@ def test_request_with_retry_retries_429_then_succeeds(monkeypatch, caplog) -> No
     assert result.attempts[0]["sleep_seconds"] == 0.5
     assert sleep_calls == [0.5]
     assert any("HTTP 429" in record.message for record in caplog.records)
+
+
+def test_request_with_retry_default_behavior_does_not_retry_404(monkeypatch) -> None:
+    sleep_calls: list[float] = []
+
+    def fake_urlopen(request, timeout):
+        del request, timeout
+        raise urllib.error.HTTPError(
+            url="https://example.com",
+            code=404,
+            msg="Not Found",
+            hdrs={},
+            fp=io.BytesIO(b'{"error":"not_found"}'),
+        )
+
+    monkeypatch.setattr(common.urllib.request, "urlopen", fake_urlopen)
+    monkeypatch.setattr(common.time, "sleep", lambda seconds: sleep_calls.append(seconds))
+
+    result = common.request_with_retry(
+        url="https://example.com",
+        params=None,
+        timeout_seconds=1.0,
+        max_attempts=3,
+        backoff_base_seconds=0.5,
+        jitter_max_seconds=0.1,
+        max_backoff_seconds=2.0,
+    )
+
+    assert result.status_code == 404
+    assert len(result.attempts) == 1
+    assert result.error == {"type": "http_error", "message": "HTTP 404"}
+    assert sleep_calls == []
+
+
+def test_request_with_retry_retries_opt_in_404(monkeypatch) -> None:
+    calls = {"count": 0}
+    sleep_calls: list[float] = []
+
+    def fake_urlopen(request, timeout):
+        del request, timeout
+        calls["count"] += 1
+        if calls["count"] == 1:
+            raise urllib.error.HTTPError(
+                url="https://example.com",
+                code=404,
+                msg="Not Found",
+                hdrs={},
+                fp=io.BytesIO(b'{"error":"not_found"}'),
+            )
+        return DummyResponse(
+            status_code=200,
+            headers={"Content-Type": "application/json"},
+            body=b'{"ok": true}',
+        )
+
+    monkeypatch.setattr(common.urllib.request, "urlopen", fake_urlopen)
+    monkeypatch.setattr(common.time, "sleep", lambda seconds: sleep_calls.append(seconds))
+    monkeypatch.setattr(common.random, "uniform", lambda _start, _end: 0.0)
+
+    result = common.request_with_retry(
+        url="https://example.com",
+        params=None,
+        timeout_seconds=1.0,
+        max_attempts=3,
+        backoff_base_seconds=0.5,
+        jitter_max_seconds=0.1,
+        max_backoff_seconds=2.0,
+        retryable_status_codes={404, 429, 500, 502, 503, 504},
+    )
+
+    assert result.status_code == 200
+    assert result.error is None
+    assert len(result.attempts) == 2
+    assert result.attempts[0]["status_code"] == 404
+    assert result.attempts[0]["sleep_seconds"] == 0.5
+    assert sleep_calls == [0.5]
+
+
+def test_request_with_retry_timeout_then_success_updates_attempt_summary(monkeypatch) -> None:
+    calls = {"count": 0}
+    sleep_calls: list[float] = []
+
+    def fake_urlopen(request, timeout):
+        del request, timeout
+        calls["count"] += 1
+        if calls["count"] == 1:
+            raise urllib.error.URLError(TimeoutError("timed out"))
+        return DummyResponse(
+            status_code=200,
+            headers={"Content-Type": "application/json"},
+            body=b'{"ok": true}',
+        )
+
+    monkeypatch.setattr(common.urllib.request, "urlopen", fake_urlopen)
+    monkeypatch.setattr(common.time, "sleep", lambda seconds: sleep_calls.append(seconds))
+    monkeypatch.setattr(common.random, "uniform", lambda _start, _end: 0.0)
+
+    result = common.request_with_retry(
+        url="https://example.com",
+        params=None,
+        timeout_seconds=1.0,
+        max_attempts=3,
+        backoff_base_seconds=0.5,
+        jitter_max_seconds=0.1,
+        max_backoff_seconds=2.0,
+    )
+    summary = summarize_attempts(result.attempts)
+
+    assert result.status_code == 200
+    assert result.error is None
+    assert summary["retry_count"] == 1
+    assert summary["timeout_count"] == 1
+    assert sleep_calls == [0.5]
+
+
+def test_request_with_retry_retries_invalid_payload_until_cap(monkeypatch) -> None:
+    sleep_calls: list[float] = []
+
+    def fake_urlopen(request, timeout):
+        del request, timeout
+        return DummyResponse(
+            status_code=200,
+            headers={"Content-Type": "application/json"},
+            body=b"not-json",
+        )
+
+    monkeypatch.setattr(common.urllib.request, "urlopen", fake_urlopen)
+    monkeypatch.setattr(common.time, "sleep", lambda seconds: sleep_calls.append(seconds))
+    monkeypatch.setattr(common.random, "uniform", lambda _start, _end: 0.0)
+
+    result = common.request_with_retry(
+        url="https://example.com",
+        params=None,
+        timeout_seconds=1.0,
+        max_attempts=2,
+        backoff_base_seconds=0.5,
+        jitter_max_seconds=0.1,
+        max_backoff_seconds=2.0,
+        response_retry_reason=lambda _status_code, body: (
+            "invalid_json" if common.decode_json_payload(body) is None else None
+        ),
+    )
+
+    assert result.status_code == 200
+    assert len(result.attempts) == 2
+    assert result.attempts[0]["error"] == "invalid_json"
+    assert result.error == {"type": "response_error", "message": "invalid_json"}
+    assert sleep_calls == [0.5]
 
 
 def test_request_with_retry_logs_empty_response(monkeypatch, caplog) -> None:
