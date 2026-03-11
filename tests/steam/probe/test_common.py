@@ -268,3 +268,60 @@ def test_request_with_retry_logs_empty_response(monkeypatch, caplog) -> None:
     assert result.status_code == 200
     assert result.body == b""
     assert any("Empty response body" in record.message for record in caplog.records)
+
+
+def test_build_snapshot_keeps_collected_at_kst_opt_in_only() -> None:
+    result = common.RequestResult(
+        final_url="https://example.com",
+        status_code=200,
+        headers={"content-type": "application/json"},
+        body=b'{"ok": true}',
+        attempts=[{"attempt": 1, "error": None, "sleep_seconds": 0.0, "status_code": 200}],
+        error=None,
+    )
+
+    snapshot = common.build_snapshot(
+        probe_name="example",
+        collected_at_utc="2026-03-06T21:45:56Z",
+        request_url="https://example.com",
+        request_params=None,
+        timeout_seconds=10.0,
+        result=result,
+        payload_excerpt_or_json={"ok": True},
+    )
+    snapshot_with_kst = common.build_snapshot(
+        probe_name="example",
+        collected_at_utc="2026-03-06T21:45:56Z",
+        request_url="https://example.com",
+        request_params=None,
+        timeout_seconds=10.0,
+        result=result,
+        payload_excerpt_or_json={"ok": True},
+        include_collected_at_kst=True,
+    )
+
+    assert "collected_at_kst" not in snapshot
+    assert snapshot_with_kst["collected_at_kst"] == "2026-03-07T06:45:56+09:00"
+
+
+def test_save_snapshot_uses_timestamp_name_by_default(tmp_path) -> None:
+    output_path = common.save_snapshot(
+        out_dir=tmp_path,
+        probe_name="example",
+        snapshot={"collected_at_utc": "2026-03-06T21:41:41Z"},
+    )
+
+    assert output_path == tmp_path / "example" / "20260306T214141Z.json"
+    assert output_path.exists()
+
+
+def test_save_snapshot_uses_fixed_basename_when_opted_in(tmp_path) -> None:
+    output_path = common.save_snapshot(
+        out_dir=tmp_path,
+        probe_name="example",
+        snapshot={"collected_at_utc": "2026-03-06T21:41:41Z"},
+        fixed_basename="representative.json",
+    )
+
+    assert output_path == tmp_path / "example" / "representative.json"
+    assert output_path.exists()

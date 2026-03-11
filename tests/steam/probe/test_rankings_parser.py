@@ -14,10 +14,10 @@ from steam.probe.probe_rankings import (
 FIXTURE_DIR = Path("tests/fixtures/steam/rankings")
 README_PATH = FIXTURE_DIR / "README.md"
 EXCERPT_SNAPSHOT_PATHS = (
-    Path("docs/probe/steam/rankings_topsellers_global/20260306T214613Z.json"),
-    Path("docs/probe/steam/rankings_topsellers_kr/20260306T214614Z.json"),
-    Path("docs/probe/steam/rankings_mostplayed_global/20260306T214614Z.json"),
-    Path("docs/probe/steam/rankings_mostplayed_kr/20260306T214614Z.json"),
+    Path("docs/probe/steam/rankings_topsellers_global/representative.json"),
+    Path("docs/probe/steam/rankings_topsellers_kr/representative.json"),
+    Path("docs/probe/steam/rankings_mostplayed_global/representative.json"),
+    Path("docs/probe/steam/rankings_mostplayed_kr/representative.json"),
 )
 PAYLOAD_CASES = (
     ("topsellers_global.payload.json", "topsellers", "global", 3764200, "Resident Evil Requiem"),

@@ -17,9 +17,11 @@ from collections.abc import Callable, Collection, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+from zoneinfo import ZoneInfo
 
 LOGGER = logging.getLogger(__name__)
 SCHEMA_VERSION = "1.0"
+KST = ZoneInfo("Asia/Seoul")
 SELECTED_RESPONSE_HEADERS = (
     "date",
     "content-type",
@@ -107,10 +109,20 @@ def utc_now_iso() -> str:
     return dt.datetime.now(dt.UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
-def _iso_to_file_timestamp(iso_value: str) -> str:
+def _parse_iso_timestamp(iso_value: str) -> dt.datetime:
     normalized = iso_value.replace("Z", "+00:00")
     parsed = dt.datetime.fromisoformat(normalized)
-    return parsed.astimezone(dt.UTC).strftime("%Y%m%dT%H%M%SZ")
+    if parsed.tzinfo is None:
+        raise ValueError("timestamp must include timezone")
+    return parsed
+
+
+def _iso_to_file_timestamp(iso_value: str) -> str:
+    return _parse_iso_timestamp(iso_value).astimezone(dt.UTC).strftime("%Y%m%dT%H%M%SZ")
+
+
+def _iso_to_kst_timestamp(iso_value: str) -> str:
+    return _parse_iso_timestamp(iso_value).astimezone(KST).isoformat(timespec="seconds")
 
 
 def compute_backoff_seconds(
@@ -360,12 +372,12 @@ def build_snapshot(
     timeout_seconds: float,
     result: RequestResult,
     payload_excerpt_or_json: Any,
+    include_collected_at_kst: bool = False,
 ) -> dict[str, Any]:
     """Create deterministic snapshot payload shared by all probes."""
 
     normalized_params = _normalized_params(request_params)
-
-    return {
+    snapshot = {
         "schema_version": SCHEMA_VERSION,
         "probe_name": probe_name,
         "collected_at_utc": collected_at_utc,
@@ -387,21 +399,35 @@ def build_snapshot(
         "error": result.error,
     }
 
+    if include_collected_at_kst:
+        snapshot["collected_at_kst"] = _iso_to_kst_timestamp(collected_at_utc)
 
-def save_snapshot(*, out_dir: Path, probe_name: str, snapshot: Mapping[str, Any]) -> Path:
+    return snapshot
+
+
+def save_snapshot(
+    *,
+    out_dir: Path,
+    probe_name: str,
+    snapshot: Mapping[str, Any],
+    fixed_basename: str | None = None,
+) -> Path:
     """Save snapshot JSON under docs/probe/steam/<probe_name>/ with stable formatting."""
 
     probe_dir = out_dir / probe_name
     probe_dir.mkdir(parents=True, exist_ok=True)
 
-    collected_at_utc = str(snapshot.get("collected_at_utc", utc_now_iso()))
-    timestamp = _iso_to_file_timestamp(collected_at_utc)
-    output_path = probe_dir / f"{timestamp}.json"
+    if fixed_basename is not None:
+        output_path = probe_dir / fixed_basename
+    else:
+        collected_at_utc = str(snapshot.get("collected_at_utc", utc_now_iso()))
+        timestamp = _iso_to_file_timestamp(collected_at_utc)
+        output_path = probe_dir / f"{timestamp}.json"
 
-    suffix = 1
-    while output_path.exists():
-        output_path = probe_dir / f"{timestamp}_{suffix:02d}.json"
-        suffix += 1
+        suffix = 1
+        while output_path.exists():
+            output_path = probe_dir / f"{timestamp}_{suffix:02d}.json"
+            suffix += 1
 
     snapshot_text = json.dumps(snapshot, ensure_ascii=False, indent=2, sort_keys=True)
     output_path.write_text(f"{snapshot_text}\n", encoding="utf-8")
