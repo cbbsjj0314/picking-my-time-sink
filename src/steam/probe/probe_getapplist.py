@@ -119,6 +119,7 @@ def build_probe_snapshot(
         payload_excerpt_or_json = summarize_getapplist_payload(payload)
 
     return build_snapshot(
+        include_collected_at_kst=True,
         probe_name=PROBE_NAME,
         collected_at_utc=utc_now_iso(),
         request_url=REQUEST_URL,

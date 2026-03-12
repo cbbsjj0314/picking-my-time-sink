@@ -7,7 +7,8 @@
       "status_code": 200
     }
   ],
-  "collected_at_utc": "2026-03-09T20:22:43Z",
+  "collected_at_kst": "2026-03-13T06:37:23+09:00",
+  "collected_at_utc": "2026-03-12T21:37:23Z",
   "error": null,
   "probe_name": "getapplist",
   "request": {
@@ -19,7 +20,7 @@
     "url": "https://api.steampowered.com/IStoreService/GetAppList/v1/"
   },
   "response": {
-    "body_sha256": "9fbe3b5d13dc9a49c7b47f6f4e81b38d075ca9acbca0b2b68384cc04df6fc6db",
+    "body_sha256": "2fc1ac46abf8654642c2f3aba9e46163a23f562ab1fd71d65dbd51bfc82d4a95",
     "body_size": 1035476,
     "is_empty": false,
     "payload_excerpt_or_json": {
@@ -70,7 +71,7 @@
       "cache-control": null,
       "content-length": null,
       "content-type": "application/json; charset=UTF-8",
-      "date": "Mon, 09 Mar 2026 20:22:42 GMT",
+      "date": "Thu, 12 Mar 2026 21:37:23 GMT",
       "etag": null,
       "last-modified": null,
       "retry-after": null

@@ -15,7 +15,8 @@ from steam.probe.probe_rankings import parse_rankings_payload
 
 LOGGER = logging.getLogger(__name__)
 DEFAULT_RESULT_PATH = Path("tmp/steam/tracked_universe/update_result.jsonl")
-DEFAULT_APP_CATALOG_PATH = Path("docs/probe/steam/getapplist/20260309T202243Z.json")
+# DEFAULT_APP_CATALOG_PATH = Path("docs/probe/steam/getapplist/20260309T202243Z.json")
+DEFAULT_APP_CATALOG_PATH = Path("docs/probe/steam/getapplist/representative.json")
 
 
 @dataclass(frozen=True, slots=True)
