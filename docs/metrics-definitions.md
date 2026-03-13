@@ -20,6 +20,27 @@
 
 - 30분 버킷: HH:00 또는 HH:30으로 정규화된 시각
 - 1시간 버킷: HH:00으로 정규화된 시각
+- 이 문서에서 `bucket_time`은 section 0의 KST 기준으로 해석한다.
+- Steam CCU의 internal/DB 의미는 KST half-hour bucket instant이다.
+- `srv_game_latest_ccu`와 latest CCU API의 전일 대비는 section 1.3 규칙대로 전일 동일 KST 버킷을 비교한다.
+- latest CCU API의 `bucket_time` wire output은 같은 instant를 표현한 timezone-aware ISO datetime string으로 본다.
+- 현재 API 런타임은 timezone-aware `datetime`을 그대로 직렬화하며, UTC-only serialization을 강제하지 않는다.
+- checkpoint 실측 단건 API 예시(`/games/{id}/ccu/latest`):
+
+```json
+{
+  "canonical_game_id": 1,
+  "canonical_name": "Counter-Strike 2",
+  "bucket_time": "2026-03-07T05:00:00Z",
+  "ccu": 858325,
+  "delta_ccu_abs": null,
+  "delta_ccu_pct": null,
+  "missing_flag": true
+}
+```
+
+- 같은 instant 대응: 위 wire example의 `"bucket_time":"2026-03-07T05:00:00Z"` 는 KST bucket/view 값 `2026-03-07 14:00:00 +0900` 와 같은 시각이다.
+- 따라서 위 `Z` 예시는 실제 관측된 wire example이지만, current runtime이 보장하는 유일한 timezone representation은 아니다.
 
 ### 1.2 snapshot_date (1일 스냅샷)
 

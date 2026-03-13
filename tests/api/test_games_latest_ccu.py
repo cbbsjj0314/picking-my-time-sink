@@ -73,6 +73,8 @@ def test_get_game_latest_ccu_returns_row(monkeypatch) -> None:
     assert response.status_code == 200
     body = response.json()
     assert body["canonical_game_id"] == 123
+    # Locks current behavior; UTC-only wire format needs deliberate runtime change and test update.
+    assert body["bucket_time"] == "2026-03-07T12:30:00+09:00"
     assert body["delta_ccu_abs"] == 20
     assert body["missing_flag"] is False
 
