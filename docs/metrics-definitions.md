@@ -1,0 +1,136 @@
+# Metrics & Definitions (요구사항 + 지표 정의서)
+
+문서 목적: 용어/지표/Δ 기준을 고정해 구현 중 재해석을 방지
+대상 독자: 개발자/협업자, ChatGPT/Codex
+버전: v0.1 (초안)
+작성일: 2026-03-04 (KST)
+
+## 0. 시간/기간 프리셋
+
+- 시간대: KST
+- 기본 프리셋:
+    - 전일 대비 (Default)
+    - 최근 7일
+    - 최근 30일
+    - 최근 90일(3개월) — 기본적으로 일 단위 rollup을 사용
+
+## 1. 공통 정의
+
+### 1.1 bucket_time (30분/1시간)
+
+- 30분 버킷: HH:00 또는 HH:30으로 정규화된 시각
+- 1시간 버킷: HH:00으로 정규화된 시각
+
+### 1.2 snapshot_date (1일 스냅샷)
+
+- “수집 실행 시각”이 아니라 “KST 날짜”로 저장
+- 스케줄:
+    - Steam 랭킹: 03:10 KST
+    - Steam 리뷰: 03:20 KST
+
+### 1.3 Δ(전일 대비) 규칙
+
+- 30분/1시간 시계열: 전일 동일 버킷 대비
+    - 예: 2026-03-04 14:30 버킷의 값 vs 2026-03-03 14:30 버킷
+- 1일 스냅샷: 전일 snapshot_date 대비
+    - 예: 2026-03-04 스냅샷 vs 2026-03-03 스냅샷
+
+## 2. Steam 리뷰 대시보드(살 만한가)
+
+### 2.1 Positive Ratio
+
+- 정의: total_positive / total_reviews
+- 단위: 0~1 (화면에서는 %로 표시)
+
+### 2.2 리뷰 수(표본 크기)
+
+- 정의: total_reviews
+- 표시: 절대값 + 필요 시 표본 배지(예: 부족/보통/충분) 기준은 추후 확정(TBD)
+
+### 2.3 리뷰 모멘텀(Δ)
+
+- 정의(일 스냅샷 기준):
+    - Δ_total_reviews = total_reviews(D) - total_reviews(D-1)
+    - Δ_positive_ratio = positive_ratio(D) - positive_ratio(D-1)
+
+## 3. Steam CCU 대시보드(살아있나/뜨나)
+
+### 3.1 현재 CCU
+
+- 정의: 가장 최신 bucket_time의 ccu
+
+### 3.2 CCU 모멘텀(Δ)
+
+- 정의(30분 버킷 기준):
+    - Δ_ccu_abs = ccu(t) - ccu(t - 1day_same_bucket)
+    - Δ_ccu_pct = (ccu(t) - ccu(t-1d)) / NULLIF(ccu(t-1d), 0)
+
+## 4. 스트리밍 요약(화제인가) — Chzzk/Twitch 공통 지향
+
+원천은 “동시 시청자(concurrent)”를 30분 단위로 수집한다.
+
+### 4.1 Avg concurrent (기본 표시)
+
+- 정의: 기간 내 concurrent의 평균
+    - avg_concurrent = AVG(concurrent_bucket)
+
+### 4.2 Total (파생: viewer-hours)
+
+- 정의: viewer_hours = Σ (concurrent_bucket * bucket_hours)
+    - 30분 버킷이면 bucket_hours = 0.5
+- 해석: “기간 동안 소비된 총 시청량(근사)”
+
+### 4.3 Total streams (방송 수)
+
+- 정의: 해당 bucket_time에서 라이브 채널 수(또는 카테고리 내 라이브 수)의 합/평균
+- MVP에서는 bucket_time 스냅샷 기준의 live_count를 저장하고, 기간 합계/평균은 파생
+
+### 4.4 Top streamer (입구)
+
+- 정의: bucket_time에서 concurrent가 가장 큰 채널(또는 스트리머)
+- 저장: top_channel_id, top_channel_name, top_channel_concurrent
+
+### 4.5 시청 모멘텀(Δ)
+
+- 30분 버킷 기준으로 전일 동일 버킷 대비:
+    - Δ_avg_concurrent: 동일 버킷 비교 또는 기간 평균 비교(표현 방식은 UI에서 선택)
+    - Δ_viewer_hours: 일 단위 rollup이 생기면 일 스냅샷 Δ로 전환 가능
+
+## 5. 가격/할인(구매 타이밍)
+
+### 5.1 price fields
+
+- initial_price_minor: 할인 전 가격(최소 단위)
+- final_price_minor: 현재 가격(최소 단위)
+- discount_percent: 할인율(0~100)
+- region: MVP는 KR만. 확장 시 US 등 추가 가능
+- currency_code: region에 따라 저장(확장 대비)
+
+### 5.2 할인 이벤트(관계 KPI에 사용)
+
+- 할인 시작: discount_percent가 0 → 양수로 전환되는 시점(또는 final < initial)
+- 할인 종료: discount_percent가 양수 → 0으로 전환
+
+## 6. 랭킹(추적 유니버스 seed)
+
+- 시장(market): KR, global 둘 다 저장
+- rank_type: top_selling / top_played 등(정의는 파서에서 고정)
+- rank_position: 1..N
+- 사용처:
+    - 대시보드 “오늘의 상위”
+    - tracked_universe 자동 갱신(seed)
+
+## 7. 관계(동행) — MVP 최소 KPI
+
+MVP에서는 시차 이벤트 탐지까지 가지 않고 KPI 1~2개로 최소 정의한다.
+
+### KPI A: 할인 전후 24h CCU 리프트
+
+- 정의:
+    - lift_ccu_pct = (AVG(CCU, [t0, t0+24h]) - AVG(CCU, [t0-24h, t0])) / NULLIF(AVG(CCU, [t0-24h, t0]), 0)
+- t0: 할인 시작 시점
+
+### KPI B: 시청 ↔ 플레이 동행(둘 중 하나를 선택)
+
+- 옵션1) viewer_to_player = avg_concurrent / avg_ccu (기간 평균 기반)
+- 옵션2) 동행률: Δ의 부호가 같은 버킷 비율(최근 7일 등)
