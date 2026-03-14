@@ -41,7 +41,8 @@
 - Do not introduce heavy new tooling unless explicitly requested.
 
 ## Git conventions
-- Prefer one branch per task.
+- Prefer one branch per Now item.
+- Merge to `main` at natural completion points (task close or checkpoint).
 - Use commit messages in this format:
   - `type(scope): summary`
 - Suggested types:
