@@ -54,10 +54,20 @@ def resolve_steam_api_key() -> str:
     return api_key
 
 
-def build_request_params(api_key: str) -> dict[str, str]:
+def build_request_params(
+    api_key: str,
+    *,
+    last_appid: int | None = None,
+    max_results: int | None = None,
+) -> dict[str, str | int]:
     """Build live request params for the catalog probe."""
 
-    return {"key": api_key}
+    params: dict[str, str | int] = {"key": api_key}
+    if last_appid is not None:
+        params["last_appid"] = last_appid
+    if max_results is not None:
+        params["max_results"] = max_results
+    return params
 
 
 def redact_request_params(params: dict[str, str]) -> dict[str, str]:
@@ -66,6 +76,47 @@ def redact_request_params(params: dict[str, str]) -> dict[str, str]:
     return {
         key: REDACTED_VALUE if key.lower() == "key" else value
         for key, value in params.items()
+    }
+
+
+def parse_getapplist_page(payload: Any) -> dict[str, Any]:
+    """Parse one GetAppList page for the weekly runner's pagination contract."""
+
+    if not isinstance(payload, dict):
+        raise ValueError("invalid_response_container")
+
+    response = payload.get("response")
+    if not isinstance(response, dict):
+        raise ValueError("invalid_response_container")
+
+    apps = response.get("apps")
+    if not isinstance(apps, list):
+        raise ValueError("invalid_apps")
+
+    have_more_results = response.get("have_more_results")
+    if not isinstance(have_more_results, bool):
+        raise ValueError("invalid_pagination_flag")
+
+    if not have_more_results:
+        return {
+            "apps": apps,
+            "have_more_results": False,
+            "last_appid": None,
+        }
+
+    last_appid = response.get("last_appid")
+    try:
+        parsed_last_appid = int(last_appid)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("invalid_pagination_cursor") from exc
+
+    if parsed_last_appid <= 0:
+        raise ValueError("invalid_pagination_cursor")
+
+    return {
+        "apps": apps,
+        "have_more_results": True,
+        "last_appid": parsed_last_appid,
     }
 
 

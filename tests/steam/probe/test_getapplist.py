@@ -11,6 +11,7 @@ from steam.probe.probe_getapplist import (
     REQUEST_URL,
     build_probe_snapshot,
     build_request_params,
+    parse_getapplist_page,
     redact_request_params,
     resolve_steam_api_key,
     summarize_getapplist_payload,
@@ -29,6 +30,23 @@ def test_request_params_keep_key_field_but_redact_value() -> None:
 
     assert live_params == {"key": "real-secret-key"}
     assert redact_request_params(live_params) == {"key": REDACTED_VALUE}
+
+
+def test_parse_getapplist_page_terminal_page_sets_last_appid_none() -> None:
+    page = parse_getapplist_page(
+        {
+            "response": {
+                "apps": [{"appid": 10, "name": "App 10"}],
+                "have_more_results": False,
+            }
+        }
+    )
+
+    assert page == {
+        "apps": [{"appid": 10, "name": "App 10"}],
+        "have_more_results": False,
+        "last_appid": None,
+    }
 
 
 def test_summarize_getapplist_payload_is_deterministic_and_bounded() -> None:
