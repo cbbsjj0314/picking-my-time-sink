@@ -4,7 +4,12 @@ version = "0.1.0"
 description = "Steam-only MVP first"
 readme = "README.md"
 requires-python = ">=3.12,<3.13"
-dependencies = []
+dependencies = [
+    "fastapi>=0.116,<0.117",
+    "httpx>=0.28,<0.29",
+    "psycopg[binary]>=3.2,<4.0",
+    "uvicorn>=0.35,<0.36",
+]
 
 [tool.poetry]
 package-mode = false

@@ -1,0 +1,43 @@
+{
+  "attempts": [
+    {
+      "attempt": 1,
+      "error": null,
+      "sleep_seconds": 0.0,
+      "status_code": 200
+    }
+  ],
+  "collected_at_utc": "2026-03-06T21:41:41Z",
+  "error": null,
+  "probe_name": "ccu",
+  "request": {
+    "method": "GET",
+    "params": {
+      "appid": "730"
+    },
+    "timeout_seconds": 10.0,
+    "url": "https://api.steampowered.com/ISteamUserStats/GetNumberOfCurrentPlayers/v1/"
+  },
+  "response": {
+    "body_sha256": "8e71acde9263598128672cf3ca02633e09d3f68274c501e1bfeeb41a3eca339b",
+    "body_size": 48,
+    "is_empty": false,
+    "payload_excerpt_or_json": {
+      "response": {
+        "player_count": 1346982,
+        "result": 1
+      }
+    },
+    "selected_headers": {
+      "cache-control": "public, max-age=138",
+      "content-length": "48",
+      "content-type": "application/json; charset=UTF-8",
+      "date": "Fri, 06 Mar 2026 21:41:41 GMT",
+      "etag": null,
+      "last-modified": null,
+      "retry-after": null
+    },
+    "status_code": 200
+  },
+  "schema_version": "1.0"
+}
