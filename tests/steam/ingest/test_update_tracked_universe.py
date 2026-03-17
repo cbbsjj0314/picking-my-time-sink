@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import datetime as dt
 import json
+import logging
 from pathlib import Path
 
 import pytest
@@ -121,9 +122,27 @@ def test_required_fixture_zero_candidates_fails_with_source_name(tmp_path: Path)
         load_required_rankings_observations(sources)
 
 
-def test_optional_catalog_metadata_missing_is_non_blocking(tmp_path: Path) -> None:
-    metadata = load_optional_catalog_metadata(tmp_path / "missing.json")
+def test_optional_catalog_metadata_none_is_quiet_and_non_blocking(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    with caplog.at_level(logging.WARNING, logger="steam.ingest.update_tracked_universe"):
+        metadata = load_optional_catalog_metadata(None)
+
     assert metadata == {"app_count": None, "pagination": {}, "top_level_keys": []}
+    assert not caplog.records
+
+
+def test_optional_catalog_metadata_missing_is_non_blocking(
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    missing_path = tmp_path / "missing.json"
+
+    with caplog.at_level(logging.WARNING, logger="steam.ingest.update_tracked_universe"):
+        metadata = load_optional_catalog_metadata(missing_path)
+
+    assert metadata == {"app_count": None, "pagination": {}, "top_level_keys": []}
+    assert f"Optional App Catalog summary missing: {missing_path}" in caplog.text
 
 
 def test_optional_catalog_metadata_valid_file_extracts_summary() -> None:
