@@ -264,8 +264,15 @@ def merge_candidate_observations(observations: list[CandidateObservation]) -> li
     return sorted(merged, key=lambda item: (item.priority, item.steam_appid))
 
 
-def load_optional_catalog_metadata(path: Path) -> dict[str, Any]:
+def load_optional_catalog_metadata(path: Path | None) -> dict[str, Any]:
     """Load optional App Catalog metadata without blocking the run."""
+
+    if path is None:
+        return {
+            "app_count": None,
+            "pagination": {},
+            "top_level_keys": [],
+        }
 
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
@@ -639,7 +646,7 @@ def run(
     topsellers_kr_path: Path,
     mostplayed_global_path: Path,
     mostplayed_kr_path: Path,
-    app_catalog_path: Path,
+    app_catalog_path: Path | None,
     result_path: Path,
 ) -> list[dict[str, Any]]:
     """Run the tracked universe updater against required rankings seeds."""
