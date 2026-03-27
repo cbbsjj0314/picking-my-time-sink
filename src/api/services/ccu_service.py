@@ -32,6 +32,19 @@ ORDER BY priority, canonical_game_id
 LIMIT %s
 """
 
+GET_RECENT_90D_CCU_DAILY_BY_GAME_SQL = """
+SELECT
+    canonical_game_id,
+    bucket_date,
+    avg_ccu,
+    peak_ccu
+FROM agg_steam_ccu_daily
+WHERE canonical_game_id = %s
+  AND bucket_date >= ((NOW() AT TIME ZONE 'Asia/Seoul')::date - 89)
+  AND bucket_date <= (NOW() AT TIME ZONE 'Asia/Seoul')::date
+ORDER BY bucket_date ASC
+"""
+
 
 def require_psycopg() -> tuple[Any, Any]:
     """Import psycopg and dict_row, then fail fast when unavailable."""
@@ -121,3 +134,25 @@ def list_latest_ccu(limit: int = 50) -> list[dict[str, Any]]:
             rows = cursor.fetchall()
 
     return [to_response_record(row) for row in rows]
+
+
+def get_recent_90d_ccu_daily_by_game(canonical_game_id: int) -> list[dict[str, Any]]:
+    """Return recent 90-day daily CCU rows for one game from the daily rollup table."""
+
+    psycopg, dict_row = require_psycopg()
+    conninfo = build_pg_conninfo_from_env()
+
+    with psycopg.connect(conninfo=conninfo) as conn:
+        with conn.cursor(row_factory=dict_row) as cursor:
+            cursor.execute(GET_RECENT_90D_CCU_DAILY_BY_GAME_SQL, (canonical_game_id,))
+            rows = cursor.fetchall()
+
+    return [
+        {
+            "canonical_game_id": int(row["canonical_game_id"]),
+            "bucket_date": row["bucket_date"],
+            "avg_ccu": float(row["avg_ccu"]),
+            "peak_ccu": int(row["peak_ccu"]),
+        }
+        for row in rows
+    ]
