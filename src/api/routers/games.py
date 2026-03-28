@@ -7,7 +7,7 @@ import datetime as dt
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
-from api.services import ccu_service
+from api.services import ccu_service, reviews_service
 
 router = APIRouter(prefix="/games", tags=["games"])
 
@@ -31,6 +31,21 @@ class GameDaily90dCcuResponse(BaseModel):
     bucket_date: dt.date
     avg_ccu: float
     peak_ccu: int
+
+
+class GameLatestReviewsResponse(BaseModel):
+    """Latest reviews response model for one canonical game."""
+
+    canonical_game_id: int
+    canonical_name: str
+    snapshot_date: dt.date
+    total_reviews: int
+    total_positive: int
+    total_negative: int
+    positive_ratio: float
+    delta_total_reviews: int | None
+    delta_positive_ratio: float | None
+    missing_flag: bool
 
 
 @router.get("/ccu/latest", response_model=list[GameLatestCcuResponse])
@@ -63,3 +78,27 @@ def get_game_daily_90d_ccu(canonical_game_id: int) -> list[GameDaily90dCcuRespon
 
     rows = ccu_service.get_recent_90d_ccu_daily_by_game(canonical_game_id=canonical_game_id)
     return [GameDaily90dCcuResponse.model_validate(row) for row in rows]
+
+
+@router.get("/reviews/latest", response_model=list[GameLatestReviewsResponse])
+def list_games_latest_reviews(
+    limit: int = Query(default=50, ge=1, le=200),
+) -> list[GameLatestReviewsResponse]:
+    """Return latest reviews rows from srv_game_latest_reviews with an optional limit."""
+
+    rows = reviews_service.list_latest_reviews(limit=limit)
+    return [GameLatestReviewsResponse.model_validate(row) for row in rows]
+
+
+@router.get(
+    "/{canonical_game_id}/reviews/latest",
+    response_model=GameLatestReviewsResponse,
+)
+def get_game_latest_reviews(canonical_game_id: int) -> GameLatestReviewsResponse:
+    """Return latest reviews row from srv_game_latest_reviews for one game."""
+
+    row = reviews_service.get_latest_reviews_by_game(canonical_game_id=canonical_game_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="Game latest reviews not found")
+
+    return GameLatestReviewsResponse.model_validate(row)
