@@ -30,6 +30,18 @@ def sample_response_record(canonical_game_id: int) -> dict[str, object]:
     }
 
 
+def sample_daily_90d_response_record(
+    canonical_game_id: int,
+    bucket_date: dt.date,
+) -> dict[str, object]:
+    return {
+        "canonical_game_id": canonical_game_id,
+        "bucket_date": bucket_date,
+        "avg_ccu": 120.5,
+        "peak_ccu": 180,
+    }
+
+
 def test_list_games_latest_ccu_returns_rows_and_passes_limit(monkeypatch) -> None:
     captured: dict[str, int] = {}
 
@@ -77,6 +89,58 @@ def test_get_game_latest_ccu_returns_row(monkeypatch) -> None:
     assert body["bucket_time"] == "2026-03-07T12:30:00+09:00"
     assert body["delta_ccu_abs"] == 20
     assert body["missing_flag"] is False
+
+
+def test_get_game_daily_90d_ccu_returns_rows_in_ascending_order(monkeypatch) -> None:
+    captured: dict[str, int] = {}
+
+    def fake_get_recent_90d_ccu_daily_by_game(canonical_game_id: int) -> list[dict[str, object]]:
+        captured["canonical_game_id"] = canonical_game_id
+        return [
+            sample_daily_90d_response_record(canonical_game_id, dt.date(2026, 3, 7)),
+            sample_daily_90d_response_record(canonical_game_id, dt.date(2026, 3, 8)),
+        ]
+
+    monkeypatch.setattr(
+        ccu_service,
+        "get_recent_90d_ccu_daily_by_game",
+        fake_get_recent_90d_ccu_daily_by_game,
+    )
+
+    client = build_test_client()
+    response = client.get("/games/123/ccu/daily-90d")
+
+    assert response.status_code == 200
+    assert captured["canonical_game_id"] == 123
+    body = response.json()
+    assert body == [
+        {
+            "canonical_game_id": 123,
+            "bucket_date": "2026-03-07",
+            "avg_ccu": 120.5,
+            "peak_ccu": 180,
+        },
+        {
+            "canonical_game_id": 123,
+            "bucket_date": "2026-03-08",
+            "avg_ccu": 120.5,
+            "peak_ccu": 180,
+        },
+    ]
+
+
+def test_get_game_daily_90d_ccu_returns_empty_list(monkeypatch) -> None:
+    monkeypatch.setattr(
+        ccu_service,
+        "get_recent_90d_ccu_daily_by_game",
+        lambda canonical_game_id: [],
+    )
+
+    client = build_test_client()
+    response = client.get("/games/999/ccu/daily-90d")
+
+    assert response.status_code == 200
+    assert response.json() == []
 
 
 def test_service_sql_uses_serving_view_only() -> None:
