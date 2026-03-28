@@ -1,8 +1,8 @@
 # Metrics & Definitions (요구사항 + 지표 정의서)
 
 문서 목적: 용어/지표/Δ 기준을 고정해 구현 중 재해석을 방지
-버전: v0.1 (초안)
-작성일: 2026-03-04 (KST)
+버전: v0.2 (latest reviews API semantics 반영)
+작성일: 2026-03-29 (KST)
 
 ## 0. 시간/기간 프리셋
 
@@ -44,6 +44,8 @@
 ### 1.2 snapshot_date (1일 스냅샷)
 
 - “수집 실행 시각”이 아니라 “KST 날짜”로 저장
+- `srv_game_latest_reviews`와 latest reviews API의 `snapshot_date`는 같은 KST 날짜를 뜻하며, wire output은 ISO date string(`YYYY-MM-DD`)으로 본다.
+- latest reviews API의 전일 대비는 section 1.3 규칙대로 전일 `snapshot_date`를 비교한다.
 - 스케줄:
     - Steam 랭킹: 03:10 KST
     - Steam 리뷰: 03:20 KST
@@ -72,6 +74,28 @@
 - 정의(일 스냅샷 기준):
     - Δ_total_reviews = total_reviews(D) - total_reviews(D-1)
     - Δ_positive_ratio = positive_ratio(D) - positive_ratio(D-1)
+
+### 2.4 Latest reviews API serving shape
+
+- latest reviews API는 `srv_game_latest_reviews`를 직접 읽는다.
+- list endpoint는 `/games/reviews/latest`, single-game endpoint는 `/games/{canonical_game_id}/reviews/latest` 이다.
+- `missing_flag = true` 는 전일 `snapshot_date` 기준 비교 행이 없어 Δ 필드가 계산되지 않았음을 뜻한다.
+- current wire example(`/games/{id}/reviews/latest`):
+
+```json
+{
+  "canonical_game_id": 1,
+  "canonical_name": "Counter-Strike 2",
+  "snapshot_date": "2026-03-29",
+  "total_reviews": 9154321,
+  "total_positive": 7983210,
+  "total_negative": 1171111,
+  "positive_ratio": 0.8719,
+  "delta_total_reviews": null,
+  "delta_positive_ratio": null,
+  "missing_flag": true
+}
+```
 
 ## 3. Steam CCU 대시보드(살아있나/뜨나)
 
