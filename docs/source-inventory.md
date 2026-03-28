@@ -8,6 +8,19 @@
 - 프로브 산출물(샘플 JSON)은 리포지토리에 고정 저장해 “회귀 테스트” 기준으로 사용한다.
 - Chzzk가 인증/호출 안정성 측면에서 막히면 Twitch로 전환 가능하도록, 스트리밍 수집은 Provider 인터페이스를 분리한다.
 
+### 0.1 Provider boundary (current repo-grounded)
+
+- durable doc facts:
+    - current runtime scope는 Steam-only 이다.
+    - streaming 확장은 provider-specific source probe/ingest에서 시작하고, Steam service/API 범위를 먼저 일반화하지 않는다.
+- current repo observations:
+    - 현재 repo에는 Chzzk/Twitch probe 산출물, runtime package, DDL이 없다.
+    - 외부 ID 연결의 현재 grounded contract는 `game_external_id.source` 이며, tracked provenance는 `tracked_game.sources` 에 기록된다.
+- still undecided items:
+    - Chzzk auth/쿼터/필드 안정성
+    - Chzzk vs Twitch 중 실제 첫 구현 provider
+    - provider-specific raw/category fact 이후의 generalized serving/API shape
+
 ## 1. Steam (MVP 핵심)
 
 ### 1.1 App Catalog (전체 appid 카탈로그)

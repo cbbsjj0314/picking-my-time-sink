@@ -36,19 +36,19 @@
     - merged_into_canonical_game_id (nullable)
     - created_at, updated_at
 
-### 2.2 game_external_id (플랫폼 외부 ID 매핑)
+### 2.2 game_external_id (외부 ID 매핑)
 
-- 목적: steam_appid / chzzk_category_id / (twitch_game_id) 연결
-- PK(권장): (platform, external_id)
-- 컬럼(초안):
-    - platform: steam/chzzk/twitch
-    - external_id
-    - canonical_game_id (FK, nullable 허용: 아직 매핑 전)
-    - mapping_status: pending/confirmed/rejected
-    - mapping_method: manual/auto_candidate
-    - confidence (0~1)
-    - evidence_json (후보 리스트/정규화 문자열 등)
-    - updated_at
+- 목적: Steam appid와 향후 streaming provider 외부 ID를 canonical game에 연결
+- durable doc facts:
+    - current repo-grounded key는 `(source, external_id)` 이다.
+    - `source`는 외부 ID namespace를 뜻하며, current runtime에서 실제 사용 중인 값은 `steam` 이다.
+    - 향후 streaming 확장 시 `chzzk`, `twitch` 같은 `source` 값을 추가하는 방식으로 진입한다.
+- current repo observations:
+    - 현재 SQL DDL 기준 persisted 컬럼은 `source`, `external_id`, `canonical_game_id`, `first_seen_at`, `last_seen_at` 이다.
+    - 현재 ingest/service query는 모두 `game_external_id.source = 'steam'` 기준으로 동작한다.
+- still undecided items:
+    - `mapping_status`, `mapping_method`, `confidence`, `evidence_json` 같은 richer mapping metadata는 아직 current schema에 없다.
+    - 위 metadata는 실제 streaming provider 연동 또는 수동 매핑 workflow가 시작될 때 별도 slice에서 추가 검토한다.
 
 ## 3. tracked_universe (추적 대상 집합)
 
@@ -78,20 +78,24 @@
     - collected_at
     - source_appid (추적/디버그용)
 
-### 4.2 Chzzk Category Metrics (30분) — Provider 교체 가능
+### 4.2 Streaming Category Metrics (30분) — Provider 확장 entry (초안)
 
-- 테이블: fact_chzzk_category_30m
-- 그레인/PK: (chzzk_category_id, bucket_time)
-- 컬럼(초안):
-    - chzzk_category_id
-    - bucket_time
-    - concurrent_sum (카테고리 내 라이브들의 concurrent 합)
-    - live_count (방송 수)
-    - top_channel_id, top_channel_name
-    - top_channel_concurrent
-    - collected_at
+- durable doc facts:
+    - current MVP runtime은 Steam-only 이며, streaming fact/serving object는 아직 repo에 구현되지 않았다.
+    - streaming 확장 시작점은 provider-specific probe/ingest 와 category-level 30분 fact다.
+    - canonical game 기준 서빙 shape는 provider raw/category 수집 이후의 downstream 단계다.
+- current repo observations:
+    - 현재 repo에는 `src/chzzk`, `src/twitch`, streaming probe sample, streaming DDL이 없다.
+    - 현재 재사용 가능한 공통 경계는 `game_external_id` 매핑과 `tracked_game.sources` provenance다.
+- still undecided items:
+    - 첫 구현이 `fact_chzzk_category_30m` 같은 provider-specific table로 시작할지, 더 일반화된 이름으로 시작할지는 미정이다.
+    - provider auth/quota/runtime contract와 category-to-game mapping workflow도 미정이다.
+- 첫 provider-specific candidate 예시:
+    - `fact_chzzk_category_30m`
+    - 그레인/PK: `(chzzk_category_id, bucket_time)`
+    - 컬럼(초안): `chzzk_category_id`, `bucket_time`, `concurrent_sum`, `live_count`, `top_channel_id`, `top_channel_name`, `top_channel_concurrent`, `collected_at`
 - 매핑 확정 시(선택):
-    - gold_stream_game_30m: (canonical_game_id, bucket_time) 형태로 view/materialized view 제공
+    - `gold_stream_game_30m`: `(canonical_game_id, bucket_time)` 형태의 view/materialized view 제공
 
 ### 4.3 Steam Price (1시간)
 
