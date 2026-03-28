@@ -34,6 +34,9 @@
     - 페이지네이션(대량 결과) 처리 필요
     - 결과 필드/형식은 실제 probe로 확정
     - 네트워크/일시 오류 시 재시도, 중간 체크포인트(last_appid 등) 필요
+- current repo-grounded resume/output precedence:
+    - checkpoint가 `in_progress` 이면 checkpoint의 `snapshot_path`를 resume 대상으로 재사용하며, explicit `--output-path` 보다 우선한다.
+    - checkpoint가 `completed` 이거나 checkpoint가 없으면 fresh start 이며, explicit `--output-path` 가 있으면 그 경로에 새 snapshot을 쓰고 없으면 timestamped default path를 사용한다.
 
 ### 1.2 CCU (동접)
 
