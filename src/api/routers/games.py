@@ -24,6 +24,15 @@ class GameLatestCcuResponse(BaseModel):
     missing_flag: bool
 
 
+class GameDaily90dCcuResponse(BaseModel):
+    """Fixed recent 90-day daily CCU response model for one canonical game."""
+
+    canonical_game_id: int
+    bucket_date: dt.date
+    avg_ccu: float
+    peak_ccu: int
+
+
 @router.get("/ccu/latest", response_model=list[GameLatestCcuResponse])
 def list_games_latest_ccu(
     limit: int = Query(default=50, ge=1, le=200),
@@ -43,3 +52,14 @@ def get_game_latest_ccu(canonical_game_id: int) -> GameLatestCcuResponse:
         raise HTTPException(status_code=404, detail="Game latest CCU not found")
 
     return GameLatestCcuResponse.model_validate(row)
+
+
+@router.get(
+    "/{canonical_game_id}/ccu/daily-90d",
+    response_model=list[GameDaily90dCcuResponse],
+)
+def get_game_daily_90d_ccu(canonical_game_id: int) -> list[GameDaily90dCcuResponse]:
+    """Return fixed recent 90-day daily CCU rows for one game."""
+
+    rows = ccu_service.get_recent_90d_ccu_daily_by_game(canonical_game_id=canonical_game_id)
+    return [GameDaily90dCcuResponse.model_validate(row) for row in rows]
