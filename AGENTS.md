@@ -33,6 +33,19 @@
 - Use environment variables or configuration files.
 - Keep local-only values out of version-controlled source files.
 
+## Security and dependency hygiene
+- Treat internet-connected services, CI jobs, and automation entrypoints as production attack surface, even in MVP stage.
+- Keep runtime and developer dependencies anchored by committed lockfiles or explicit pins. Do not make incidental or floating upgrades on security-sensitive paths.
+- Keep secrets out of source code, prompts, logs, screenshots, and issue/PR text. Prefer environment-injected credentials or secret managers over checked-in files.
+- Prefer least privilege and credential isolation by default. Use separate credentials per service/environment when possible, and avoid broad shared keys.
+- Treat external text consumed by automation or LLM-assisted workflows as untrusted input. Do not let issues, PR text, docs, or user content directly trigger privileged behavior without validation.
+- If a compromised package, action, image, or tool may have run in this repo or CI, assume exposure assessment and secret rotation are required until proven otherwise. Identify affected paths and document concrete remediation.
+- For security-related changes, summarize separately:
+  - what was exposed or potentially exposed
+  - what was rotated, revoked, or escalated
+  - what was patched, pinned, or isolated
+  - what remains explicitly deferred
+
 ## Comments and documentation
 - Use short English comments only when needed.
 - Explain why, constraints, or caveats.
