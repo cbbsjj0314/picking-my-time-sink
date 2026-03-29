@@ -7,7 +7,7 @@ import datetime as dt
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
-from api.services import ccu_service, reviews_service
+from api.services import ccu_service, price_service, reviews_service
 
 router = APIRouter(prefix="/games", tags=["games"])
 
@@ -48,6 +48,20 @@ class GameLatestReviewsResponse(BaseModel):
     missing_flag: bool
 
 
+class GameLatestPriceResponse(BaseModel):
+    """Latest price response model for one canonical game."""
+
+    canonical_game_id: int
+    canonical_name: str
+    bucket_time: dt.datetime
+    region: str
+    currency_code: str
+    initial_price_minor: int
+    final_price_minor: int
+    discount_percent: int
+    is_free: bool | None
+
+
 @router.get("/ccu/latest", response_model=list[GameLatestCcuResponse])
 def list_games_latest_ccu(
     limit: int = Query(default=50, ge=1, le=200),
@@ -78,6 +92,30 @@ def get_game_daily_90d_ccu(canonical_game_id: int) -> list[GameDaily90dCcuRespon
 
     rows = ccu_service.get_recent_90d_ccu_daily_by_game(canonical_game_id=canonical_game_id)
     return [GameDaily90dCcuResponse.model_validate(row) for row in rows]
+
+
+@router.get("/price/latest", response_model=list[GameLatestPriceResponse])
+def list_games_latest_price(
+    limit: int = Query(default=50, ge=1, le=200),
+) -> list[GameLatestPriceResponse]:
+    """Return latest KR price rows from srv_game_latest_price with an optional limit."""
+
+    rows = price_service.list_latest_price(limit=limit)
+    return [GameLatestPriceResponse.model_validate(row) for row in rows]
+
+
+@router.get(
+    "/{canonical_game_id}/price/latest",
+    response_model=GameLatestPriceResponse,
+)
+def get_game_latest_price(canonical_game_id: int) -> GameLatestPriceResponse:
+    """Return latest KR price row from srv_game_latest_price for one game."""
+
+    row = price_service.get_latest_price_by_game(canonical_game_id=canonical_game_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="Game latest price not found")
+
+    return GameLatestPriceResponse.model_validate(row)
 
 
 @router.get("/reviews/latest", response_model=list[GameLatestReviewsResponse])

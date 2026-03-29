@@ -1,5 +1,5 @@
 문서 목적: 테이블/파일 목록 + 그레인(1행 키) + 적재 규칙(증분/스냅샷) + 보존 기준 + repo-grounded provider 확장 경계 기록
-버전: v0.2 (provider-boundary 정리 반영)
+버전: v0.3 (latest price serving view 반영)
 작성일: 2026-03-28 (KST)
 
 ## 0. 레이어 개요
@@ -146,6 +146,7 @@
 - 목적: API에서 실시간 집계 대신 “미리 계산된 결과”를 읽게 함
 - 예시:
     - srv_game_latest_ccu: game별 최신 bucket_time의 ccu + Δ(전일 동일 버킷)
+    - srv_game_latest_price: game별 최신 KR bucket_time 가격 스냅샷
     - srv_game_latest_reviews: game별 최신 snapshot_date의 positive_ratio + Δ(전일)
     - srv_rank_latest_kr/global: 최신 snapshot_date의 랭킹 리스트
 
