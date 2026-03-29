@@ -1,7 +1,7 @@
 # Metrics & Definitions (요구사항 + 지표 정의서)
 
 문서 목적: 용어/지표/Δ 기준을 고정해 구현 중 재해석을 방지
-버전: v0.2 (latest reviews API semantics 반영)
+버전: v0.3 (latest price API semantics 반영)
 작성일: 2026-03-29 (KST)
 
 ## 0. 시간/기간 프리셋
@@ -154,6 +154,29 @@
 
 - 할인 시작: discount_percent가 0 → 양수로 전환되는 시점(또는 final < initial)
 - 할인 종료: discount_percent가 양수 → 0으로 전환
+
+### 5.3 Latest price API serving shape
+
+- latest price API는 `srv_game_latest_price`를 직접 읽는다.
+- current minimum path는 `tracked_game.is_active = true` 인 게임의 최신 KR 가격 행만 다룬다.
+- list endpoint는 `/games/price/latest`, single-game endpoint는 `/games/{canonical_game_id}/price/latest` 이다.
+- `region`은 current slice에서 항상 `KR` 이고, generalized region query param은 아직 없다.
+- `is_free`는 `fact_steam_price_1h`에 적재된 existing fact semantics를 그대로 노출하며, broader free/unavailable/missing-price semantics는 아직 확장하지 않는다.
+- current wire example(`/games/{id}/price/latest`):
+
+```json
+{
+  "canonical_game_id": 1,
+  "canonical_name": "Counter-Strike 2",
+  "bucket_time": "2026-03-29T14:00:00+09:00",
+  "region": "KR",
+  "currency_code": "KRW",
+  "initial_price_minor": 4200000,
+  "final_price_minor": 3360000,
+  "discount_percent": 20,
+  "is_free": null
+}
+```
 
 ## 6. 랭킹(추적 유니버스 seed)
 
