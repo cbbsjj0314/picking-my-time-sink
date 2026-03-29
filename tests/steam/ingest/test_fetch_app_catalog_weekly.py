@@ -9,13 +9,19 @@ from steam.ingest import fetch_app_catalog_weekly
 from steam.probe.common import RequestResult
 
 
-def make_result(body: dict[str, object]) -> RequestResult:
+def make_result(
+    body: dict[str, object],
+    *,
+    status_code: int = 200,
+    attempts: list[dict[str, object]] | None = None,
+) -> RequestResult:
     return RequestResult(
         final_url="https://example.com",
-        status_code=200,
+        status_code=status_code,
         headers={"content-type": "application/json"},
         body=json.dumps(body).encode("utf-8"),
-        attempts=[{"attempt": 1, "error": None, "sleep_seconds": 0.0, "status_code": 200}],
+        attempts=attempts
+        or [{"attempt": 1, "error": None, "sleep_seconds": 0.0, "status_code": status_code}],
         error=None,
     )
 
@@ -328,6 +334,54 @@ def test_run_fails_for_corrupt_resume_checkpoint(
             max_results=1000,
             meta_path=tmp_path / "meta.json",
         )
+
+
+def test_run_failure_still_saves_attempt_counts_in_execution_meta(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    meta_path = tmp_path / "meta.json"
+
+    monkeypatch.setenv("STEAM_API_KEY", "fake-test-key")
+    monkeypatch.setattr(
+        fetch_app_catalog_weekly,
+        "request_with_retry",
+        lambda **kwargs: make_result(
+            {},
+            attempts=[
+                {"attempt": 1, "error": "HTTP 429", "sleep_seconds": 0.5, "status_code": 429},
+                {
+                    "attempt": 2,
+                    "error": "timed out while reading response",
+                    "sleep_seconds": 1.0,
+                    "status_code": None,
+                },
+                {"attempt": 3, "error": None, "sleep_seconds": 0.0, "status_code": 200},
+            ],
+        ),
+    )
+
+    with pytest.raises(ValueError, match="invalid_response_container"):
+        fetch_app_catalog_weekly.run(
+            output_path=tmp_path / "snapshot.jsonl",
+            checkpoint_path=tmp_path / "checkpoint.json",
+            timeout_seconds=1.0,
+            max_attempts=3,
+            backoff_base_seconds=0.5,
+            jitter_max_seconds=0.1,
+            max_backoff_seconds=2.0,
+            max_results=1000,
+            meta_path=meta_path,
+        )
+
+    meta = json.loads(meta_path.read_text(encoding="utf-8"))
+    assert meta["success"] is False
+    assert meta["http_status"] == 200
+    assert meta["retry_count"] == 2
+    assert meta["timeout_count"] == 1
+    assert meta["rate_limit_count"] == 1
+    assert meta["error_type"] == "ValueError"
+    assert meta["error_message"] == "invalid_response_container"
 
 
 def test_run_completed_checkpoint_starts_fresh_and_keeps_previous_snapshot(

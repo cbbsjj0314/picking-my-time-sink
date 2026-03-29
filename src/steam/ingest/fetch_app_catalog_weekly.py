@@ -14,6 +14,7 @@ from steam.common.execution_meta import (
     build_execution_meta,
     default_meta_path,
     save_execution_meta,
+    sum_attempt_stats,
     summarize_attempts,
     utc_now_iso,
 )
@@ -308,14 +309,6 @@ def run(
                 ),
             )
 
-        aggregated = {
-            "retry_count": sum(item["retry_count"] for item in attempt_summaries),
-            "timeout_count": sum(item["timeout_count"] for item in attempt_summaries),
-            "rate_limit_count": sum(item["rate_limit_count"] for item in attempt_summaries),
-        }
-        retry_count = aggregated["retry_count"]
-        timeout_count = aggregated["timeout_count"]
-        rate_limit_count = aggregated["rate_limit_count"]
         success = True
         return rows
     except Exception as exc:  # pragma: no cover - defensive runtime guard
@@ -323,6 +316,10 @@ def run(
         error_message = str(exc)
         raise
     finally:
+        aggregated_attempt_stats = sum_attempt_stats(attempt_summaries)
+        retry_count = aggregated_attempt_stats["retry_count"]
+        timeout_count = aggregated_attempt_stats["timeout_count"]
+        rate_limit_count = aggregated_attempt_stats["rate_limit_count"]
         finished_at_utc = utc_now_iso()
         execution_meta = build_execution_meta(
             job_name=JOB_NAME,
