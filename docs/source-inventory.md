@@ -37,6 +37,7 @@
 - current repo-grounded resume/output precedence:
     - checkpoint가 `in_progress` 이면 checkpoint의 `snapshot_path`를 resume 대상으로 재사용하며, explicit `--output-path` 보다 우선한다.
     - checkpoint가 `completed` 이거나 checkpoint가 없으면 fresh start 이며, explicit `--output-path` 가 있으면 그 경로에 새 snapshot을 쓰고 없으면 timestamped default path를 사용한다.
+    - fresh start에서 explicit `--output-path` 가 기존 completed snapshot과 같은 경로여도 첫 요청 전에 빈 JSONL로 즉시 다시 쓰며, single-page terminal fetch는 그 fresh snapshot을 `completed`로 마감한다.
 
 ### 1.2 CCU (동접)
 

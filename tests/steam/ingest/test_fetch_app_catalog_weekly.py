@@ -435,6 +435,64 @@ def test_run_completed_checkpoint_starts_fresh_and_keeps_previous_snapshot(
     assert old_snapshot.read_text(encoding="utf-8") == '{"appid":1}\n'
 
 
+def test_run_completed_checkpoint_same_output_path_restarts_single_page_from_empty_snapshot(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    snapshot_path = tmp_path / "snapshot.jsonl"
+    snapshot_path.write_text('{"appid":1}\n', encoding="utf-8")
+    checkpoint_path = tmp_path / "checkpoint.json"
+    fetch_app_catalog_weekly.save_checkpoint(
+        checkpoint_path,
+        fetch_app_catalog_weekly.build_checkpoint(
+            status="completed",
+            started_at_utc="2026-03-15T00:00:00Z",
+            snapshot_path=snapshot_path,
+            last_appid=None,
+        ),
+    )
+
+    def fake_request_with_retry(**kwargs) -> RequestResult:
+        del kwargs
+        assert snapshot_path.read_text(encoding="utf-8") == ""
+        return make_result(
+            {
+                "response": {
+                    "apps": [{"appid": 2, "name": "Two", "last_modified": 2}],
+                    "have_more_results": False,
+                }
+            }
+        )
+
+    monkeypatch.setenv("STEAM_API_KEY", "fake-test-key")
+    monkeypatch.setattr(
+        fetch_app_catalog_weekly,
+        "request_with_retry",
+        fake_request_with_retry,
+    )
+
+    rows = fetch_app_catalog_weekly.run(
+        output_path=snapshot_path,
+        checkpoint_path=checkpoint_path,
+        timeout_seconds=1.0,
+        max_attempts=2,
+        backoff_base_seconds=0.5,
+        jitter_max_seconds=0.1,
+        max_backoff_seconds=2.0,
+        max_results=None,
+        meta_path=tmp_path / "meta.json",
+    )
+
+    checkpoint = json.loads(checkpoint_path.read_text(encoding="utf-8"))
+    assert rows == [{"appid": 2, "name": "Two", "last_modified": 2, "price_change_number": None}]
+    assert checkpoint["status"] == "completed"
+    assert checkpoint["started_at_utc"] != "2026-03-15T00:00:00Z"
+    assert checkpoint["snapshot_path"] == str(snapshot_path)
+    assert snapshot_path.read_text(encoding="utf-8") == (
+        '{"appid": 2, "last_modified": 2, "name": "Two", "price_change_number": null}\n'
+    )
+
+
 def test_run_is_rerun_safe_for_same_paginated_input(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
