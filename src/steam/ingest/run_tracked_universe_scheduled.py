@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 import steam.ingest.update_tracked_universe as tracked_universe_core
+import steam.probe.probe_rankings as rankings_probe
 
 LOGGER = logging.getLogger(__name__)
 
@@ -18,10 +19,26 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Run tracked universe scheduled updater from ranking artifacts"
     )
-    parser.add_argument("--topsellers-global-path", type=Path, required=True)
-    parser.add_argument("--topsellers-kr-path", type=Path, required=True)
-    parser.add_argument("--mostplayed-global-path", type=Path, required=True)
-    parser.add_argument("--mostplayed-kr-path", type=Path, required=True)
+    parser.add_argument(
+        "--topsellers-global-path",
+        type=Path,
+        default=rankings_probe.DEFAULT_TOPSELLERS_GLOBAL_PATH,
+    )
+    parser.add_argument(
+        "--topsellers-kr-path",
+        type=Path,
+        default=rankings_probe.DEFAULT_TOPSELLERS_KR_PATH,
+    )
+    parser.add_argument(
+        "--mostplayed-global-path",
+        type=Path,
+        default=rankings_probe.DEFAULT_MOSTPLAYED_GLOBAL_PATH,
+    )
+    parser.add_argument(
+        "--mostplayed-kr-path",
+        type=Path,
+        default=rankings_probe.DEFAULT_MOSTPLAYED_KR_PATH,
+    )
     parser.add_argument("--app-catalog-path", type=Path, default=None)
     parser.add_argument(
         "--result-path",
@@ -33,14 +50,21 @@ def build_parser() -> argparse.ArgumentParser:
 
 def run(
     *,
-    topsellers_global_path: Path,
-    topsellers_kr_path: Path,
-    mostplayed_global_path: Path,
-    mostplayed_kr_path: Path,
+    topsellers_global_path: Path = rankings_probe.DEFAULT_TOPSELLERS_GLOBAL_PATH,
+    topsellers_kr_path: Path = rankings_probe.DEFAULT_TOPSELLERS_KR_PATH,
+    mostplayed_global_path: Path = rankings_probe.DEFAULT_MOSTPLAYED_GLOBAL_PATH,
+    mostplayed_kr_path: Path = rankings_probe.DEFAULT_MOSTPLAYED_KR_PATH,
     app_catalog_path: Path | None = None,
     result_path: Path = tracked_universe_core.DEFAULT_RESULT_PATH,
 ) -> list[dict[str, Any]]:
-    """Delegate scheduled tracked universe updates to the core updater."""
+    """Refresh ranking payload artifacts, then delegate to the core updater."""
+
+    rankings_probe.run(
+        topsellers_global_path=topsellers_global_path,
+        topsellers_kr_path=topsellers_kr_path,
+        mostplayed_global_path=mostplayed_global_path,
+        mostplayed_kr_path=mostplayed_kr_path,
+    )
 
     return tracked_universe_core.run(
         topsellers_global_path=topsellers_global_path,
