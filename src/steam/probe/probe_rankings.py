@@ -1,25 +1,32 @@
-"""Probe Steam chart pages and store parsed ranking snapshots."""
+"""Fetch Steam rankings payloads and parse ranking rows."""
 
 from __future__ import annotations
 
 import argparse
+import json
 import logging
 import re
 import urllib.parse
 from dataclasses import dataclass
 from html.parser import HTMLParser
+from pathlib import Path
 
 from steam.probe.common import (
     add_common_probe_arguments,
-    build_snapshot,
     configure_logging,
+    decode_json_payload,
     request_with_retry,
     runtime_config_from_args,
-    save_snapshot,
-    utc_now_iso,
+    text_excerpt,
 )
 
 LOGGER = logging.getLogger(__name__)
+DEFAULT_RUNTIME_OUT_DIR = Path("tmp/steam/rankings")
+GLOBAL_COUNTRY_CODE = "US"
+TOPSELLERS_SERVICE_URL = "https://api.steampowered.com/IStoreTopSellersService/GetWeeklyTopSellers/v1/"
+MOSTPLAYED_SERVICE_URL = (
+    "https://api.steampowered.com/ISteamChartsService/GetGamesByConcurrentPlayers/v1/"
+)
 APP_LINK_RE = re.compile(
     r"(?:https?://store\.steampowered\.com)?/app/(\d+)(?:/([^\"'?#<>]*))?",
     re.IGNORECASE,
@@ -31,10 +38,24 @@ class RankingTarget:
     chart: str
     region: str
     url: str
+    service_url: str
+    country_code: str
 
     @property
     def probe_name(self) -> str:
         return f"rankings_{self.chart}_{self.region.lower()}"
+
+    @property
+    def artifact_key(self) -> str:
+        return f"{self.chart}_{self.region.lower()}"
+
+    @property
+    def payload_basename(self) -> str:
+        return f"{self.artifact_key}.payload.json"
+
+    @property
+    def default_output_path(self) -> Path:
+        return DEFAULT_RUNTIME_OUT_DIR / self.payload_basename
 
 
 TARGETS = (
@@ -42,23 +63,36 @@ TARGETS = (
         chart="topsellers",
         region="global",
         url="https://store.steampowered.com/charts/topsellers/global",
+        service_url=TOPSELLERS_SERVICE_URL,
+        country_code=GLOBAL_COUNTRY_CODE,
     ),
     RankingTarget(
         chart="topsellers",
         region="KR",
         url="https://store.steampowered.com/charts/topsellers/KR",
+        service_url=TOPSELLERS_SERVICE_URL,
+        country_code="KR",
     ),
     RankingTarget(
         chart="mostplayed",
         region="global",
         url="https://store.steampowered.com/charts/mostplayed/global",
+        service_url=MOSTPLAYED_SERVICE_URL,
+        country_code=GLOBAL_COUNTRY_CODE,
     ),
     RankingTarget(
         chart="mostplayed",
         region="KR",
         url="https://store.steampowered.com/charts/mostplayed/KR",
+        service_url=MOSTPLAYED_SERVICE_URL,
+        country_code="KR",
     ),
 )
+
+DEFAULT_TOPSELLERS_GLOBAL_PATH = TARGETS[0].default_output_path
+DEFAULT_TOPSELLERS_KR_PATH = TARGETS[1].default_output_path
+DEFAULT_MOSTPLAYED_GLOBAL_PATH = TARGETS[2].default_output_path
+DEFAULT_MOSTPLAYED_KR_PATH = TARGETS[3].default_output_path
 
 
 class SteamChartsHTMLParser(HTMLParser):
@@ -225,85 +259,121 @@ def parse_rankings_payload(
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Steam probe: chart rankings")
     add_common_probe_arguments(parser)
+    parser.set_defaults(out_dir=DEFAULT_RUNTIME_OUT_DIR)
     parser.add_argument("--max-rows", type=int, default=100)
     return parser
 
 
-def _payload_from_ranking_response(
-    *,
-    body: bytes,
-    target: RankingTarget,
-    max_rows: int,
-) -> dict[str, object]:
-    html_text = body.decode("utf-8", errors="replace") if body else ""
-    return {
-        "target": {
-            "chart": target.chart,
-            "region": target.region,
+def _request_params_for_target(target: RankingTarget) -> dict[str, str]:
+    input_json = {
+        # Steam requires a country context to enrich ranking rows with store item data.
+        "context": {
+            "country_code": target.country_code,
+            "language": "english",
         },
-        "raw_html_excerpt": html_text[:4000] if html_text else None,
-        "parsed_rows": parse_rankings_html(html_text, max_rows=max_rows),
+        "data_request": {
+            "include_basic_info": True,
+        },
     }
+    return {"input_json": json.dumps(input_json, separators=(",", ":"))}
+
+
+def _decode_rankings_payload(*, body: bytes, target: RankingTarget) -> dict[str, object]:
+    payload = decode_json_payload(body)
+    if isinstance(payload, dict):
+        return payload
+
+    excerpt = text_excerpt(body, max_chars=200)
+    raise ValueError(
+        f"Steam rankings payload decode failed for {target.probe_name}: "
+        f"{excerpt or '<empty body>'}"
+    )
+
+
+def _write_payload(*, path: Path, payload: dict[str, object]) -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    return path
+
+
+def _resolved_output_paths(*, out_dir: Path | None = None) -> dict[str, Path]:
+    if out_dir is None:
+        return {target.artifact_key: target.default_output_path for target in TARGETS}
+    return {target.artifact_key: out_dir / target.payload_basename for target in TARGETS}
+
+
+def run(
+    *,
+    topsellers_global_path: Path = DEFAULT_TOPSELLERS_GLOBAL_PATH,
+    topsellers_kr_path: Path = DEFAULT_TOPSELLERS_KR_PATH,
+    mostplayed_global_path: Path = DEFAULT_MOSTPLAYED_GLOBAL_PATH,
+    mostplayed_kr_path: Path = DEFAULT_MOSTPLAYED_KR_PATH,
+    timeout_seconds: float = 10.0,
+    max_attempts: int = 4,
+    backoff_base_seconds: float = 0.5,
+    jitter_max_seconds: float = 0.3,
+    max_backoff_seconds: float = 8.0,
+    max_rows: int = 100,
+) -> list[Path]:
+    """Fetch the four Steam ranking payloads and write stable runtime artifacts."""
+
+    output_paths = {
+        "topsellers_global": topsellers_global_path,
+        "topsellers_kr": topsellers_kr_path,
+        "mostplayed_global": mostplayed_global_path,
+        "mostplayed_kr": mostplayed_kr_path,
+    }
+    saved_paths: list[Path] = []
+
+    for target in TARGETS:
+        result = request_with_retry(
+            url=target.service_url,
+            params=_request_params_for_target(target),
+            timeout_seconds=timeout_seconds,
+            max_attempts=max_attempts,
+            backoff_base_seconds=backoff_base_seconds,
+            jitter_max_seconds=jitter_max_seconds,
+            max_backoff_seconds=max_backoff_seconds,
+            logger=LOGGER,
+        )
+        if result.error:
+            raise ValueError(f"Steam rankings fetch failed for {target.probe_name}: {result.error}")
+
+        payload = _decode_rankings_payload(body=result.body, target=target)
+        parsed_rows = parse_rankings_payload(payload, max_rows=max_rows)
+        if not parsed_rows:
+            raise ValueError(f"Steam rankings payload produced zero rows for {target.probe_name}")
+
+        output_path = _write_payload(path=output_paths[target.artifact_key], payload=payload)
+        saved_paths.append(output_path)
+        LOGGER.info(
+            "Saved %s payload to %s (rows=%s)",
+            target.probe_name,
+            output_path,
+            len(parsed_rows),
+        )
+
+    return saved_paths
 
 
 def main() -> None:
     configure_logging()
     args = build_parser().parse_args()
     runtime = runtime_config_from_args(args)
-
-    saved_paths = []
-
-    for target in TARGETS:
-        result = request_with_retry(
-            url=target.url,
-            params=None,
-            timeout_seconds=runtime.timeout_seconds,
-            max_attempts=runtime.max_attempts,
-            backoff_base_seconds=runtime.backoff_base_seconds,
-            jitter_max_seconds=runtime.jitter_max_seconds,
-            max_backoff_seconds=runtime.max_backoff_seconds,
-            logger=LOGGER,
-        )
-
-        if result.status_code is not None and len(result.body) == 0:
-            LOGGER.warning("Empty response body from %s", target.url)
-
-        payload = _payload_from_ranking_response(
-            body=result.body,
-            target=target,
-            max_rows=args.max_rows,
-        )
-
-        collected_at_utc = utc_now_iso()
-        snapshot = build_snapshot(
-            probe_name=target.probe_name,
-            collected_at_utc=collected_at_utc,
-            request_url=target.url,
-            request_params=None,
-            timeout_seconds=runtime.timeout_seconds,
-            result=result,
-            payload_excerpt_or_json=payload,
-        )
-
-        output_path = save_snapshot(
-            out_dir=runtime.out_dir,
-            probe_name=target.probe_name,
-            snapshot=snapshot,
-        )
-        saved_paths.append(output_path)
-
-        if result.error:
-            LOGGER.error("Probe %s failed: %s", target.probe_name, result.error)
-        else:
-            parsed_count = len(payload["parsed_rows"])
-            LOGGER.info(
-                "Saved %s snapshot to %s (rows=%s)",
-                target.probe_name,
-                output_path,
-                parsed_count,
-            )
-
-    LOGGER.info("Saved %s ranking snapshots", len(saved_paths))
+    output_paths = _resolved_output_paths(out_dir=runtime.out_dir)
+    saved_paths = run(
+        topsellers_global_path=output_paths["topsellers_global"],
+        topsellers_kr_path=output_paths["topsellers_kr"],
+        mostplayed_global_path=output_paths["mostplayed_global"],
+        mostplayed_kr_path=output_paths["mostplayed_kr"],
+        timeout_seconds=runtime.timeout_seconds,
+        max_attempts=runtime.max_attempts,
+        backoff_base_seconds=runtime.backoff_base_seconds,
+        jitter_max_seconds=runtime.jitter_max_seconds,
+        max_backoff_seconds=runtime.max_backoff_seconds,
+        max_rows=args.max_rows,
+    )
+    LOGGER.info("Saved %s ranking payload artifacts", len(saved_paths))
 
 
 if __name__ == "__main__":
