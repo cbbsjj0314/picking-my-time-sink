@@ -32,6 +32,7 @@
 - Never hardcode secrets or environment-specific values.
 - Use environment variables or configuration files.
 - Keep local-only values out of version-controlled source files.
+- Prefer sanitized representative fixtures in tracked public paths; keep fuller raw third-party or UGC-heavy captures local/private when possible.
 
 ## Security and dependency hygiene
 - Treat internet-connected services, CI jobs, and automation entrypoints as production attack surface, even in MVP stage.
