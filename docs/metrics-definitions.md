@@ -1,8 +1,8 @@
 # Metrics & Definitions (요구사항 + 지표 정의서)
 
 문서 목적: 용어/지표/Δ 기준을 고정해 구현 중 재해석을 방지
-버전: v0.3 (latest price API semantics 반영)
-작성일: 2026-03-29 (KST)
+버전: v0.4 (latest rankings API semantics 반영)
+작성일: 2026-03-31 (KST)
 
 ## 0. 시간/기간 프리셋
 
@@ -45,6 +45,7 @@
 
 - “수집 실행 시각”이 아니라 “KST 날짜”로 저장
 - `srv_game_latest_reviews`와 latest reviews API의 `snapshot_date`는 같은 KST 날짜를 뜻하며, wire output은 ISO date string(`YYYY-MM-DD`)으로 본다.
+- current rankings gold path는 raw payload contract에 별도 collected timestamp가 없으므로 runtime artifact file mtime을 `collected_at` anchor로 사용하고, 그 KST 날짜를 `snapshot_date`로 저장한다.
 - latest reviews API의 전일 대비는 section 1.3 규칙대로 전일 `snapshot_date`를 비교한다.
 - 스케줄:
     - Steam 랭킹: 03:10 KST
@@ -186,6 +187,24 @@
 - 사용처:
     - 대시보드 “오늘의 상위”
     - tracked_universe 자동 갱신(seed)
+
+### 6.1 Latest rankings API serving shape
+
+- latest rankings API는 `srv_rank_latest_kr_top_selling` 를 직접 읽는다.
+- current minimum path는 latest KR top-selling list만 다루며, generalized market/rank_type query param은 아직 없다.
+- list endpoint는 `/games/rankings/latest` 이다.
+- `canonical_game_id`, `canonical_name` 은 current Steam mapping이 없으면 `null` 이다.
+- current wire example(`/games/rankings/latest` item):
+
+```json
+{
+  "snapshot_date": "2026-03-31",
+  "rank_position": 1,
+  "steam_appid": 730,
+  "canonical_game_id": 1,
+  "canonical_name": "Counter-Strike 2"
+}
+```
 
 ## 7. 관계(동행) — MVP 최소 KPI
 

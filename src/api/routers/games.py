@@ -7,7 +7,7 @@ import datetime as dt
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
-from api.services import ccu_service, price_service, reviews_service
+from api.services import ccu_service, price_service, rankings_service, reviews_service
 
 router = APIRouter(prefix="/games", tags=["games"])
 
@@ -60,6 +60,16 @@ class GameLatestPriceResponse(BaseModel):
     final_price_minor: int
     discount_percent: int
     is_free: bool | None
+
+
+class GameLatestRankingResponse(BaseModel):
+    """Latest ranking response model for one fixed rankings list row."""
+
+    snapshot_date: dt.date
+    rank_position: int
+    steam_appid: int
+    canonical_game_id: int | None
+    canonical_name: str | None
 
 
 @router.get("/ccu/latest", response_model=list[GameLatestCcuResponse])
@@ -126,6 +136,16 @@ def list_games_latest_reviews(
 
     rows = reviews_service.list_latest_reviews(limit=limit)
     return [GameLatestReviewsResponse.model_validate(row) for row in rows]
+
+
+@router.get("/rankings/latest", response_model=list[GameLatestRankingResponse])
+def list_games_latest_rankings(
+    limit: int = Query(default=50, ge=1, le=200),
+) -> list[GameLatestRankingResponse]:
+    """Return latest fixed KR top-selling ranking rows with an optional limit."""
+
+    rows = rankings_service.list_latest_rankings(limit=limit)
+    return [GameLatestRankingResponse.model_validate(row) for row in rows]
 
 
 @router.get(
