@@ -8,8 +8,8 @@
 
 ## Planning and reporting
 - Before making changes, show a short plan.
-- Use `docs/NEXT.local.md` as the current execution priority board when it applies.
-- If a task changes current status or closes a Now/Next item, update `docs/NEXT.local.md` in the same slice.
+- Use `docs/local/NEXT.md` as the current execution priority board when it is present locally and applies.
+- If a task changes current status or closes a Now/Next item, update `docs/local/NEXT.md` in the same slice when that local board is present.
 - If a change alters schema, API, or data semantics, update the related durable doc and regression tests in the same slice.
 - After making changes, summarize:
   - files changed
