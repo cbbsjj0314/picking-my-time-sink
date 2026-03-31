@@ -38,6 +38,11 @@
     - checkpoint가 `in_progress` 이면 checkpoint의 `snapshot_path`를 resume 대상으로 재사용하며, explicit `--output-path` 보다 우선한다.
     - checkpoint가 `completed` 이거나 checkpoint가 없으면 fresh start 이며, explicit `--output-path` 가 있으면 그 경로에 새 snapshot을 쓰고 없으면 timestamped default path를 사용한다.
     - fresh start에서 explicit `--output-path` 가 기존 completed snapshot과 같은 경로여도 첫 요청 전에 빈 JSONL로 즉시 다시 쓰며, single-page terminal fetch는 그 fresh snapshot을 `completed`로 마감한다.
+- current repo-grounded runtime latest summary handoff:
+    - successful weekly fetch는 resumable JSONL snapshot과 별도로 `tmp/steam/app_catalog/latest.summary.json` 를 갱신한다.
+    - latest summary top-level contract는 `job_name`, `status`, `started_at_utc`, `finished_at_utc`, `snapshot_path` 이다.
+    - downstream consumer contract는 `response.payload_excerpt_or_json` 아래의 `app_count`, `pagination`, `top_level_keys`, `apps_excerpt` 요약 shape를 재사용한다.
+    - `update_tracked_universe.py` 의 optional consumer는 위 latest summary path를 기본값으로 읽되, 파일이 없거나 읽기 실패여도 non-blocking 으로 건너뛴다.
 
 ### 1.2 CCU (동접)
 

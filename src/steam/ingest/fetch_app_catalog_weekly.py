@@ -18,6 +18,11 @@ from steam.common.execution_meta import (
     summarize_attempts,
     utc_now_iso,
 )
+from steam.ingest.app_catalog_latest_summary import (
+    DEFAULT_APP_CATALOG_LATEST_SUMMARY_PATH,
+    build_latest_summary,
+    write_latest_summary,
+)
 from steam.probe.common import (
     configure_logging,
     decode_json_payload,
@@ -222,6 +227,7 @@ def run(
     *,
     output_path: Path | None = None,
     checkpoint_path: Path | None = None,
+    latest_summary_path: Path | None = None,
     timeout_seconds: float,
     max_attempts: int,
     backoff_base_seconds: float,
@@ -233,6 +239,7 @@ def run(
     """Fetch the full Steam App Catalog into a resumable temporary JSONL snapshot."""
 
     resolved_checkpoint_path = checkpoint_path or DEFAULT_CHECKPOINT_PATH
+    resolved_latest_summary_path = latest_summary_path or DEFAULT_APP_CATALOG_LATEST_SUMMARY_PATH
     started_at_utc, resolved_snapshot_path, last_appid, rows = get_resume_state(
         checkpoint_path=resolved_checkpoint_path,
         output_path=output_path,
@@ -251,6 +258,7 @@ def run(
     records_out = len(rows)
     error_type: str | None = None
     error_message: str | None = None
+    finished_at_utc: str | None = None
     attempt_summaries: list[dict[str, int]] = []
 
     try:
@@ -309,6 +317,17 @@ def run(
                 ),
             )
 
+        finished_at_utc = utc_now_iso()
+        write_latest_summary(
+            resolved_latest_summary_path,
+            build_latest_summary(
+                job_name=JOB_NAME,
+                started_at_utc=started_at_utc,
+                finished_at_utc=finished_at_utc,
+                snapshot_path=resolved_snapshot_path,
+                rows=rows,
+            ),
+        )
         success = True
         return rows
     except Exception as exc:  # pragma: no cover - defensive runtime guard
@@ -320,7 +339,8 @@ def run(
         retry_count = aggregated_attempt_stats["retry_count"]
         timeout_count = aggregated_attempt_stats["timeout_count"]
         rate_limit_count = aggregated_attempt_stats["rate_limit_count"]
-        finished_at_utc = utc_now_iso()
+        if finished_at_utc is None:
+            finished_at_utc = utc_now_iso()
         execution_meta = build_execution_meta(
             job_name=JOB_NAME,
             started_at_utc=started_at_utc,
@@ -344,6 +364,7 @@ def main() -> None:
     run(
         output_path=args.output_path,
         checkpoint_path=args.checkpoint_path,
+        latest_summary_path=DEFAULT_APP_CATALOG_LATEST_SUMMARY_PATH,
         timeout_seconds=args.timeout_sec,
         max_attempts=args.max_attempts,
         backoff_base_seconds=args.backoff_base_sec,

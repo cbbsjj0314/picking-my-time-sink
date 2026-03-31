@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 from steam.ingest import fetch_app_catalog_weekly
+from steam.ingest.app_catalog_latest_summary import DEFAULT_APP_CATALOG_LATEST_SUMMARY_PATH
 from steam.probe.common import RequestResult
 
 
@@ -34,6 +35,62 @@ def test_build_parser_uses_app_catalog_only_defaults() -> None:
     assert args.output_path is None
     assert args.max_results is None
     assert args.meta_path is None
+
+
+def test_run_writes_runtime_latest_summary_artifact_on_success(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    snapshot_path = tmp_path / "snapshot.jsonl"
+    checkpoint_path = tmp_path / "checkpoint.json"
+    meta_path = tmp_path / "meta.json"
+    latest_summary_path = tmp_path / "latest.summary.json"
+
+    monkeypatch.setenv("STEAM_API_KEY", "fake-test-key")
+    monkeypatch.setattr(
+        fetch_app_catalog_weekly,
+        "request_with_retry",
+        lambda **kwargs: make_result(
+            {
+                "response": {
+                    "apps": [
+                        {"appid": 20, "name": "Twenty", "last_modified": 2},
+                        {"appid": 10, "name": "Ten", "last_modified": 1},
+                    ],
+                    "have_more_results": False,
+                }
+            }
+        ),
+    )
+
+    rows = fetch_app_catalog_weekly.run(
+        output_path=snapshot_path,
+        checkpoint_path=checkpoint_path,
+        latest_summary_path=latest_summary_path,
+        timeout_seconds=1.0,
+        max_attempts=2,
+        backoff_base_seconds=0.5,
+        jitter_max_seconds=0.1,
+        max_backoff_seconds=2.0,
+        max_results=None,
+        meta_path=meta_path,
+    )
+
+    summary = json.loads(latest_summary_path.read_text(encoding="utf-8"))
+    assert rows == [
+        {"appid": 10, "name": "Ten", "last_modified": 1, "price_change_number": None},
+        {"appid": 20, "name": "Twenty", "last_modified": 2, "price_change_number": None},
+    ]
+    assert summary["job_name"] == fetch_app_catalog_weekly.JOB_NAME
+    assert summary["status"] == "completed"
+    assert summary["schema_version"] == "1.0"
+    assert summary["snapshot_path"] == str(snapshot_path)
+    assert summary["response"]["payload_excerpt_or_json"] == {
+        "app_count": 2,
+        "apps_excerpt": rows,
+        "pagination": {"have_more_results": False},
+        "top_level_keys": ["apps", "have_more_results"],
+    }
 
 
 def test_merge_normalized_catalog_rows_last_seen_wins_and_sorts() -> None:
@@ -119,6 +176,7 @@ def test_run_fetches_paginated_catalog_and_writes_completed_checkpoint(
     rows = fetch_app_catalog_weekly.run(
         output_path=snapshot_path,
         checkpoint_path=checkpoint_path,
+        latest_summary_path=tmp_path / "latest.summary.json",
         timeout_seconds=1.0,
         max_attempts=2,
         backoff_base_seconds=0.5,
@@ -173,6 +231,7 @@ def test_run_single_page_terminal_page_writes_completed_not_in_progress(
     rows = fetch_app_catalog_weekly.run(
         output_path=snapshot_path,
         checkpoint_path=checkpoint_path,
+        latest_summary_path=tmp_path / "latest.summary.json",
         timeout_seconds=1.0,
         max_attempts=2,
         backoff_base_seconds=0.5,
@@ -234,6 +293,7 @@ def test_run_multi_page_terminal_page_writes_completed_not_in_progress(
     fetch_app_catalog_weekly.run(
         output_path=snapshot_path,
         checkpoint_path=checkpoint_path,
+        latest_summary_path=tmp_path / "latest.summary.json",
         timeout_seconds=1.0,
         max_attempts=2,
         backoff_base_seconds=0.5,
@@ -289,6 +349,7 @@ def test_run_resumes_from_in_progress_checkpoint(
     rows = fetch_app_catalog_weekly.run(
         output_path=None,
         checkpoint_path=checkpoint_path,
+        latest_summary_path=tmp_path / "latest.summary.json",
         timeout_seconds=1.0,
         max_attempts=2,
         backoff_base_seconds=0.5,
@@ -326,6 +387,7 @@ def test_run_fails_for_corrupt_resume_checkpoint(
         fetch_app_catalog_weekly.run(
             output_path=None,
             checkpoint_path=checkpoint_path,
+            latest_summary_path=tmp_path / "latest.summary.json",
             timeout_seconds=1.0,
             max_attempts=2,
             backoff_base_seconds=0.5,
@@ -365,6 +427,7 @@ def test_run_failure_still_saves_attempt_counts_in_execution_meta(
         fetch_app_catalog_weekly.run(
             output_path=tmp_path / "snapshot.jsonl",
             checkpoint_path=tmp_path / "checkpoint.json",
+            latest_summary_path=tmp_path / "latest.summary.json",
             timeout_seconds=1.0,
             max_attempts=3,
             backoff_base_seconds=0.5,
@@ -418,6 +481,7 @@ def test_run_completed_checkpoint_starts_fresh_and_keeps_previous_snapshot(
     rows = fetch_app_catalog_weekly.run(
         output_path=new_snapshot,
         checkpoint_path=checkpoint_path,
+        latest_summary_path=tmp_path / "latest.summary.json",
         timeout_seconds=1.0,
         max_attempts=2,
         backoff_base_seconds=0.5,
@@ -474,6 +538,7 @@ def test_run_completed_checkpoint_same_output_path_restarts_single_page_from_emp
     rows = fetch_app_catalog_weekly.run(
         output_path=snapshot_path,
         checkpoint_path=checkpoint_path,
+        latest_summary_path=tmp_path / "latest.summary.json",
         timeout_seconds=1.0,
         max_attempts=2,
         backoff_base_seconds=0.5,
@@ -531,6 +596,7 @@ def test_run_is_rerun_safe_for_same_paginated_input(
         rows = fetch_app_catalog_weekly.run(
             output_path=snapshot_path,
             checkpoint_path=checkpoint_path,
+            latest_summary_path=latest_summary_path,
             timeout_seconds=1.0,
             max_attempts=2,
             backoff_base_seconds=0.5,
@@ -544,6 +610,7 @@ def test_run_is_rerun_safe_for_same_paginated_input(
         return rows, checkpoint, snapshot_text
 
     monkeypatch.setenv("STEAM_API_KEY", "fake-test-key")
+    latest_summary_path = tmp_path / "latest.summary.json"
 
     first = run_once(
         tmp_path / "snapshot1.jsonl",
@@ -561,3 +628,10 @@ def test_run_is_rerun_safe_for_same_paginated_input(
     assert first[1]["last_appid"] is None
     assert second[1]["last_appid"] is None
     assert first[2] == second[2]
+
+
+def test_default_latest_summary_path_is_canonical_runtime_path() -> None:
+    assert (
+        DEFAULT_APP_CATALOG_LATEST_SUMMARY_PATH
+        == Path("tmp/steam/app_catalog/latest.summary.json")
+    )
