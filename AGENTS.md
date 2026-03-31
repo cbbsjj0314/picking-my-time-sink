@@ -65,6 +65,10 @@
 - Merge to `main` at natural completion points (task close or checkpoint).
 - Use commit messages in this format:
   - `type(scope): summary`
+- Write commit subjects that are specific and clear.
+- Keep commit subjects concise without dropping essential context.
+- Avoid vague summaries such as `fix bug`, `update code`, or `misc cleanup`.
+- Prefer subjects that make the changed behavior, target area, or reason clear.
 - Suggested types:
   - `feat`
   - `fix`
