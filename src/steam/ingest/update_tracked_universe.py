@@ -11,6 +11,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from steam.ingest.app_catalog_latest_summary import (
+    DEFAULT_APP_CATALOG_LATEST_SUMMARY_PATH,
+    extract_catalog_metadata,
+)
 from steam.probe.probe_rankings import (
     DEFAULT_MOSTPLAYED_GLOBAL_PATH,
     DEFAULT_MOSTPLAYED_KR_PATH,
@@ -21,8 +25,7 @@ from steam.probe.probe_rankings import (
 
 LOGGER = logging.getLogger(__name__)
 DEFAULT_RESULT_PATH = Path("tmp/steam/tracked_universe/update_result.jsonl")
-# DEFAULT_APP_CATALOG_PATH = Path("docs/probe/steam/getapplist/20260309T202243Z.json")
-DEFAULT_APP_CATALOG_PATH = Path("docs/probe/steam/getapplist/representative.json")
+DEFAULT_APP_CATALOG_PATH = DEFAULT_APP_CATALOG_LATEST_SUMMARY_PATH
 
 
 @dataclass(frozen=True, slots=True)
@@ -277,26 +280,12 @@ def load_optional_catalog_metadata(path: Path | None) -> dict[str, Any]:
         return {
             "app_count": None,
             "pagination": {},
+            "snapshot_path": None,
             "top_level_keys": [],
         }
 
     try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
-        excerpt = payload.get("response", {}).get("payload_excerpt_or_json")
-        if not isinstance(excerpt, dict):
-            raise ValueError("payload_excerpt_or_json is not an object")
-        top_level_keys = excerpt.get("top_level_keys")
-        pagination = excerpt.get("pagination")
-        app_count = excerpt.get("app_count")
-        if top_level_keys is not None and not isinstance(top_level_keys, list):
-            raise ValueError("top_level_keys is not a list")
-        if pagination is not None and not isinstance(pagination, dict):
-            raise ValueError("pagination is not an object")
-        return {
-            "app_count": int(app_count) if isinstance(app_count, int) else None,
-            "pagination": pagination if isinstance(pagination, dict) else {},
-            "top_level_keys": top_level_keys if isinstance(top_level_keys, list) else [],
-        }
+        return extract_catalog_metadata(json.loads(path.read_text(encoding="utf-8")))
     except FileNotFoundError:
         LOGGER.warning("Optional App Catalog summary missing: %s", path)
     except OSError:
@@ -307,6 +296,7 @@ def load_optional_catalog_metadata(path: Path | None) -> dict[str, Any]:
     return {
         "app_count": None,
         "pagination": {},
+        "snapshot_path": None,
         "top_level_keys": [],
     }
 
@@ -671,9 +661,10 @@ def run(
     catalog_metadata = load_optional_catalog_metadata(app_catalog_path)
     if catalog_metadata["app_count"] is not None:
         LOGGER.info(
-            "Loaded optional App Catalog metadata: app_count=%s pagination=%s",
+            "Loaded optional App Catalog metadata: app_count=%s pagination=%s snapshot_path=%s",
             catalog_metadata["app_count"],
             catalog_metadata["pagination"],
+            catalog_metadata["snapshot_path"],
         )
 
     psycopg = require_psycopg()
