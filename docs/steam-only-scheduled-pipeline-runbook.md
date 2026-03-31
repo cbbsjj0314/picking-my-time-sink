@@ -1,6 +1,6 @@
 문서 목적: Steam-only scheduled pipeline minimum handoff를 current repo 기준으로 1개 문서에 고정
-버전: v0.1 (manual handoff baseline)
-작성일: 2026-03-31 (KST)
+버전: v0.2 (manual handoff baseline + thin wrapper)
+작성일: 2026-04-01 (KST)
 
 ## 0. 현재 범위
 
@@ -11,7 +11,9 @@
   - ranking gold upsert
   - price / reviews / ccu fetch -> silver normalize -> gold upsert
 - handoff 단위는 local runtime artifact(`tmp/steam/...`)와 Postgres update 이다.
-- 새 scheduler automation / wrapper는 추가하지 않는다.
+- manual handoff baseline은 유지한다.
+- 같은 순서를 실행하는 thin single-command wrapper 1개까지는 current scope에 포함한다.
+- scheduler automation / external scheduling은 추가하지 않는다.
 
 ## 1. 선행조건
 
@@ -19,7 +21,7 @@
 
 - repo root에서 실행한다.
 - Python 의존성은 이미 `poetry install` 된 상태를 전제로 한다.
-- 모든 entrypoint는 `poetry run python -m ...` 형태로 실행한다.
+- current repo는 `package-mode = false` 이므로 shell entrypoint는 `PYTHONPATH=src poetry run python -m ...` 형태로 실행한다.
 - `tmp/steam/...` 아래에 파일을 쓸 수 있어야 한다.
 - Steam HTTP endpoint에 outbound network가 가능해야 한다.
 
@@ -80,6 +82,15 @@
 3. `price`, `reviews`, `ccu`는 모두 updated `tracked_game`을 읽는다.
 4. 3단계 이후 세 branch는 서로 독립이지만, minimum handoff 문서에서는 operator confusion을 줄이기 위해 `price -> reviews -> ccu` 순서로 직렬 실행한다.
 
+- 위 순서를 1개 명령으로 그대로 실행하려면 아래 wrapper를 쓴다.
+
+```bash
+PYTHONPATH=src poetry run python -m steam.ingest.run_steam_only_scheduled_pipeline
+```
+
+- 이 wrapper는 3.1~3.5의 순서와 artifact path를 그대로 사용한다.
+- 단계별 triage가 필요하면 아래 manual handoff 명령을 그대로 사용한다.
+
 ## 3. 단계별 명령과 handoff
 
 ### 3.1 Ranking payload refresh + tracked_universe update
@@ -90,7 +101,7 @@
 - 명령:
 
 ```bash
-poetry run python -m steam.ingest.run_tracked_universe_scheduled \
+PYTHONPATH=src poetry run python -m steam.ingest.run_tracked_universe_scheduled \
   --result-path tmp/steam/tracked_universe/update_result.jsonl
 ```
 
@@ -122,7 +133,7 @@ poetry run python -m steam.ingest.run_tracked_universe_scheduled \
 - 명령:
 
 ```bash
-poetry run python -m steam.normalize.payload_to_gold_rankings \
+PYTHONPATH=src poetry run python -m steam.normalize.payload_to_gold_rankings \
   --result-path tmp/steam/rankings/payload_to_gold_result.jsonl
 ```
 
@@ -148,14 +159,14 @@ poetry run python -m steam.normalize.payload_to_gold_rankings \
 - 명령:
 
 ```bash
-poetry run python -m steam.ingest.fetch_price_1h \
+PYTHONPATH=src poetry run python -m steam.ingest.fetch_price_1h \
   --output-path tmp/steam/handoff/price.bronze.jsonl
 
-poetry run python -m steam.normalize.bronze_to_silver_price \
+PYTHONPATH=src poetry run python -m steam.normalize.bronze_to_silver_price \
   --input-path tmp/steam/handoff/price.bronze.jsonl \
   --output-path tmp/steam/handoff/price.silver.jsonl
 
-poetry run python -m steam.normalize.silver_to_gold_price \
+PYTHONPATH=src poetry run python -m steam.normalize.silver_to_gold_price \
   --input-path tmp/steam/handoff/price.silver.jsonl \
   --result-path tmp/steam/handoff/price.gold-result.jsonl
 ```
@@ -186,14 +197,14 @@ poetry run python -m steam.normalize.silver_to_gold_price \
 - 명령:
 
 ```bash
-poetry run python -m steam.ingest.fetch_reviews_daily \
+PYTHONPATH=src poetry run python -m steam.ingest.fetch_reviews_daily \
   --output-path tmp/steam/handoff/reviews.bronze.jsonl
 
-poetry run python -m steam.normalize.bronze_to_silver_reviews \
+PYTHONPATH=src poetry run python -m steam.normalize.bronze_to_silver_reviews \
   --input-path tmp/steam/handoff/reviews.bronze.jsonl \
   --output-path tmp/steam/handoff/reviews.silver.jsonl
 
-poetry run python -m steam.normalize.silver_to_gold_reviews \
+PYTHONPATH=src poetry run python -m steam.normalize.silver_to_gold_reviews \
   --input-path tmp/steam/handoff/reviews.silver.jsonl \
   --result-path tmp/steam/handoff/reviews.gold-result.jsonl
 ```
@@ -224,14 +235,14 @@ poetry run python -m steam.normalize.silver_to_gold_reviews \
 - 명령:
 
 ```bash
-poetry run python -m steam.ingest.fetch_ccu_30m \
+PYTHONPATH=src poetry run python -m steam.ingest.fetch_ccu_30m \
   --output-path tmp/steam/handoff/ccu.bronze.jsonl
 
-poetry run python -m steam.normalize.bronze_to_silver_ccu \
+PYTHONPATH=src poetry run python -m steam.normalize.bronze_to_silver_ccu \
   --input-path tmp/steam/handoff/ccu.bronze.jsonl \
   --output-path tmp/steam/handoff/ccu.silver.jsonl
 
-poetry run python -m steam.normalize.silver_to_gold_ccu \
+PYTHONPATH=src poetry run python -m steam.normalize.silver_to_gold_ccu \
   --input-path tmp/steam/handoff/ccu.silver.jsonl \
   --result-path tmp/steam/handoff/ccu.gold-result.jsonl
 ```
@@ -306,7 +317,6 @@ PGPASSWORD="$POSTGRES_PASSWORD" psql \
 
 ## 5. 이번 slice에서 명시적으로 defer한 것
 
-- thin scheduler entrypoint 또는 single-command wrapper 추가
 - App Catalog external scheduling 운영화
 - App Catalog JSONL snapshot / latest summary의 weekly 운영 runbook 본문화
 - Parquet / MinIO handoff
