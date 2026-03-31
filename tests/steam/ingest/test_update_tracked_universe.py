@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+from steam.ingest.app_catalog_latest_summary import build_latest_summary, write_latest_summary
 from steam.ingest.update_tracked_universe import (
     DEFAULT_APP_CATALOG_PATH,
     DEFAULT_RESULT_PATH,
@@ -134,7 +135,12 @@ def test_optional_catalog_metadata_none_is_quiet_and_non_blocking(
     with caplog.at_level(logging.WARNING, logger="steam.ingest.update_tracked_universe"):
         metadata = load_optional_catalog_metadata(None)
 
-    assert metadata == {"app_count": None, "pagination": {}, "top_level_keys": []}
+    assert metadata == {
+        "app_count": None,
+        "pagination": {},
+        "snapshot_path": None,
+        "top_level_keys": [],
+    }
     assert not caplog.records
 
 
@@ -147,14 +153,52 @@ def test_optional_catalog_metadata_missing_is_non_blocking(
     with caplog.at_level(logging.WARNING, logger="steam.ingest.update_tracked_universe"):
         metadata = load_optional_catalog_metadata(missing_path)
 
-    assert metadata == {"app_count": None, "pagination": {}, "top_level_keys": []}
+    assert metadata == {
+        "app_count": None,
+        "pagination": {},
+        "snapshot_path": None,
+        "top_level_keys": [],
+    }
     assert f"Optional App Catalog summary missing: {missing_path}" in caplog.text
 
 
-def test_optional_catalog_metadata_valid_file_extracts_summary() -> None:
-    metadata = load_optional_catalog_metadata(DEFAULT_APP_CATALOG_PATH)
+def test_optional_catalog_metadata_runtime_latest_summary_extracts_summary(
+    tmp_path: Path,
+) -> None:
+    summary_path = tmp_path / "latest.summary.json"
+    write_latest_summary(
+        summary_path,
+        build_latest_summary(
+            job_name="fetch_app_catalog_weekly",
+            started_at_utc="2026-03-31T00:00:00Z",
+            finished_at_utc="2026-03-31T00:01:00Z",
+            snapshot_path=tmp_path / "snapshot.jsonl",
+            rows=[
+                {"appid": 10, "last_modified": 1, "name": "Ten", "price_change_number": None},
+                {
+                    "appid": 20,
+                    "last_modified": 2,
+                    "name": "Twenty",
+                    "price_change_number": None,
+                },
+            ],
+        ),
+    )
+
+    metadata = load_optional_catalog_metadata(summary_path)
+    assert metadata["app_count"] == 2
+    assert metadata["pagination"] == {"have_more_results": False}
+    assert metadata["snapshot_path"] == str(tmp_path / "snapshot.jsonl")
+    assert metadata["top_level_keys"] == ["apps", "have_more_results"]
+
+
+def test_optional_catalog_metadata_explicit_probe_sample_still_extracts_summary() -> None:
+    metadata = load_optional_catalog_metadata(
+        Path("docs/probe/steam/getapplist/representative.json")
+    )
     assert metadata["app_count"] == 10000
     assert metadata["pagination"] == {"have_more_results": True, "last_appid": 507030}
+    assert metadata["snapshot_path"] is None
     assert metadata["top_level_keys"] == ["apps", "have_more_results", "last_appid"]
 
 
