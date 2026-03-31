@@ -1,6 +1,6 @@
 문서 목적: 테이블/파일 목록 + 그레인(1행 키) + 적재 규칙(증분/스냅샷) + 보존 기준 + repo-grounded provider 확장 경계 기록
-버전: v0.3 (latest price serving view 반영)
-작성일: 2026-03-28 (KST)
+버전: v0.4 (ranking daily fact / latest ranking API minimum path 반영)
+작성일: 2026-03-31 (KST)
 
 ## 0. 레이어 개요
 
@@ -130,14 +130,20 @@
 
 - 테이블: fact_steam_rank_daily
 - 그레인/PK: (snapshot_date, market, rank_type, rank_position)
-- 컬럼(초안):
+- current repo observations:
+    - current gold path input은 `tmp/steam/rankings/*.payload.json` runtime artifact 4종이다.
+    - current payload contract는 raw Steam JSON만 저장하므로, `collected_at`은 runtime artifact file mtime(UTC)로 고정한다.
+    - `snapshot_date`는 위 artifact write time을 KST로 변환한 날짜로 저장한다.
+- 컬럼:
     - snapshot_date
     - market (KR/global)
     - rank_type (top_selling/top_played 등)
     - rank_position (1..N)
     - steam_appid
-    - canonical_game_id (매핑되면 채움)
+    - canonical_game_id (current Steam mapping이 있으면 채움, 없으면 NULL 허용)
     - collected_at
+- 적재 메모:
+    - current PK upsert는 `(snapshot_date, market, rank_type, rank_position)` 기준 재실행 안전성을 전제로 한다.
 
 ## 5. Rollup / Serving Views (대시보드 쿼리 패턴)
 
@@ -148,7 +154,8 @@
     - srv_game_latest_ccu: game별 최신 bucket_time의 ccu + Δ(전일 동일 버킷)
     - srv_game_latest_price: game별 최신 KR bucket_time 가격 스냅샷
     - srv_game_latest_reviews: game별 최신 snapshot_date의 positive_ratio + Δ(전일)
-    - srv_rank_latest_kr/global: 최신 snapshot_date의 랭킹 리스트
+    - srv_rank_latest_kr_top_selling: current minimum path의 최신 KR top-selling 랭킹 리스트
+    - broader KR/global + top_selling/top_played serving split은 후속 slice에서 필요 시 확장
 
 ### 5.2 90일 프리셋용 일 단위 rollup (권장)
 
