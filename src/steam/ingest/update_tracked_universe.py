@@ -11,7 +11,13 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from steam.probe.probe_rankings import parse_rankings_payload
+from steam.probe.probe_rankings import (
+    DEFAULT_MOSTPLAYED_GLOBAL_PATH,
+    DEFAULT_MOSTPLAYED_KR_PATH,
+    DEFAULT_TOPSELLERS_GLOBAL_PATH,
+    DEFAULT_TOPSELLERS_KR_PATH,
+    parse_rankings_payload,
+)
 
 LOGGER = logging.getLogger(__name__)
 DEFAULT_RESULT_PATH = Path("tmp/steam/tracked_universe/update_result.jsonl")
@@ -21,7 +27,7 @@ DEFAULT_APP_CATALOG_PATH = Path("docs/probe/steam/getapplist/representative.json
 
 @dataclass(frozen=True, slots=True)
 class SeedSource:
-    fixture_path: Path
+    payload_path: Path
     source_label: str
     market: str
     rank_type: str
@@ -63,28 +69,28 @@ class MappingAttachConflict(RuntimeError):
 
 DEFAULT_SEED_SOURCES: tuple[SeedSource, ...] = (
     SeedSource(
-        fixture_path=Path("tests/fixtures/steam/rankings/topsellers_kr.payload.json"),
+        payload_path=DEFAULT_TOPSELLERS_KR_PATH,
         source_label="steam_rank_topsellers_kr",
         market="kr",
         rank_type="top_selling",
         default_priority=1,
     ),
     SeedSource(
-        fixture_path=Path("tests/fixtures/steam/rankings/topsellers_global.payload.json"),
+        payload_path=DEFAULT_TOPSELLERS_GLOBAL_PATH,
         source_label="steam_rank_topsellers_global",
         market="global",
         rank_type="top_selling",
         default_priority=2,
     ),
     SeedSource(
-        fixture_path=Path("tests/fixtures/steam/rankings/mostplayed_kr.payload.json"),
+        payload_path=DEFAULT_MOSTPLAYED_KR_PATH,
         source_label="steam_rank_mostplayed_kr",
         market="kr",
         rank_type="top_played",
         default_priority=3,
     ),
     SeedSource(
-        fixture_path=Path("tests/fixtures/steam/rankings/mostplayed_global.payload.json"),
+        payload_path=DEFAULT_MOSTPLAYED_GLOBAL_PATH,
         source_label="steam_rank_mostplayed_global",
         market="global",
         rank_type="top_played",
@@ -155,28 +161,28 @@ def resolve_seed_sources(
 
     return (
         SeedSource(
-            fixture_path=topsellers_kr_path,
+            payload_path=topsellers_kr_path,
             source_label="steam_rank_topsellers_kr",
             market="kr",
             rank_type="top_selling",
             default_priority=1,
         ),
         SeedSource(
-            fixture_path=topsellers_global_path,
+            payload_path=topsellers_global_path,
             source_label="steam_rank_topsellers_global",
             market="global",
             rank_type="top_selling",
             default_priority=2,
         ),
         SeedSource(
-            fixture_path=mostplayed_kr_path,
+            payload_path=mostplayed_kr_path,
             source_label="steam_rank_mostplayed_kr",
             market="kr",
             rank_type="top_played",
             default_priority=3,
         ),
         SeedSource(
-            fixture_path=mostplayed_global_path,
+            payload_path=mostplayed_global_path,
             source_label="steam_rank_mostplayed_global",
             market="global",
             rank_type="top_played",
@@ -194,32 +200,32 @@ def _normalize_title(value: object) -> str:
 
 
 def read_json_file(path: Path) -> object:
-    """Read one JSON file with a clear error on failure."""
+    """Read one ranking payload JSON file with a clear error on failure."""
 
     if not path.exists():
-        raise ValueError(f"Required rankings fixture missing: {path}")
+        raise ValueError(f"Required rankings payload missing: {path}")
 
     try:
         return json.loads(path.read_text(encoding="utf-8"))
     except OSError as exc:
-        raise ValueError(f"Required rankings fixture unreadable: {path}") from exc
+        raise ValueError(f"Required rankings payload unreadable: {path}") from exc
     except json.JSONDecodeError as exc:
-        raise ValueError(f"Required rankings fixture JSON decode failed: {path}") from exc
+        raise ValueError(f"Required rankings payload JSON decode failed: {path}") from exc
 
 
 def load_required_rankings_observations(
     seed_sources: tuple[SeedSource, ...],
 ) -> list[CandidateObservation]:
-    """Load and validate the required rankings payload fixtures."""
+    """Load and validate the required rankings payload artifacts."""
 
     observations: list[CandidateObservation] = []
     for source in seed_sources:
-        payload = read_json_file(source.fixture_path)
+        payload = read_json_file(source.payload_path)
         rows = parse_rankings_payload(payload)
         if not rows:
             raise ValueError(
-                f"Required rankings fixture produced zero candidates: "
-                f"{source.source_label} ({source.fixture_path})"
+                f"Required rankings payload produced zero candidates: "
+                f"{source.source_label} ({source.payload_path})"
             )
 
         for row in rows:
@@ -618,22 +624,22 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--topsellers-global-path",
         type=Path,
-        default=DEFAULT_SEED_SOURCES[1].fixture_path,
+        default=DEFAULT_SEED_SOURCES[1].payload_path,
     )
     parser.add_argument(
         "--topsellers-kr-path",
         type=Path,
-        default=DEFAULT_SEED_SOURCES[0].fixture_path,
+        default=DEFAULT_SEED_SOURCES[0].payload_path,
     )
     parser.add_argument(
         "--mostplayed-global-path",
         type=Path,
-        default=DEFAULT_SEED_SOURCES[3].fixture_path,
+        default=DEFAULT_SEED_SOURCES[3].payload_path,
     )
     parser.add_argument(
         "--mostplayed-kr-path",
         type=Path,
-        default=DEFAULT_SEED_SOURCES[2].fixture_path,
+        default=DEFAULT_SEED_SOURCES[2].payload_path,
     )
     parser.add_argument("--app-catalog-path", type=Path, default=DEFAULT_APP_CATALOG_PATH)
     parser.add_argument("--result-path", type=Path, default=DEFAULT_RESULT_PATH)

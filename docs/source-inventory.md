@@ -80,13 +80,20 @@
 ### 1.5 Ranking (랭킹 스냅샷)
 
 - 목적: 추적 대상 유니버스(seed) 생성 + “오늘의 상위 게임”
-- 소스: Steam Charts(웹 페이지 파싱)
+- 소스:
+    - `IStoreTopSellersService/GetWeeklyTopSellers/v1`
+    - `ISteamChartsService/GetGamesByConcurrentPlayers/v1`
 - 범위: KR + global 둘 다 저장
 - 주기: 1일 1회(03:10 KST)
+- runtime artifact:
+    - `tmp/steam/rankings/topsellers_global.payload.json`
+    - `tmp/steam/rankings/topsellers_kr.payload.json`
+    - `tmp/steam/rankings/mostplayed_global.payload.json`
+    - `tmp/steam/rankings/mostplayed_kr.payload.json`
 - 출력 필드(예상): rank_type, rank_position, steam_appid(또는 추출된 appid), snapshot_market(KR/global)
 - 실패/주의:
-    - HTML 구조 변경 가능 → 파서 회귀 테스트 필수
-    - 파싱 실패 시: 이전 스냅샷 유지 + 알림/리트라이
+    - runtime은 fixture-compatible JSON payload contract를 사용하고, legacy HTML excerpt 회귀 테스트는 별도로 유지
+    - payload fetch 실패/빈 ranks 시: tracked_universe seed 갱신 중단 + 알림/리트라이
 
 ## 2. Chzzk (MVP에서는 “가능하면”, 실패 시 Twitch로 대체)
 

@@ -24,6 +24,12 @@ from steam.ingest.update_tracked_universe import (
     resolve_seed_sources,
     validate_candidate,
 )
+from steam.probe.probe_rankings import (
+    DEFAULT_MOSTPLAYED_GLOBAL_PATH,
+    DEFAULT_MOSTPLAYED_KR_PATH,
+    DEFAULT_TOPSELLERS_GLOBAL_PATH,
+    DEFAULT_TOPSELLERS_KR_PATH,
+)
 
 
 def make_candidate(
@@ -60,14 +66,14 @@ def test_default_seed_source_table_is_explicit_and_stable() -> None:
     ]
 
 
-def test_build_parser_uses_committed_default_paths() -> None:
+def test_build_parser_uses_runtime_default_paths() -> None:
     parser = build_parser()
     args = parser.parse_args([])
 
-    assert args.topsellers_global_path == DEFAULT_SEED_SOURCES[1].fixture_path
-    assert args.topsellers_kr_path == DEFAULT_SEED_SOURCES[0].fixture_path
-    assert args.mostplayed_global_path == DEFAULT_SEED_SOURCES[3].fixture_path
-    assert args.mostplayed_kr_path == DEFAULT_SEED_SOURCES[2].fixture_path
+    assert args.topsellers_global_path == DEFAULT_TOPSELLERS_GLOBAL_PATH
+    assert args.topsellers_kr_path == DEFAULT_TOPSELLERS_KR_PATH
+    assert args.mostplayed_global_path == DEFAULT_MOSTPLAYED_GLOBAL_PATH
+    assert args.mostplayed_kr_path == DEFAULT_MOSTPLAYED_KR_PATH
     assert args.app_catalog_path == DEFAULT_APP_CATALOG_PATH
     assert args.result_path == DEFAULT_RESULT_PATH
 
@@ -80,7 +86,7 @@ def test_resolve_seed_sources_applies_cli_overrides() -> None:
         mostplayed_global_path=Path("d.json"),
     )
 
-    assert [item.fixture_path for item in sources] == [
+    assert [item.payload_path for item in sources] == [
         Path("a.json"),
         Path("b.json"),
         Path("c.json"),
@@ -88,7 +94,7 @@ def test_resolve_seed_sources_applies_cli_overrides() -> None:
     ]
 
 
-def test_required_fixture_zero_candidates_fails_with_source_name(tmp_path: Path) -> None:
+def test_required_payload_zero_candidates_fails_with_source_name(tmp_path: Path) -> None:
     valid_payload = {
         "response": {
             "ranks": [
