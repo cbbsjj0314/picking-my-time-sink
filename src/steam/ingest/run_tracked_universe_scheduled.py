@@ -39,7 +39,11 @@ def build_parser() -> argparse.ArgumentParser:
         type=Path,
         default=rankings_probe.DEFAULT_MOSTPLAYED_KR_PATH,
     )
-    parser.add_argument("--app-catalog-path", type=Path, default=None)
+    parser.add_argument(
+        "--app-catalog-path",
+        type=Path,
+        default=tracked_universe_core.DEFAULT_APP_CATALOG_PATH,
+    )
     parser.add_argument(
         "--result-path",
         type=Path,
@@ -54,7 +58,7 @@ def run(
     topsellers_kr_path: Path = rankings_probe.DEFAULT_TOPSELLERS_KR_PATH,
     mostplayed_global_path: Path = rankings_probe.DEFAULT_MOSTPLAYED_GLOBAL_PATH,
     mostplayed_kr_path: Path = rankings_probe.DEFAULT_MOSTPLAYED_KR_PATH,
-    app_catalog_path: Path | None = None,
+    app_catalog_path: Path | None = tracked_universe_core.DEFAULT_APP_CATALOG_PATH,
     result_path: Path = tracked_universe_core.DEFAULT_RESULT_PATH,
 ) -> list[dict[str, Any]]:
     """Refresh ranking payload artifacts, then delegate to the core updater."""

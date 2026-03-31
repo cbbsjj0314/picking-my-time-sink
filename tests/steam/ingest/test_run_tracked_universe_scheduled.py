@@ -11,7 +11,10 @@ def test_build_parser_uses_runtime_ranking_defaults() -> None:
     parser = run_tracked_universe_scheduled.build_parser()
     args = parser.parse_args([])
 
-    assert args.app_catalog_path is None
+    assert (
+        args.app_catalog_path
+        == run_tracked_universe_scheduled.tracked_universe_core.DEFAULT_APP_CATALOG_PATH
+    )
     assert (
         args.topsellers_global_path
         == run_tracked_universe_scheduled.rankings_probe.DEFAULT_TOPSELLERS_GLOBAL_PATH
@@ -76,7 +79,9 @@ def test_run_fetches_rankings_then_delegates_to_core(
                 "topsellers_kr_path": Path("topsellers-kr.json"),
                 "mostplayed_global_path": Path("mostplayed-global.json"),
                 "mostplayed_kr_path": Path("mostplayed-kr.json"),
-                "app_catalog_path": None,
+                "app_catalog_path": (
+                    run_tracked_universe_scheduled.tracked_universe_core.DEFAULT_APP_CATALOG_PATH
+                ),
                 "result_path": (
                     run_tracked_universe_scheduled.tracked_universe_core.DEFAULT_RESULT_PATH
                 ),
