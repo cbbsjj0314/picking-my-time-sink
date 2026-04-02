@@ -5,12 +5,14 @@ import {
   gamesApi,
   type GameDaily90dCcu,
   type GameLatestCcu,
+  type GameLatestPrice,
   type GameLatestRanking,
 } from "../api/games";
 import { SectionFrame } from "../components/SectionFrame";
 import { SimpleHistoryChart } from "../components/SimpleHistoryChart";
 import {
   formatCompactInteger,
+  formatCurrencyMinor,
   formatDateLabel,
   formatDateTimeLabel,
   formatInteger,
@@ -21,6 +23,7 @@ import {
 type OverviewLoaderData = {
   rankings: GameLatestRanking[];
   ccuRows: OverviewCcuRow[];
+  priceRows: GameLatestPrice[];
   representativeCcuRow: OverviewCcuRow | null;
   representativeCcuHistory: GameDaily90dCcu[];
 };
@@ -48,12 +51,16 @@ type PlaceholderSectionProps = {
 export async function overviewLoader({
   request,
 }: LoaderFunctionArgs): Promise<OverviewLoaderData> {
-  const [rankings, ccuRows] = await Promise.all([
+  const [rankings, ccuRows, priceRows] = await Promise.all([
     gamesApi.listLatestRankings({
       limit: 12,
       signal: request.signal,
     }),
     gamesApi.listLatestCcu({
+      limit: 6,
+      signal: request.signal,
+    }),
+    gamesApi.listLatestPrice({
       limit: 6,
       signal: request.signal,
     }),
@@ -70,6 +77,7 @@ export async function overviewLoader({
   return {
     rankings,
     ccuRows,
+    priceRows,
     representativeCcuRow,
     representativeCcuHistory,
   };
@@ -275,9 +283,69 @@ function CcuRow({
   );
 }
 
+function PriceRow({
+  row,
+  rank,
+  isRepresentative,
+}: {
+  row: GameLatestPrice;
+  rank: number;
+  isRepresentative: boolean;
+}) {
+  const destination = getGameDetailRoute(row.canonical_game_id);
+  const content = (
+    <div className="group flex items-center gap-4 px-4 py-4 transition sm:px-5">
+      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-cyan-400/[0.18] bg-cyan-400/10 text-sm font-semibold text-cyan-100">
+        {rank}
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-center gap-2.5">
+          <p className="truncate text-base font-medium text-white">{row.canonical_name}</p>
+          <span className="rounded-full bg-cyan-400/[0.12] px-2.5 py-1 text-[0.66rem] uppercase tracking-[0.26em] text-cyan-200">
+            Live
+          </span>
+          {isRepresentative ? (
+            <span className="rounded-full border border-cyan-400/[0.16] bg-cyan-400/[0.08] px-2.5 py-1 text-[0.66rem] uppercase tracking-[0.26em] text-cyan-100">
+              Focus
+            </span>
+          ) : null}
+        </div>
+        <p className="mt-2 text-sm text-slate-400">
+          KR snapshot {formatDateTimeLabel(row.bucket_time)}
+        </p>
+      </div>
+      <div className="text-right">
+        <p className="text-base font-semibold text-white">
+          {formatCurrencyMinor(row.final_price_minor, row.currency_code)}
+        </p>
+        <p className="mt-2 text-sm text-cyan-200">
+          {row.discount_percent > 0 ? `${row.discount_percent}% discount` : "No discount"}
+        </p>
+      </div>
+    </div>
+  );
+
+  return (
+    <li className="border-b border-white/[0.08] last:border-b-0">
+      {destination ? (
+        <Link to={destination} className="block hover:bg-white/[0.03]">
+          {content}
+        </Link>
+      ) : (
+        <div>{content}</div>
+      )}
+    </li>
+  );
+}
+
 export function OverviewPage() {
-  const { rankings, ccuRows, representativeCcuRow, representativeCcuHistory } =
-    useLoaderData() as OverviewLoaderData;
+  const {
+    rankings,
+    ccuRows,
+    priceRows,
+    representativeCcuRow,
+    representativeCcuHistory,
+  } = useLoaderData() as OverviewLoaderData;
   const mappedRows = rankings.filter((row) => row.canonical_game_id !== null).length;
   const snapshotDate = rankings[0]?.snapshot_date;
   const representativeDestination = getGameDetailRoute(
@@ -285,6 +353,12 @@ export function OverviewPage() {
   );
   const ccuSnapshotTime = ccuRows[0]?.bucket_time;
   const ccuRowsWithDelta = ccuRows.filter((row) => !row.missing_flag).length;
+  const representativePriceRow = priceRows[0] ?? null;
+  const representativePriceDestination = getGameDetailRoute(
+    representativePriceRow?.canonical_game_id ?? null,
+  );
+  const priceSnapshotTime = priceRows[0]?.bucket_time;
+  const discountedPriceRows = priceRows.filter((row) => row.discount_percent > 0).length;
 
   return (
     <div className="space-y-12">
@@ -299,9 +373,9 @@ export function OverviewPage() {
               dense board.
             </h1>
             <p className="mt-5 max-w-2xl text-sm leading-7 text-slate-400">
-              The current thin slice keeps ranking and CCU live inside the same grouped
-              rhythm, then leaves price and reviews visible as structurally ready sections
-              for the next wire-up pass.
+              The current thin slice keeps ranking, CCU, and price live inside the same
+              grouped rhythm, then leaves reviews visible as the final structurally ready
+              follow-up section.
             </p>
           </div>
           <div className="rounded-[1.75rem] border border-cyan-400/[0.15] bg-cyan-400/[0.08] p-6">
@@ -487,19 +561,126 @@ export function OverviewPage() {
       <SectionFrame
         id="price"
         eyebrow="Price"
-        title="Price and discount block"
-        description="Price stays visible in the overview order, but the first thin slice keeps it as a placeholder shell so the ranking path can land cleanly first."
+        title="Latest KR price snapshot"
+        description="Price now reuses the existing latest list endpoint so the overview can show current value, discount state, and one representative detail path without adding generalized region controls."
         delayMs={200}
       >
-        <PlaceholderSection
-          endpoint="/games/price/latest"
-          label="Queued"
-          title="KR price snapshot"
-          description="The layout is already aligned for current price, discount percent, and a small value-led list without introducing generalized region filters."
-          metricLabel="Planned highlight"
-          metricValue="Current price + discount"
-          note="The underlying client helper is present so this section can flip to live data in a focused follow-up."
-        />
+        <div className="mb-6 grid gap-4 md:grid-cols-3">
+          <StatBlock
+            label="Snapshot bucket"
+            value={formatDateTimeLabel(priceSnapshotTime)}
+            hint="Latest fixed KR price serving row already exposed by the backend."
+          />
+          <StatBlock
+            label="Visible rows"
+            value={formatInteger(priceRows.length)}
+            hint="The overview keeps the price list short so it stays readable."
+          />
+          <StatBlock
+            label="Discounted rows"
+            value={formatInteger(discountedPriceRows)}
+            hint="Rows without a live discount stay visible as current baseline prices."
+          />
+        </div>
+
+        <div className="grid gap-5 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.35fr)]">
+          <div className="rounded-[2rem] border border-white/10 bg-white/[0.03] p-6">
+            <p className="text-[0.68rem] uppercase tracking-[0.32em] text-cyan-300/70">
+              /games/price/latest
+            </p>
+            <div className="mt-5 space-y-3">
+              <div className="inline-flex rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-[0.68rem] uppercase tracking-[0.28em] text-slate-400">
+                Live now
+              </div>
+              <h3 className="text-xl font-semibold tracking-tight text-white">
+                Compact price rows
+              </h3>
+              <p className="text-sm leading-7 text-slate-400">
+                The list stays short, detail-linked, and KR-only. It intentionally stops
+                before region filters, comparison tooling, or broader pricing semantics.
+              </p>
+            </div>
+
+            <div className="mt-8 overflow-hidden rounded-[1.5rem] border border-white/10 bg-slate-950/40">
+              {priceRows.length > 0 ? (
+                <ul>
+                  {priceRows.map((row, index) => (
+                    <PriceRow
+                      key={`${row.canonical_game_id}-${row.bucket_time}`}
+                      row={row}
+                      rank={index + 1}
+                      isRepresentative={
+                        representativePriceRow?.canonical_game_id === row.canonical_game_id
+                      }
+                    />
+                  ))}
+                </ul>
+              ) : (
+                <div className="flex min-h-[18rem] items-center justify-center px-6 py-10 text-sm text-slate-500">
+                  Latest price rows are not available yet.
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="rounded-[2rem] border border-white/10 bg-white/[0.03] p-6">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <p className="text-[0.68rem] uppercase tracking-[0.32em] text-cyan-300/70">
+                  Representative view
+                </p>
+                <h3 className="mt-4 text-xl font-semibold tracking-tight text-white">
+                  {representativePriceRow?.canonical_name ?? "Representative price pending"}
+                </h3>
+                <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-400">
+                  {representativePriceRow
+                    ? "One latest row is echoed here so the overview can show current price shape without turning into a second dense pricing board."
+                    : "No price row is available yet, so the representative summary stays in a graceful empty state."}
+                </p>
+              </div>
+              {representativePriceDestination ? (
+                <Link
+                  to={representativePriceDestination}
+                  className="inline-flex h-fit items-center rounded-full border border-cyan-300/20 bg-cyan-300/[0.08] px-4 py-2 text-sm text-cyan-100 transition hover:border-cyan-300/35 hover:bg-cyan-300/[0.14]"
+                >
+                  Open detail
+                </Link>
+              ) : (
+                <span className="inline-flex h-fit items-center rounded-full border border-white/10 bg-white/[0.03] px-4 py-2 text-sm text-slate-400">
+                  Awaiting row
+                </span>
+              )}
+            </div>
+
+            {representativePriceRow ? (
+              <div className="mt-6 grid gap-4 sm:grid-cols-3">
+                <StatBlock
+                  label="Current price"
+                  value={formatCurrencyMinor(
+                    representativePriceRow.final_price_minor,
+                    representativePriceRow.currency_code,
+                  )}
+                  hint="Final price from the latest KR serving row."
+                />
+                <StatBlock
+                  label="Initial price"
+                  value={formatCurrencyMinor(
+                    representativePriceRow.initial_price_minor,
+                    representativePriceRow.currency_code,
+                  )}
+                  hint="Initial price paired with the same latest row."
+                />
+                <StatBlock
+                  label="Discount"
+                  value={`${representativePriceRow.discount_percent}%`}
+                  hint={`Region ${representativePriceRow.region} · Bucket ${formatDateTimeLabel(
+                    representativePriceRow.bucket_time,
+                  )}`}
+                />
+              </div>
+            ) : null}
+          </div>
+        </div>
       </SectionFrame>
 
       <SectionFrame
