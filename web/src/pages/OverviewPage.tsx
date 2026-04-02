@@ -7,6 +7,7 @@ import {
   type GameLatestCcu,
   type GameLatestPrice,
   type GameLatestRanking,
+  type GameLatestReviews,
 } from "../api/games";
 import { SectionFrame } from "../components/SectionFrame";
 import { SimpleHistoryChart } from "../components/SimpleHistoryChart";
@@ -16,6 +17,7 @@ import {
   formatDateLabel,
   formatDateTimeLabel,
   formatInteger,
+  formatPercentRatio,
   formatSignedInteger,
   formatSignedPercent,
 } from "../lib/format";
@@ -24,6 +26,7 @@ type OverviewLoaderData = {
   rankings: GameLatestRanking[];
   ccuRows: OverviewCcuRow[];
   priceRows: GameLatestPrice[];
+  reviewRows: OverviewReviewRow[];
   representativeCcuRow: OverviewCcuRow | null;
   representativeCcuHistory: GameDaily90dCcu[];
 };
@@ -32,26 +35,21 @@ type OverviewCcuRow = Omit<GameLatestCcu, "canonical_game_id"> & {
   canonical_game_id: number | null;
 };
 
+type OverviewReviewRow = Omit<GameLatestReviews, "canonical_game_id" | "canonical_name"> & {
+  canonical_game_id: number | null;
+  canonical_name: string | null;
+};
+
 type StatBlockProps = {
   label: string;
   value: string;
   hint: string;
 };
 
-type PlaceholderSectionProps = {
-  endpoint: string;
-  label: string;
-  title: string;
-  description: string;
-  metricLabel: string;
-  metricValue: string;
-  note: string;
-};
-
 export async function overviewLoader({
   request,
 }: LoaderFunctionArgs): Promise<OverviewLoaderData> {
-  const [rankings, ccuRows, priceRows] = await Promise.all([
+  const [rankings, ccuRows, priceRows, reviewRows] = await Promise.all([
     gamesApi.listLatestRankings({
       limit: 12,
       signal: request.signal,
@@ -61,6 +59,10 @@ export async function overviewLoader({
       signal: request.signal,
     }),
     gamesApi.listLatestPrice({
+      limit: 6,
+      signal: request.signal,
+    }),
+    gamesApi.listLatestReviews({
       limit: 6,
       signal: request.signal,
     }),
@@ -78,6 +80,7 @@ export async function overviewLoader({
     rankings,
     ccuRows,
     priceRows,
+    reviewRows,
     representativeCcuRow,
     representativeCcuHistory,
   };
@@ -89,71 +92,6 @@ function StatBlock({ label, value, hint }: StatBlockProps) {
       <p className="text-[0.68rem] uppercase tracking-[0.3em] text-slate-500">{label}</p>
       <p className="mt-4 text-2xl font-semibold tracking-tight text-white">{value}</p>
       <p className="mt-3 text-sm leading-6 text-slate-400">{hint}</p>
-    </div>
-  );
-}
-
-function PlaceholderSection({
-  endpoint,
-  label,
-  title,
-  description,
-  metricLabel,
-  metricValue,
-  note,
-}: PlaceholderSectionProps) {
-  return (
-    <div className="grid gap-5 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.35fr)]">
-      <div className="rounded-[2rem] border border-white/10 bg-white/[0.03] p-6">
-        <p className="text-[0.68rem] uppercase tracking-[0.32em] text-cyan-300/70">
-          {endpoint}
-        </p>
-        <div className="mt-5 space-y-3">
-          <div className="inline-flex rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-[0.68rem] uppercase tracking-[0.28em] text-slate-400">
-            {label}
-          </div>
-          <h3 className="text-xl font-semibold tracking-tight text-white">{title}</h3>
-          <p className="text-sm leading-7 text-slate-400">{description}</p>
-        </div>
-        <div className="mt-8 border-t border-white/10 pt-5">
-          <p className="text-[0.68rem] uppercase tracking-[0.3em] text-slate-500">
-            {metricLabel}
-          </p>
-          <p className="mt-3 text-2xl font-semibold text-white">{metricValue}</p>
-          <p className="mt-3 text-sm leading-6 text-slate-400">{note}</p>
-        </div>
-      </div>
-      <div className="rounded-[2rem] border border-dashed border-white/[0.12] bg-slate-900/50 p-6">
-        <div className="flex h-full min-h-[18rem] flex-col justify-between rounded-[1.5rem] border border-white/5 bg-[linear-gradient(180deg,rgba(12,18,33,0.62),rgba(4,8,22,0.92))] p-5">
-          <div className="flex items-center justify-between text-sm text-slate-400">
-            <span>Representative view</span>
-            <span className="rounded-full border border-cyan-400/[0.15] bg-cyan-400/[0.08] px-3 py-1 text-[0.68rem] uppercase tracking-[0.28em] text-cyan-200">
-              Ready
-            </span>
-          </div>
-          <div className="mt-8 space-y-5">
-            <div className="h-3 w-28 rounded-full bg-white/10" />
-            <div className="grid grid-cols-12 gap-2">
-              {[14, 18, 16, 24, 20, 26, 19, 28, 22, 30, 26, 34].map((height, index) => (
-                <div
-                  key={`${label}-${index}`}
-                  className="rounded-full bg-cyan-400/20"
-                  style={{ height: `${height * 4}px` }}
-                />
-              ))}
-            </div>
-            <div className="grid gap-2">
-              <div className="h-2 rounded-full bg-white/10" />
-              <div className="h-2 w-11/12 rounded-full bg-white/[0.08]" />
-              <div className="h-2 w-2/3 rounded-full bg-white/[0.08]" />
-            </div>
-          </div>
-          <p className="mt-8 text-sm leading-6 text-slate-500">
-            Structure is in place so the next slice can replace this shell with live API
-            wiring without changing the overview rhythm.
-          </p>
-        </div>
-      </div>
     </div>
   );
 }
@@ -215,6 +153,16 @@ function RankingRow({ row }: { row: GameLatestRanking }) {
 
 function getGameDetailRoute(canonicalGameId: number | null): string | undefined {
   return canonicalGameId !== null ? `/games/${canonicalGameId}?range=90d` : undefined;
+}
+
+function formatSignedRatioPoints(value: number | null | undefined): string {
+  if (value === null || value === undefined) {
+    return "No prior delta";
+  }
+
+  const points = value * 100;
+  const prefix = points > 0 ? "+" : "";
+  return `${prefix}${points.toFixed(1)} pts`;
 }
 
 function CcuRow({
@@ -338,11 +286,80 @@ function PriceRow({
   );
 }
 
+function ReviewRow({
+  row,
+  rank,
+  isRepresentative,
+}: {
+  row: OverviewReviewRow;
+  rank: number;
+  isRepresentative: boolean;
+}) {
+  const destination = getGameDetailRoute(row.canonical_game_id);
+  const title = row.canonical_name ?? "Canonical mapping pending";
+  const content = (
+    <div className="group flex items-center gap-4 px-4 py-4 transition sm:px-5">
+      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-cyan-400/[0.18] bg-cyan-400/10 text-sm font-semibold text-cyan-100">
+        {rank}
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-center gap-2.5">
+          <p className="truncate text-base font-medium text-white">{title}</p>
+          <span
+            className={[
+              "rounded-full px-2.5 py-1 text-[0.66rem] uppercase tracking-[0.26em]",
+              destination
+                ? "bg-cyan-400/[0.12] text-cyan-200"
+                : "bg-white/[0.05] text-slate-500",
+            ].join(" ")}
+          >
+            {destination ? "Mapped" : "Pending"}
+          </span>
+          {isRepresentative ? (
+            <span className="rounded-full border border-cyan-400/[0.16] bg-cyan-400/[0.08] px-2.5 py-1 text-[0.66rem] uppercase tracking-[0.26em] text-cyan-100">
+              Focus
+            </span>
+          ) : null}
+        </div>
+        <p className="mt-2 text-sm text-slate-400">
+          Snapshot {formatDateLabel(row.snapshot_date)} · {formatInteger(row.total_reviews)}{" "}
+          total reviews
+        </p>
+      </div>
+      <div className="text-right">
+        <p className="text-base font-semibold text-white">
+          {formatPercentRatio(row.positive_ratio)}
+        </p>
+        <p className="mt-2 text-sm text-cyan-200">
+          {row.missing_flag
+            ? "No prior delta"
+            : `${formatSignedInteger(row.delta_total_reviews)} · ${formatSignedRatioPoints(
+                row.delta_positive_ratio,
+              )}`}
+        </p>
+      </div>
+    </div>
+  );
+
+  return (
+    <li className="border-b border-white/[0.08] last:border-b-0">
+      {destination ? (
+        <Link to={destination} className="block hover:bg-white/[0.03]">
+          {content}
+        </Link>
+      ) : (
+        <div>{content}</div>
+      )}
+    </li>
+  );
+}
+
 export function OverviewPage() {
   const {
     rankings,
     ccuRows,
     priceRows,
+    reviewRows,
     representativeCcuRow,
     representativeCcuHistory,
   } = useLoaderData() as OverviewLoaderData;
@@ -359,6 +376,13 @@ export function OverviewPage() {
   );
   const priceSnapshotTime = priceRows[0]?.bucket_time;
   const discountedPriceRows = priceRows.filter((row) => row.discount_percent > 0).length;
+  const representativeReviewRow =
+    reviewRows.find((row) => row.canonical_game_id !== null) ?? reviewRows[0] ?? null;
+  const representativeReviewDestination = getGameDetailRoute(
+    representativeReviewRow?.canonical_game_id ?? null,
+  );
+  const reviewSnapshotDate = reviewRows[0]?.snapshot_date;
+  const reviewRowsWithDelta = reviewRows.filter((row) => !row.missing_flag).length;
 
   return (
     <div className="space-y-12">
@@ -373,9 +397,9 @@ export function OverviewPage() {
               dense board.
             </h1>
             <p className="mt-5 max-w-2xl text-sm leading-7 text-slate-400">
-              The current thin slice keeps ranking, CCU, and price live inside the same
-              grouped rhythm, then leaves reviews visible as the final structurally ready
-              follow-up section.
+              The current thin slice keeps ranking, CCU, price, and reviews live inside
+              the same grouped rhythm so the overview reads as stacked sections instead of
+              a single dense screen.
             </p>
           </div>
           <div className="rounded-[1.75rem] border border-cyan-400/[0.15] bg-cyan-400/[0.08] p-6">
@@ -686,19 +710,135 @@ export function OverviewPage() {
       <SectionFrame
         id="reviews"
         eyebrow="Reviews"
-        title="Reviews and sentiment block"
-        description="Reviews is intentionally last in the current overview rhythm: visible enough to anchor the roadmap, but small enough to keep the first delivery focused."
+        title="Latest review momentum"
+        description="Reviews stays as the last grouped section in the overview rhythm, now wired to the existing latest list endpoint with compact rows and one representative summary."
         delayMs={260}
       >
-        <PlaceholderSection
-          endpoint="/games/reviews/latest"
-          label="Queued"
-          title="Latest review momentum"
-          description="Reserved for total review volume, positive ratio, and a compact movement summary once the second data group is connected."
-          metricLabel="Planned highlight"
-          metricValue="Review total + ratio"
-          note="No generalized sentiment tooling lands here yet. The shell only preserves the information architecture."
-        />
+        <div className="mb-6 grid gap-4 md:grid-cols-3">
+          <StatBlock
+            label="Snapshot date"
+            value={formatDateLabel(reviewSnapshotDate)}
+            hint="Latest fixed reviews serving snapshot already exposed by the backend."
+          />
+          <StatBlock
+            label="Visible rows"
+            value={formatInteger(reviewRows.length)}
+            hint="The overview keeps the reviews list short so it stays scannable."
+          />
+          <StatBlock
+            label="Rows with delta"
+            value={formatInteger(reviewRowsWithDelta)}
+            hint="Rows without a prior-day baseline stay visible with a graceful fallback."
+          />
+        </div>
+
+        <div className="grid gap-5 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.35fr)]">
+          <div className="rounded-[2rem] border border-white/10 bg-white/[0.03] p-6">
+            <p className="text-[0.68rem] uppercase tracking-[0.32em] text-cyan-300/70">
+              /games/reviews/latest
+            </p>
+            <div className="mt-5 space-y-3">
+              <div className="inline-flex rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-[0.68rem] uppercase tracking-[0.28em] text-slate-400">
+                Live now
+              </div>
+              <h3 className="text-xl font-semibold tracking-tight text-white">
+                Compact latest reviews rows
+              </h3>
+              <p className="text-sm leading-7 text-slate-400">
+                The list stays short, detail-linked where a canonical route exists, and it
+                keeps unmapped or no-delta rows visible instead of hiding them behind extra
+                filters or sentiment tooling.
+              </p>
+            </div>
+
+            <div className="mt-8 overflow-hidden rounded-[1.5rem] border border-white/10 bg-slate-950/40">
+              {reviewRows.length > 0 ? (
+                <ul>
+                  {reviewRows.map((row, index) => (
+                    <ReviewRow
+                      key={`${row.canonical_game_id ?? row.canonical_name ?? "pending"}-${row.snapshot_date}`}
+                      row={row}
+                      rank={index + 1}
+                      isRepresentative={representativeReviewRow === row}
+                    />
+                  ))}
+                </ul>
+              ) : (
+                <div className="flex min-h-[18rem] items-center justify-center px-6 py-10 text-sm text-slate-500">
+                  Latest review rows are not available yet.
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="rounded-[2rem] border border-white/10 bg-white/[0.03] p-6">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <p className="text-[0.68rem] uppercase tracking-[0.32em] text-cyan-300/70">
+                  Representative view
+                </p>
+                <h3 className="mt-4 text-xl font-semibold tracking-tight text-white">
+                  {representativeReviewRow?.canonical_name ?? "Representative reviews pending"}
+                </h3>
+                <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-400">
+                  {representativeReviewRow
+                    ? "One latest reviews row is echoed here so the overview can show current sentiment shape and day-over-day movement without opening history, filters, or search."
+                    : "No reviews row is available yet, so the representative summary stays in a graceful empty state."}
+                </p>
+              </div>
+              {representativeReviewDestination ? (
+                <Link
+                  to={representativeReviewDestination}
+                  className="inline-flex h-fit items-center rounded-full border border-cyan-300/20 bg-cyan-300/[0.08] px-4 py-2 text-sm text-cyan-100 transition hover:border-cyan-300/35 hover:bg-cyan-300/[0.14]"
+                >
+                  Open detail
+                </Link>
+              ) : representativeReviewRow ? (
+                <span className="inline-flex h-fit items-center rounded-full border border-white/10 bg-white/[0.03] px-4 py-2 text-sm text-slate-400">
+                  Mapping pending
+                </span>
+              ) : (
+                <span className="inline-flex h-fit items-center rounded-full border border-white/10 bg-white/[0.03] px-4 py-2 text-sm text-slate-400">
+                  Awaiting row
+                </span>
+              )}
+            </div>
+
+            {representativeReviewRow ? (
+              <div className="mt-6 grid gap-4 sm:grid-cols-3">
+                <StatBlock
+                  label="Positive ratio"
+                  value={formatPercentRatio(representativeReviewRow.positive_ratio)}
+                  hint="Share of positive reviews in the latest snapshot."
+                />
+                <StatBlock
+                  label="Total reviews"
+                  value={formatInteger(representativeReviewRow.total_reviews)}
+                  hint={`${formatInteger(representativeReviewRow.total_positive)} positive · ${formatInteger(
+                    representativeReviewRow.total_negative,
+                  )} negative`}
+                />
+                <StatBlock
+                  label="Daily movement"
+                  value={
+                    representativeReviewRow.missing_flag
+                      ? "No prior delta"
+                      : formatSignedInteger(representativeReviewRow.delta_total_reviews)
+                  }
+                  hint={
+                    representativeReviewRow.missing_flag
+                      ? "Previous-day review baseline is missing for this row."
+                      : `${formatSignedRatioPoints(
+                          representativeReviewRow.delta_positive_ratio,
+                        )} sentiment delta · Snapshot ${formatDateLabel(
+                          representativeReviewRow.snapshot_date,
+                        )}`
+                  }
+                />
+              </div>
+            ) : null}
+          </div>
+        </div>
       </SectionFrame>
     </div>
   );
