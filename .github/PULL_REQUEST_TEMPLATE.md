@@ -8,8 +8,8 @@
 PR 범위는 분명히 적는다.
 인접하지만 이번 PR에 넣지 않은 내용만 별도로 적는다.
 의도적으로 제외한 범위를 적을 필요가 없으면 해당 section은 지운다.
-한국어 설명을 넣을 때는 반말 톤으로 간결하게 쓴다.
-docs-only PR이면 Validation에 `Not run (docs-only change)`라고 적는다.
+한국어 설명은 간결하게 쓰고, 객체명 / endpoint / route / loader / table / view / CLI 명령은 실제 코드 표기를 유지한다.
+docs-only PR이면 Validation section은 남기고 `- Not run (docs-only change)`라고 적는다.
 
 PR title guidance:
 PR 전체를 한 줄로 요약하는 짧고 읽기 쉬운 제목으로 쓴다.
@@ -67,12 +67,16 @@ view, table, endpoint, file path 같은 실제 객체명을 우선 쓴다.
 
 ## Validation
 
-- `command 1`
-- `command 2`
+<!--
+기본은 `command: result` 한 줄 형식으로 쓴다.
+명령 목록과 결과를 따로 반복하지 않는다.
+`pytest`는 가능하면 passed count / time까지 적는다.
+추가 caveat나 skip 이유가 있으면 같은 bullet에 짧게 적고,
+더 긴 설명이 필요할 때만 Notes로 보낸다.
+-->
 
-Results:
-- Result 1
-- Result 2
+- `command 1`: result
+- `command 2`: result
 
 ---
 
