@@ -18,10 +18,13 @@ from steam.ingest.update_tracked_universe import (
     build_parser,
     build_result_row,
     format_utc_iso,
+    load_catalog_snapshot_appids,
     load_optional_catalog_metadata,
     load_required_rankings_observations,
     merge_candidate_observations,
     process_candidate,
+    resolve_candidate_is_active,
+    resolve_optional_catalog_active_appids,
     resolve_seed_sources,
     validate_candidate,
 )
@@ -202,6 +205,69 @@ def test_optional_catalog_metadata_explicit_probe_sample_still_extracts_summary(
     assert metadata["top_level_keys"] == ["apps", "have_more_results", "last_appid"]
 
 
+def test_load_catalog_snapshot_appids_reads_jsonl_snapshot(tmp_path: Path) -> None:
+    snapshot_path = tmp_path / "snapshot.jsonl"
+    snapshot_path.write_text(
+        '\n'.join(
+            [
+                json.dumps({"appid": 20, "name": "Twenty"}),
+                json.dumps({"appid": 10, "name": "Ten"}),
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    assert load_catalog_snapshot_appids(snapshot_path) == frozenset({10, 20})
+
+
+def test_resolve_optional_catalog_active_appids_uses_completed_snapshot_path(
+    tmp_path: Path,
+) -> None:
+    snapshot_path = tmp_path / "snapshot.jsonl"
+    snapshot_path.write_text(
+        '\n'.join(
+            [
+                json.dumps({"appid": 10, "name": "Ten"}),
+                json.dumps({"appid": 20, "name": "Twenty"}),
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    active_appids = resolve_optional_catalog_active_appids(
+        catalog_metadata={
+            "app_count": 2,
+            "pagination": {"have_more_results": False},
+            "snapshot_path": str(snapshot_path),
+            "top_level_keys": ["apps", "have_more_results"],
+        }
+    )
+
+    assert active_appids == frozenset({10, 20})
+
+
+def test_resolve_optional_catalog_active_appids_skips_paginated_summary(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    with caplog.at_level(logging.INFO, logger="steam.ingest.update_tracked_universe"):
+        active_appids = resolve_optional_catalog_active_appids(
+            catalog_metadata={
+                "app_count": 10000,
+                "pagination": {"have_more_results": True, "last_appid": 507030},
+                "snapshot_path": None,
+                "top_level_keys": ["apps", "have_more_results", "last_appid"],
+            }
+    )
+
+    assert active_appids is None
+    assert (
+        "Skipping catalog-driven tracked filter because latest summary is paginated"
+        in caplog.text
+    )
+
+
 def test_merge_candidate_observations_normalizes_duplicate_appids() -> None:
     merged = merge_candidate_observations(
         [
@@ -240,6 +306,20 @@ def test_validate_candidate_requires_title_for_new_dim_game_only() -> None:
         == "missing_title_for_new_dim_game"
     )
     assert validate_candidate(weak_candidate, has_resolved_mapping=True) is None
+
+
+def test_resolve_candidate_is_active_defaults_true_without_catalog_filter() -> None:
+    assert resolve_candidate_is_active(make_candidate(), catalog_active_appids=None) is True
+
+
+def test_resolve_candidate_is_active_marks_missing_catalog_appid_inactive() -> None:
+    assert (
+        resolve_candidate_is_active(
+            make_candidate(steam_appid=730),
+            catalog_active_appids=frozenset({10, 20}),
+        )
+        is False
+    )
 
 
 def test_build_result_row_uses_fixed_schema() -> None:
@@ -290,6 +370,7 @@ def test_process_candidate_reused_resolved_mapping_updates_mapping_last_seen_and
     result = process_candidate(
         make_candidate(),
         run_seen_at=run_seen_at,
+        is_active=True,
         fetch_mapping=fetch_mapping,
         insert_mapping_placeholder=lambda steam_appid, seen_at: calls.append(
             ("placeholder", steam_appid)
@@ -301,15 +382,69 @@ def test_process_candidate_reused_resolved_mapping_updates_mapping_last_seen_and
         attach_mapping=lambda steam_appid, canonical_game_id, seen_at: calls.append(
             ("attach", canonical_game_id)
         ),
-        upsert_tracked_game=lambda canonical_game_id, priority, sources, seen_at: calls.append(
-            ("upsert_tracked_game", (canonical_game_id, priority, tuple(sources), seen_at))
+        upsert_tracked_game=lambda canonical_game_id,
+        is_active,
+        priority,
+        sources,
+        seen_at: calls.append(
+            (
+                "upsert_tracked_game",
+                (canonical_game_id, is_active, priority, tuple(sources), seen_at),
+            )
         ),
     )
 
     assert result["tracked_action"] == "updated"
     assert ("touch_last_seen", (730, run_seen_at)) in calls
-    assert ("upsert_tracked_game", (1, 1, ("steam_rank_topsellers_kr",), run_seen_at)) in calls
+    assert (
+        "upsert_tracked_game",
+        (1, True, 1, ("steam_rank_topsellers_kr",), run_seen_at),
+    ) in calls
     assert all(call[0] != "placeholder" for call in calls)
+
+
+def test_process_candidate_reused_resolved_mapping_can_mark_inactive_from_catalog() -> None:
+    run_seen_at = dt.datetime(2026, 3, 10, 12, 0, tzinfo=dt.UTC)
+    calls: list[tuple[str, object]] = []
+    unlocked = MappingSnapshot(730, 1, "Counter-Strike 2", True)
+    locked = MappingSnapshot(730, 1, "Counter-Strike 2", True)
+
+    def fetch_mapping(steam_appid: int, *, for_update: bool) -> MappingSnapshot:
+        return locked if for_update else unlocked
+
+    result = process_candidate(
+        make_candidate(),
+        run_seen_at=run_seen_at,
+        is_active=False,
+        fetch_mapping=fetch_mapping,
+        insert_mapping_placeholder=lambda steam_appid, seen_at: calls.append(
+            ("placeholder", steam_appid)
+        ),
+        update_mapping_last_seen=lambda steam_appid, seen_at: calls.append(
+            ("touch_last_seen", (steam_appid, seen_at))
+        ),
+        insert_dim_game=lambda canonical_name: 999,
+        attach_mapping=lambda steam_appid, canonical_game_id, seen_at: calls.append(
+            ("attach", canonical_game_id)
+        ),
+        upsert_tracked_game=lambda canonical_game_id,
+        is_active,
+        priority,
+        sources,
+        seen_at: calls.append(
+            (
+                "upsert_tracked_game",
+                (canonical_game_id, is_active, priority, tuple(sources), seen_at),
+            )
+        ),
+    )
+
+    assert result["tracked_action"] == "updated"
+    assert result["is_active"] is False
+    assert (
+        "upsert_tracked_game",
+        (1, False, 1, ("steam_rank_topsellers_kr",), run_seen_at),
+    ) in calls
 
 
 def test_process_candidate_invalid_unmapped_candidate_skips_without_db_writes() -> None:
@@ -319,12 +454,17 @@ def test_process_candidate_invalid_unmapped_candidate_skips_without_db_writes() 
     result = process_candidate(
         make_candidate(selected_title="   "),
         run_seen_at=run_seen_at,
+        is_active=True,
         fetch_mapping=lambda steam_appid, for_update=False: None,
         insert_mapping_placeholder=lambda steam_appid, seen_at: calls.append("placeholder"),
         update_mapping_last_seen=lambda steam_appid, seen_at: calls.append("touch_last_seen"),
         insert_dim_game=lambda canonical_name: 1,
         attach_mapping=lambda steam_appid, canonical_game_id, seen_at: calls.append("attach"),
-        upsert_tracked_game=lambda canonical_game_id, priority, sources, seen_at: calls.append(
+        upsert_tracked_game=lambda canonical_game_id,
+        is_active,
+        priority,
+        sources,
+        seen_at: calls.append(
             "upsert_tracked_game"
         ),
     )
@@ -352,6 +492,7 @@ def test_process_candidate_first_seen_attach_path_is_inserted_and_sets_debug_fla
     result = process_candidate(
         make_candidate(),
         run_seen_at=run_seen_at,
+        is_active=True,
         fetch_mapping=fetch_mapping,
         insert_mapping_placeholder=lambda steam_appid, seen_at: calls.append(
             ("placeholder", (steam_appid, seen_at))
@@ -366,8 +507,15 @@ def test_process_candidate_first_seen_attach_path_is_inserted_and_sets_debug_fla
         attach_mapping=lambda steam_appid, canonical_game_id, seen_at: calls.append(
             ("attach", (steam_appid, canonical_game_id, seen_at))
         ),
-        upsert_tracked_game=lambda canonical_game_id, priority, sources, seen_at: calls.append(
-            ("upsert_tracked_game", (canonical_game_id, priority, tuple(sources), seen_at))
+        upsert_tracked_game=lambda canonical_game_id,
+        is_active,
+        priority,
+        sources,
+        seen_at: calls.append(
+            (
+                "upsert_tracked_game",
+                (canonical_game_id, is_active, priority, tuple(sources), seen_at),
+            )
         ),
     )
 
@@ -400,12 +548,17 @@ def test_process_candidate_reuses_mapping_after_attach_conflict() -> None:
     result = process_candidate(
         make_candidate(),
         run_seen_at=run_seen_at,
+        is_active=True,
         fetch_mapping=fetch_mapping,
         insert_mapping_placeholder=lambda steam_appid, seen_at: calls.append("placeholder"),
         update_mapping_last_seen=lambda steam_appid, seen_at: calls.append("touch"),
         insert_dim_game=lambda canonical_name: 44,
         attach_mapping=raise_conflict,
-        upsert_tracked_game=lambda canonical_game_id, priority, sources, seen_at: calls.append(
+        upsert_tracked_game=lambda canonical_game_id,
+        is_active,
+        priority,
+        sources,
+        seen_at: calls.append(
             "upsert"
         ),
     )

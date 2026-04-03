@@ -301,6 +301,90 @@ def load_optional_catalog_metadata(path: Path | None) -> dict[str, Any]:
     }
 
 
+def load_catalog_snapshot_appids(path: Path) -> frozenset[int]:
+    """Load Steam appids from a completed App Catalog JSONL snapshot."""
+
+    appids: set[int] = set()
+    with path.open("r", encoding="utf-8") as handle:
+        for line_number, line in enumerate(handle, start=1):
+            payload = line.strip()
+            if not payload:
+                continue
+
+            try:
+                row = json.loads(payload)
+            except json.JSONDecodeError as exc:
+                raise ValueError(
+                    f"Invalid App Catalog JSON at line {line_number} in {path}"
+                ) from exc
+
+            if not isinstance(row, dict):
+                raise ValueError(f"Invalid App Catalog row at line {line_number} in {path}")
+
+            try:
+                steam_appid = int(row["appid"])
+            except (KeyError, TypeError, ValueError) as exc:
+                raise ValueError(
+                    f"Invalid App Catalog appid at line {line_number} in {path}"
+                ) from exc
+
+            if steam_appid <= 0:
+                raise ValueError(f"Invalid App Catalog appid at line {line_number} in {path}")
+
+            appids.add(steam_appid)
+
+    return frozenset(appids)
+
+
+def resolve_optional_catalog_active_appids(
+    *,
+    catalog_metadata: dict[str, Any],
+) -> frozenset[int] | None:
+    """Return a completed App Catalog appid set when the optional handoff is usable."""
+
+    pagination = catalog_metadata.get("pagination", {})
+    if pagination.get("have_more_results") is True:
+        LOGGER.info(
+            "Skipping catalog-driven tracked filter because latest summary is paginated"
+        )
+        return None
+
+    snapshot_path_value = catalog_metadata.get("snapshot_path")
+    if not isinstance(snapshot_path_value, str) or not snapshot_path_value.strip():
+        return None
+
+    snapshot_path = Path(snapshot_path_value)
+    try:
+        appids = load_catalog_snapshot_appids(snapshot_path)
+    except FileNotFoundError:
+        LOGGER.warning("Optional App Catalog snapshot missing: %s", snapshot_path)
+        return None
+    except OSError:
+        LOGGER.warning("Optional App Catalog snapshot unreadable: %s", snapshot_path)
+        return None
+    except ValueError as exc:
+        LOGGER.warning("Optional App Catalog snapshot ignored for %s: %s", snapshot_path, exc)
+        return None
+
+    if not appids:
+        LOGGER.warning("Optional App Catalog snapshot empty: %s", snapshot_path)
+        return None
+
+    return appids
+
+
+def resolve_candidate_is_active(
+    candidate: MergedCandidate,
+    *,
+    catalog_active_appids: frozenset[int] | None,
+) -> bool:
+    """Return tracked active state for one candidate under the thin catalog rule."""
+
+    if catalog_active_appids is None:
+        return True
+    return candidate.steam_appid in catalog_active_appids
+
+
 def validate_candidate(candidate: MergedCandidate, *, has_resolved_mapping: bool) -> str | None:
     """Return a skip reason when a candidate is unusable for this MVP."""
 
@@ -349,6 +433,7 @@ def process_candidate(
     candidate: MergedCandidate,
     *,
     run_seen_at: dt.datetime,
+    is_active: bool,
     fetch_mapping: Any,
     insert_mapping_placeholder: Any,
     update_mapping_last_seen: Any,
@@ -370,6 +455,7 @@ def process_candidate(
         update_mapping_last_seen(candidate.steam_appid, run_seen_at)
         upsert_tracked_game(
             locked_mapping.canonical_game_id,
+            is_active,
             candidate.priority,
             list(candidate.sources),
             run_seen_at,
@@ -381,7 +467,7 @@ def process_candidate(
             skip_reason=None,
             canonical_game_id=locked_mapping.canonical_game_id,
             canonical_name=locked_mapping.canonical_name,
-            is_active=True,
+            is_active=is_active,
             created_dim_game=False,
             attached_mapping=False,
         )
@@ -409,6 +495,7 @@ def process_candidate(
         update_mapping_last_seen(candidate.steam_appid, run_seen_at)
         upsert_tracked_game(
             locked_mapping.canonical_game_id,
+            is_active,
             candidate.priority,
             list(candidate.sources),
             run_seen_at,
@@ -420,7 +507,7 @@ def process_candidate(
             skip_reason=None,
             canonical_game_id=locked_mapping.canonical_game_id,
             canonical_name=locked_mapping.canonical_name,
-            is_active=True,
+            is_active=is_active,
             created_dim_game=False,
             attached_mapping=False,
         )
@@ -444,6 +531,7 @@ def process_candidate(
 
     upsert_tracked_game(
         locked_mapping.canonical_game_id,
+        is_active,
         candidate.priority,
         list(candidate.sources),
         run_seen_at,
@@ -455,7 +543,7 @@ def process_candidate(
         skip_reason=None,
         canonical_game_id=locked_mapping.canonical_game_id,
         canonical_name=locked_mapping.canonical_name,
-        is_active=True,
+        is_active=is_active,
         created_dim_game=True,
         attached_mapping=attached_mapping,
     )
@@ -579,6 +667,7 @@ def _attach_mapping(
 def _upsert_tracked_game(
     cursor: Any,
     canonical_game_id: int,
+    is_active: bool,
     priority: int,
     sources: list[str],
     run_seen_at: dt.datetime,
@@ -593,7 +682,7 @@ def _upsert_tracked_game(
             first_seen_at,
             last_seen_at
         )
-        VALUES (%s, TRUE, %s, %s, %s, %s)
+        VALUES (%s, %s, %s, %s, %s, %s)
         ON CONFLICT (canonical_game_id)
         DO UPDATE SET
             is_active = EXCLUDED.is_active,
@@ -601,7 +690,7 @@ def _upsert_tracked_game(
             sources = EXCLUDED.sources, -- MVP: current-run attribution only.
             last_seen_at = EXCLUDED.last_seen_at
         """,
-        (canonical_game_id, priority, sources, run_seen_at, run_seen_at),
+        (canonical_game_id, is_active, priority, sources, run_seen_at, run_seen_at),
     )
 
 
@@ -666,6 +755,9 @@ def run(
             catalog_metadata["pagination"],
             catalog_metadata["snapshot_path"],
         )
+    catalog_active_appids = resolve_optional_catalog_active_appids(
+        catalog_metadata=catalog_metadata
+    )
 
     psycopg = require_psycopg()
     conninfo = build_pg_conninfo_from_env()
@@ -676,9 +768,14 @@ def run(
         for candidate in merged_candidates:
             with conn.transaction():
                 with conn.cursor() as cursor:
+                    is_active = resolve_candidate_is_active(
+                        candidate,
+                        catalog_active_appids=catalog_active_appids,
+                    )
                     result = process_candidate(
                         candidate,
                         run_seen_at=run_seen_at,
+                        is_active=is_active,
                         fetch_mapping=lambda steam_appid, for_update: _fetch_mapping_row(
                             cursor, steam_appid, for_update=for_update
                         ),
@@ -708,10 +805,15 @@ def run(
                                 seen_at,
                             )
                         ),
-                        upsert_tracked_game=lambda canonical_game_id, priority, sources, seen_at: (
+                        upsert_tracked_game=lambda canonical_game_id,
+                        is_active,
+                        priority,
+                        sources,
+                        seen_at: (
                             _upsert_tracked_game(
                                 cursor,
                                 canonical_game_id,
+                                is_active,
                                 priority,
                                 sources,
                                 seen_at,
