@@ -62,6 +62,10 @@
     - sources: steam_rank_kr/global, chzzk_top 등
     - first_seen_at, last_seen_at
     - note
+- current repo-grounded Steam-only semantics:
+    - ranking seed updater는 completed App Catalog latest summary가 가리키는 full snapshot JSONL을 읽을 수 있을 때만 catalog-driven active filter를 적용한다.
+    - current thin slice에서는 ranking seed appid가 그 snapshot에 없으면 row를 삭제하지 않고 `tracked_game.is_active = false` 로 upsert 한다.
+    - summary가 없거나 incomplete/unreadable 이면 기존처럼 non-blocking 으로 건너뛴다.
 
 ## 4. Fact / Snapshot (Gold 중심)
 

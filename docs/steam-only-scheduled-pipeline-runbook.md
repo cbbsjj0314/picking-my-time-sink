@@ -121,9 +121,10 @@ PYTHONPATH=src poetry run python -m steam.ingest.run_tracked_universe_scheduled 
   - ranking payload decode 실패 또는 zero-row payload
   - DB env 누락 / DB 연결 실패
 - 현재 의도된 한계:
-  - optional App Catalog summary는 metadata log 용도만 있고, missing/unreadable 이어도 run을 막지 않는다.
+  - optional App Catalog summary가 completed latest snapshot을 가리키면, 그 snapshot JSONL에 없는 ranking seed appid는 `tracked_game.is_active = false` 로 upsert 한다.
+  - summary가 없거나 paginated/incomplete/unreadable 이면 catalog-driven active filter는 non-blocking 으로 건너뛴다.
   - `tracked_game.sources` 는 current-run attribution만 유지한다.
-  - current slice에는 deactivate / cull / catalog-driven filtering이 없다.
+  - current slice에는 broader cull / generalized filtering / non-seed lifecycle semantics가 없다.
 
 ### 3.2 Ranking gold upsert
 
@@ -320,7 +321,6 @@ PGPASSWORD="$POSTGRES_PASSWORD" psql \
 - App Catalog external scheduling 운영화
 - App Catalog JSONL snapshot / latest summary의 weekly 운영 runbook 본문화
 - Parquet / MinIO handoff
-- tracked_universe deactivate / catalog-driven filtering semantics
 - price free / unavailable semantics 확장
 - reviews generalized history / parameter 확장
 - CCU daily rollup / 90일 serving verification
