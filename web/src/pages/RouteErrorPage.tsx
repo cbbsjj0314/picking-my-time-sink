@@ -11,16 +11,16 @@ export function RouteErrorPage() {
   const isGameDetailRoute = location.pathname.startsWith("/games/");
 
   let eyebrow = "Picking My Time Sink";
-  let title = isGameDetailRoute ? "Game detail unavailable" : "Route unavailable";
+  let title = isGameDetailRoute ? "Selected game details unavailable" : "Route unavailable";
   let detail = isGameDetailRoute
-    ? "The current Steam-only detail route could not be loaded."
+    ? "The current Steam evidence view could not be loaded."
     : "The dashboard route could not be loaded.";
 
   if (isRouteErrorResponse(error)) {
     eyebrow = error.status === 404 ? "Not Found" : "Route error";
     title =
       error.status === 404 && isGameDetailRoute
-        ? "Game detail unavailable"
+        ? "Selected game details unavailable"
         : `${error.status} ${error.statusText}`;
     detail =
       typeof error.data === "string" && error.data.length > 0
@@ -39,7 +39,7 @@ export function RouteErrorPage() {
         <h1 className="mt-5 text-3xl font-semibold tracking-tight text-white">{title}</h1>
         <p className="mt-4 text-sm leading-7 text-slate-400">{detail}</p>
         <p className="mt-3 text-sm leading-7 text-slate-500">
-          Return to the overview and reopen a mapped title inside the current Steam-only,
+          Return to overview and reopen a mapped title inside the current Steam-first,
           read-only dashboard slice.
         </p>
         <Link

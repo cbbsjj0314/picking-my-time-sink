@@ -51,6 +51,8 @@ type SecondaryStatRowProps = {
   supporting?: string;
 };
 
+type HeaderVerdict = "Players healthy" | "Reviews positive" | "Price live" | "Deferred";
+
 const RANGE_OPTIONS: DetailRange[] = ["30d", "90d"];
 
 function normalizeRange(value: string | null): DetailRange {
@@ -90,19 +92,19 @@ function getCoverageState(dashboard: GameDashboardData): {
   const missingLabels: string[] = [];
 
   if (!dashboard.ccu) {
-    missingLabels.push("latest player snapshot");
+    missingLabels.push("CCU signal");
   }
 
   if (dashboard.ccuHistory.length === 0) {
-    missingLabels.push("recent player trend");
+    missingLabels.push("CCU history");
   }
 
   if (!dashboard.price) {
-    missingLabels.push("KR price snapshot");
+    missingLabels.push("Price signal");
   }
 
   if (!dashboard.reviews) {
-    missingLabels.push("review summary");
+    missingLabels.push("Reviews signal");
   }
 
   return {
@@ -115,16 +117,39 @@ function getCoverageDescription(dashboard: GameDashboardData): string {
   const coverage = getCoverageState(dashboard);
 
   if (coverage.availableCount === 4) {
-    return "All current detail reads are live for this title inside the Steam-only baseline.";
+    return "CCU, CCU history, Reviews, and Price are all live for this title in the current Steam evidence set.";
   }
 
   if (coverage.availableCount === 0) {
-    return "The canonical route is available, but the current Steam-only feeds have not populated player, price, review, or recent trend rows for this title yet.";
+    return "The canonical route is live, but the current Steam evidence set has not populated CCU, CCU history, Reviews, or Price for this title yet.";
   }
 
   return `${formatLabelList(coverage.missingLabels)} ${
     coverage.missingLabels.length === 1 ? "is" : "are"
-  } still pending for this title in the current read-only slice.`;
+  } still pending for this title in the current Steam evidence set.`;
+}
+
+function getHeaderVerdicts(dashboard: GameDashboardData): HeaderVerdict[] {
+  const verdicts: HeaderVerdict[] = [];
+  const coverage = getCoverageState(dashboard);
+
+  if (dashboard.ccu && dashboard.ccuHistory.length > 0) {
+    verdicts.push("Players healthy");
+  }
+
+  if (dashboard.reviews && dashboard.reviews.positive_ratio >= 0.7) {
+    verdicts.push("Reviews positive");
+  }
+
+  if (verdicts.length < 2 && dashboard.price) {
+    verdicts.push("Price live");
+  }
+
+  if (verdicts.length === 0 || (verdicts.length < 2 && coverage.availableCount < 4)) {
+    verdicts.push("Deferred");
+  }
+
+  return verdicts.slice(0, 2);
 }
 
 function getCcuSupportingText(dashboard: GameDashboardData): string | undefined {
@@ -135,7 +160,7 @@ function getCcuSupportingText(dashboard: GameDashboardData): string | undefined 
   }
 
   if (ccu.missing_flag) {
-    return "Prior-day bucket delta is not available yet.";
+    return "Prior-bucket comparison is still pending.";
   }
 
   return `${formatSignedInteger(ccu.delta_ccu_abs)} vs prior bucket · ${formatSignedPercent(
@@ -169,10 +194,10 @@ function getReviewsSupportingText(dashboard: GameDashboardData): string | undefi
   }
 
   if (reviews.missing_flag) {
-    return `${formatInteger(reviews.total_reviews)} total reviews in the latest snapshot`;
+    return `${formatInteger(reviews.total_reviews)} lifetime reviews in the latest snapshot`;
   }
 
-  return `${formatInteger(reviews.total_reviews)} total reviews · ${formatSignedInteger(
+  return `${formatInteger(reviews.total_reviews)} lifetime reviews · ${formatSignedInteger(
     reviews.delta_total_reviews,
   )} vs prior day`;
 }
@@ -249,8 +274,8 @@ export async function gameDetailLoader({
     if (error instanceof ApiError) {
       throw new Response(
         error.status === 404
-          ? "This game detail route is not available in the current Steam-only slice."
-          : "The latest Steam detail snapshot could not be loaded right now. Please retry from overview.",
+          ? "This selected game details route is not available in the current Steam-first slice."
+          : "The latest Steam evidence view could not be loaded right now. Please retry from overview.",
         {
           status: error.status,
           statusText: error.status === 404 ? "Not Found" : "Unavailable",
@@ -281,6 +306,7 @@ export function GameDetailPage() {
     `Canonical Game ${canonicalGameId}`;
   const coverage = getCoverageState(dashboard);
   const coverageDescription = getCoverageDescription(dashboard);
+  const headerVerdicts = getHeaderVerdicts(dashboard);
   const detailPath = `/games/${canonicalGameId}`;
   const isPendingCurrentRoute =
     navigation.state !== "idle" && navigation.location?.pathname === detailPath;
@@ -322,34 +348,37 @@ export function GameDetailPage() {
               <span>Back to overview</span>
             </Link>
             <p className="mt-6 text-[0.68rem] uppercase tracking-[0.34em] text-cyan-300/80">
-              Game Detail
+              Selected Game Details
             </p>
             <h1 className="mt-5 max-w-3xl text-4xl font-semibold tracking-tight text-white md:text-5xl">
               {title}
             </h1>
-            <p className="mt-5 max-w-2xl text-sm leading-7 text-slate-400">
-              Steam-only detail snapshot for this title across recent player activity,
-              current KR store pricing, and latest review sentiment. The route stays
-              read-only and only uses the existing FastAPI detail reads already available
-              in the current slice.
+            <p className="mt-5 text-sm uppercase tracking-[0.28em] text-slate-500">
+              Steam source view
+            </p>
+            <p className="mt-4 max-w-2xl text-sm leading-7 text-slate-400">
+              Fixed Steam evidence set for this canonical route: CCU first, then Reviews,
+              then Price. The route stays on the existing live API reads only.
+            </p>
+            <p className="mt-4 max-w-2xl text-sm leading-7 text-slate-500">
+              Canonical {canonicalGameId} keeps the current route/API/backend semantics and
+              does not add source tabs, ranking-window state, or demo labeling in this
+              slice.
             </p>
             <div className="mt-6 flex flex-wrap gap-2">
-              <span className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-[0.68rem] uppercase tracking-[0.28em] text-slate-300">
-                Steam-only
-              </span>
-              <span className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-[0.68rem] uppercase tracking-[0.28em] text-slate-300">
-                KR serving baseline
-              </span>
-              <span
-                className={[
-                  "rounded-full border px-3 py-1 text-[0.68rem] uppercase tracking-[0.28em]",
-                  coverage.availableCount === 4
-                    ? "border-cyan-300/20 bg-cyan-300/[0.08] text-cyan-100"
-                    : "border-white/10 bg-white/[0.03] text-slate-300",
-                ].join(" ")}
-              >
-                {coverage.availableCount}/4 live groups
-              </span>
+              {headerVerdicts.map((verdict) => (
+                <span
+                  key={verdict}
+                  className={[
+                    "rounded-full border px-3 py-1 text-[0.68rem] uppercase tracking-[0.28em]",
+                    verdict === "Deferred"
+                      ? "border-white/10 bg-white/[0.03] text-slate-300"
+                      : "border-cyan-300/20 bg-cyan-300/[0.08] text-cyan-100",
+                  ].join(" ")}
+                >
+                  {verdict}
+                </span>
+              ))}
               {isPendingCurrentRoute ? (
                 <span className="rounded-full border border-cyan-300/20 bg-cyan-300/[0.08] px-3 py-1 text-[0.68rem] uppercase tracking-[0.28em] text-cyan-100">
                   {pendingStatusLabel}
@@ -360,15 +389,15 @@ export function GameDetailPage() {
 
           <div className="rounded-[1.75rem] border border-cyan-400/[0.15] bg-cyan-400/[0.08] p-6">
             <p className="text-[0.68rem] uppercase tracking-[0.32em] text-cyan-100">
-              Shareable view
+              Route state
             </p>
             <p className="mt-4 text-2xl font-semibold tracking-tight text-white">
               /games/{canonicalGameId}
             </p>
             <p className="mt-4 max-w-sm text-sm leading-7 text-cyan-50/[0.85]">
-              The canonical game identity stays in the path. `range` remains the only
-              shareable view control and only clips the fixed 90-day history already
-              served by the backend.
+              Steam source view on a canonical path with {coverage.availableCount}/4 live
+              evidence reads. `range` remains the only route-level control and only clips
+              the fixed CCU history already served by the backend.
             </p>
             <div className="mt-5 flex flex-wrap gap-2">
               {RANGE_OPTIONS.map((option) => (
@@ -384,14 +413,14 @@ export function GameDetailPage() {
                       : "border-white/10 bg-white/[0.03] text-slate-300 hover:border-cyan-400/20 hover:text-white",
                   ].join(" ")}
                 >
-                  {option}
+                  {option.toUpperCase()}
                 </button>
               ))}
             </div>
             <p className="mt-4 text-xs uppercase tracking-[0.28em] text-cyan-100/80">
               {isPendingCurrentRoute
                 ? `${pendingStatusLabel}...`
-                : `${historyWindowLabel} view on top of a fixed 90-day backend window`}
+                : `${historyWindowLabel} on top of a fixed 90-day CCU backend window`}
             </p>
           </div>
         </div>
@@ -399,11 +428,11 @@ export function GameDetailPage() {
         {coverage.availableCount < 4 ? (
           <div className="mt-8">
             <DetailStateCard
-              eyebrow="Coverage"
+              eyebrow="Pending"
               title={
                 coverage.availableCount === 0
-                  ? "Live detail feeds are still catching up"
-                  : "Part of the current detail shell is still pending"
+                  ? "The Steam evidence set is still populating"
+                  : "Part of the Steam evidence set is still pending"
               }
               description={coverageDescription}
             />
@@ -412,31 +441,41 @@ export function GameDetailPage() {
       </section>
 
       <SectionFrame
-        eyebrow="Summary"
-        title="Current operating snapshot"
-        description="The detail page keeps the latest player, price, and review reads together so the product view stays useful before broader comparison, search, or additional filters exist."
+        eyebrow="Selected Game Details"
+        title="Steam evidence set"
+        description="The detail route keeps one fixed evidence set regardless of how the title was surfaced. In this slice that means CCU, Reviews, and Price only."
         action={
           <span className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-[0.68rem] uppercase tracking-[0.28em] text-slate-300">
-            {coverage.availableCount}/4 live groups
+            {coverage.availableCount}/4 live reads
           </span>
         }
         delayMs={80}
       >
         <div className="grid gap-4 lg:grid-cols-3">
           <MetricStrip
-            label="Players now"
+            label="CCU"
             value={formatCompactInteger(dashboard.ccu?.ccu)}
             hint={
               dashboard.ccu?.bucket_time
-                ? `Latest player snapshot from ${formatDateTimeLabel(
-                    dashboard.ccu.bucket_time,
-                  )}`
-                : "A live player snapshot has not been served for this title yet."
+                ? `Latest CCU snapshot from ${formatDateTimeLabel(dashboard.ccu.bucket_time)}`
+                : "The current CCU signal has not been served for this title yet."
             }
             supporting={getCcuSupportingText(dashboard)}
           />
           <MetricStrip
-            label="KR price now"
+            label="Reviews"
+            value={formatPercentRatio(dashboard.reviews?.positive_ratio)}
+            hint={
+              dashboard.reviews?.snapshot_date
+                ? `Latest review snapshot on ${formatDateLabel(
+                    dashboard.reviews.snapshot_date,
+                  )}`
+                : "The current Reviews signal has not been served for this title yet."
+            }
+            supporting={getReviewsSupportingText(dashboard)}
+          />
+          <MetricStrip
+            label="Price"
             value={formatCurrencyMinor(
               dashboard.price?.final_price_minor,
               dashboard.price?.currency_code,
@@ -446,29 +485,17 @@ export function GameDetailPage() {
                 ? `Latest KR store row from ${formatDateTimeLabel(
                     dashboard.price.bucket_time,
                   )}`
-                : "A current KR store snapshot is not available for this title yet."
+                : "The current Price signal has not been served for this title yet."
             }
             supporting={getPriceSupportingText(dashboard)}
-          />
-          <MetricStrip
-            label="Positive share"
-            value={formatPercentRatio(dashboard.reviews?.positive_ratio)}
-            hint={
-              dashboard.reviews?.snapshot_date
-                ? `Latest review snapshot on ${formatDateLabel(
-                    dashboard.reviews.snapshot_date,
-                  )}`
-                : "A review summary has not been served for this title yet."
-            }
-            supporting={getReviewsSupportingText(dashboard)}
           />
         </div>
       </SectionFrame>
 
       <SectionFrame
-        eyebrow="History"
-        title="Recent player trend"
-        description="The route keeps one recent player trend view on top of the existing fixed 90-day endpoint. `range` only decides how much of that already-served window is visible."
+        eyebrow="CCU"
+        title="CCU history"
+        description="CCU is the main chart for the Steam detail view. `range` only decides how much of the existing fixed 90-day backend window is visible."
         action={
           <div className="flex flex-wrap gap-2">
             <span className="rounded-full border border-cyan-300/20 bg-cyan-300/[0.08] px-3 py-1 text-[0.68rem] uppercase tracking-[0.28em] text-cyan-100">
@@ -485,34 +512,114 @@ export function GameDetailPage() {
           <SimpleHistoryChart data={visibleHistory} />
         ) : (
           <DetailStateCard
-            eyebrow="Trend pending"
-            title="Recent player history is not available yet"
+            eyebrow="Pending"
+            title="CCU history is not available yet"
             description={
               dashboard.ccu
-                ? "The latest player snapshot exists for this title, but the fixed daily trend window has not populated yet."
-                : "This title does not have recent player history in the current Steam-only detail slice yet."
+                ? "The latest CCU snapshot exists for this title, but the fixed daily history window has not populated yet."
+                : "This title does not have CCU history in the current Steam-first detail slice yet."
             }
           />
         )}
       </SectionFrame>
 
       <SectionFrame
-        eyebrow="Secondary Panels"
-        title="Supporting price and review context"
-        description="The supporting panels stay readable but slightly denser, so current store posture and review shape are clear without expanding the route into a larger analytics surface."
+        eyebrow="Supporting Panels"
+        title="Reviews and Price"
+        description="Supporting cards stay narrow and mechanical. Reviews uses the latest live snapshot, and Price stays on the current KR state without broader store semantics."
         delayMs={200}
       >
         <div className="grid gap-5 lg:grid-cols-2">
           <div className="rounded-[2rem] border border-white/10 bg-white/[0.03] p-6">
             <p className="text-[0.68rem] uppercase tracking-[0.32em] text-cyan-300/70">
+              Reviews
+            </p>
+            <h3 className="mt-4 text-xl font-semibold tracking-tight text-white">
+              Latest review signal
+            </h3>
+            <p className="mt-3 text-sm leading-7 text-slate-400">
+              Current live API exposes the latest review snapshot for this title, so this
+              card stays on positive share, lifetime scale, and recent movement only.
+            </p>
+
+            {dashboard.reviews ? (
+              <>
+                <div className="mt-6 rounded-[1.5rem] border border-white/10 bg-slate-950/40 p-5">
+                  <div className="flex flex-wrap items-end justify-between gap-4">
+                    <div>
+                      <p className="text-[0.68rem] uppercase tracking-[0.32em] text-slate-500">
+                        Recent positive
+                      </p>
+                      <p className="mt-3 text-3xl font-semibold tracking-tight text-white">
+                        {formatPercentRatio(dashboard.reviews.positive_ratio)}
+                      </p>
+                    </div>
+                    <span className="rounded-full border border-cyan-300/20 bg-cyan-300/[0.08] px-3 py-1 text-[0.68rem] uppercase tracking-[0.28em] text-cyan-100">
+                      {dashboard.reviews.missing_flag
+                        ? "Pending"
+                        : formatSignedRatioPoints(dashboard.reviews.delta_positive_ratio)}
+                    </span>
+                  </div>
+                  <p className="mt-3 text-sm leading-7 text-slate-400">
+                    Latest review snapshot from{" "}
+                    {formatDateLabel(dashboard.reviews.snapshot_date)}.
+                  </p>
+                </div>
+
+                <div className="mt-6 space-y-4">
+                  <SecondaryStatRow
+                    label="Lifetime reviews"
+                    value={formatInteger(dashboard.reviews.total_reviews)}
+                    hint="All reviews captured in the latest served summary row."
+                    supporting={`${formatInteger(
+                      dashboard.reviews.total_positive,
+                    )} positive · ${formatInteger(dashboard.reviews.total_negative)} negative`}
+                  />
+                  <SecondaryStatRow
+                    label="Recent movement"
+                    value={
+                      dashboard.reviews.missing_flag
+                        ? "Pending"
+                        : formatSignedInteger(dashboard.reviews.delta_total_reviews)
+                    }
+                    hint="Day-over-day change when a prior review snapshot exists."
+                    supporting={
+                      dashboard.reviews.missing_flag
+                        ? "A prior review baseline is not available for this title yet."
+                        : `${formatSignedRatioPoints(
+                            dashboard.reviews.delta_positive_ratio,
+                          )} positive-share shift`
+                    }
+                  />
+                  <SecondaryStatRow
+                    label="Snapshot context"
+                    value={formatDateLabel(dashboard.reviews.snapshot_date)}
+                    hint="The current detail route keeps Reviews on the latest served daily summary."
+                    supporting="Positive share remains the current live API fallback for summary tone."
+                  />
+                </div>
+              </>
+            ) : (
+              <div className="mt-6">
+                <DetailStateCard
+                  eyebrow="Pending"
+                  title="Reviews signal is not available yet"
+                  description="This title does not have a latest review snapshot in the current slice yet, so the card stays visible with a restrained pending state."
+                />
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-[2rem] border border-white/10 bg-white/[0.03] p-6">
+            <p className="text-[0.68rem] uppercase tracking-[0.32em] text-cyan-300/70">
               Price
             </p>
             <h3 className="mt-4 text-xl font-semibold tracking-tight text-white">
-              Current KR store posture
+              Current price state
             </h3>
             <p className="mt-3 text-sm leading-7 text-slate-400">
-              Latest served KR price row for this title, kept inside the current read-only
-              boundary without region filters or broader store semantics.
+              Current KR price state and light purchase context from the latest served row,
+              kept inside the current read-only boundary without broader store semantics.
             </p>
 
             {dashboard.price ? (
@@ -554,7 +661,7 @@ export function GameDetailPage() {
                     hint="The initial KR price paired with the same latest row."
                   />
                   <SecondaryStatRow
-                    label="Discount posture"
+                    label="Discount"
                     value={
                       dashboard.price.is_free
                         ? "Free"
@@ -571,9 +678,9 @@ export function GameDetailPage() {
                     }
                   />
                   <SecondaryStatRow
-                    label="Store context"
+                    label="Snapshot context"
                     value={`${dashboard.price.region} · ${dashboard.price.currency_code}`}
-                    hint="The current detail boundary keeps price reads KR-centered and read-only."
+                    hint="The current detail route keeps Price KR-centered and read-only."
                     supporting={`Bucket ${formatDateTimeLabel(dashboard.price.bucket_time)}`}
                   />
                 </div>
@@ -581,95 +688,9 @@ export function GameDetailPage() {
             ) : (
               <div className="mt-6">
                 <DetailStateCard
-                  eyebrow="Price pending"
-                  title="Current KR price is not available yet"
-                  description="This title does not have a latest KR price row in the current slice yet, so the page keeps the space visible with a clear pending state."
-                />
-              </div>
-            )}
-          </div>
-
-          <div className="rounded-[2rem] border border-white/10 bg-white/[0.03] p-6">
-            <p className="text-[0.68rem] uppercase tracking-[0.32em] text-cyan-300/70">
-              Reviews
-            </p>
-            <h3 className="mt-4 text-xl font-semibold tracking-tight text-white">
-              Latest review shape
-            </h3>
-            <p className="mt-3 text-sm leading-7 text-slate-400">
-              Latest served review summary for this title, kept compact but expressive so
-              sentiment and volume remain readable without opening broader review tooling.
-            </p>
-
-            {dashboard.reviews ? (
-              <>
-                <div className="mt-6 rounded-[1.5rem] border border-white/10 bg-slate-950/40 p-5">
-                  <div className="flex flex-wrap items-end justify-between gap-4">
-                    <div>
-                      <p className="text-[0.68rem] uppercase tracking-[0.32em] text-slate-500">
-                        Positive share
-                      </p>
-                      <p className="mt-3 text-3xl font-semibold tracking-tight text-white">
-                        {formatPercentRatio(dashboard.reviews.positive_ratio)}
-                      </p>
-                    </div>
-                    <span className="rounded-full border border-cyan-300/20 bg-cyan-300/[0.08] px-3 py-1 text-[0.68rem] uppercase tracking-[0.28em] text-cyan-100">
-                      {dashboard.reviews.missing_flag
-                        ? "Stable snapshot"
-                        : formatSignedRatioPoints(dashboard.reviews.delta_positive_ratio)}
-                    </span>
-                  </div>
-                  <p className="mt-3 text-sm leading-7 text-slate-400">
-                    Latest review snapshot from {formatDateLabel(dashboard.reviews.snapshot_date)}
-                    .
-                  </p>
-                </div>
-
-                <div className="mt-6 space-y-4">
-                  <SecondaryStatRow
-                    label="Total reviews"
-                    value={formatInteger(dashboard.reviews.total_reviews)}
-                    hint="All reviews captured in the latest served summary row."
-                    supporting={`${formatInteger(
-                      dashboard.reviews.total_positive,
-                    )} positive · ${formatInteger(dashboard.reviews.total_negative)} negative`}
-                  />
-                  <SecondaryStatRow
-                    label="Daily movement"
-                    value={
-                      dashboard.reviews.missing_flag
-                        ? "No prior delta"
-                        : formatSignedInteger(dashboard.reviews.delta_total_reviews)
-                    }
-                    hint="Day-over-day total review change when a prior snapshot exists."
-                    supporting={
-                      dashboard.reviews.missing_flag
-                        ? "Previous-day review baseline is not available for this title yet."
-                        : `${formatSignedRatioPoints(
-                            dashboard.reviews.delta_positive_ratio,
-                          )} sentiment shift`
-                    }
-                  />
-                  <SecondaryStatRow
-                    label="Snapshot context"
-                    value={formatDateLabel(dashboard.reviews.snapshot_date)}
-                    hint="The current detail boundary keeps reviews on the latest served daily summary."
-                    supporting={
-                      dashboard.reviews.missing_flag
-                        ? "Current snapshot is visible even without a prior-day comparison."
-                        : `${formatSignedInteger(
-                            dashboard.reviews.delta_total_reviews,
-                          )} review delta in the latest day`
-                    }
-                  />
-                </div>
-              </>
-            ) : (
-              <div className="mt-6">
-                <DetailStateCard
-                  eyebrow="Reviews pending"
-                  title="Latest review summary is not available yet"
-                  description="This title does not have a live review summary row in the current slice yet, so the panel stays visible with a clear pending state."
+                  eyebrow="Pending"
+                  title="Price signal is not available yet"
+                  description="This title does not have a latest KR price row in the current slice yet, so the card stays visible with a restrained pending state."
                 />
               </div>
             )}
