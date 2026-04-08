@@ -4,7 +4,7 @@ import { NavRail } from "../components/NavRail";
 
 function getPageLabel(pathname: string): string {
   if (pathname.startsWith("/games/")) {
-    return "Game Detail";
+    return "Selected Game Details";
   }
 
   return "Overview";
