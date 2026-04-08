@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" width="96" height="96" role="img" aria-label="Warning icon">
+  <defs>
+    <radialGradient id="goldFill" cx="36%" cy="32%" r="70%">
+      <stop offset="0%" stop-color="#FFE98A"/>
+      <stop offset="58%" stop-color="#FFD24D"/>
+      <stop offset="100%" stop-color="#E0A61E"/>
+    </radialGradient>
+    <linearGradient id="rimFill" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FFF1A2"/>
+      <stop offset="50%" stop-color="#F5C945"/>
+      <stop offset="100%" stop-color="#C98616"/>
+    </linearGradient>
+  </defs>
+
+  <!-- outer coin -->
+  <circle cx="48" cy="48" r="44" fill="url(#rimFill)" />
+  <circle cx="48" cy="48" r="39.5" fill="none" stroke="#6A2C00" stroke-width="4.5"/>
+  <circle cx="48" cy="48" r="33.5" fill="url(#goldFill)" />
+
+  <!-- exclamation -->
+  <rect x="41" y="18" width="14" height="42" rx="6.5" fill="#6E2900"/>
+  <circle cx="48" cy="71" r="6.5" fill="#6E2900"/>
+</svg>
