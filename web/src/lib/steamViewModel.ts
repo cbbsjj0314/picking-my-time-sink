@@ -78,6 +78,7 @@ const HISTORY_POINT_LIMITS: Record<SteamChartRange, number> = {
 }
 
 const formatInteger = (value: number) => value.toLocaleString('en-US')
+const formatSignedInteger = (value: number) => (value > 0 ? `+${formatInteger(value)}` : formatInteger(value))
 
 const formatPercentRatio = (value: number) => `${Math.round(value * 100)}%`
 
@@ -88,6 +89,7 @@ const formatCompactInteger = (value: number) =>
   }).format(value)
 
 const formatSnapshotDateTime = (value: string) => `${KST_DATE_TIME_FORMATTER.format(new Date(value))} KST`
+const formatSnapshotDate = (value: string) => KST_MONTH_DAY_FORMATTER.format(new Date(`${value}T00:00:00+09:00`))
 
 const formatMinorPrice = (valueMinor: number, currencyCode: string, isFree: boolean | null) => {
   if (isFree) {
@@ -327,17 +329,19 @@ const buildDetailCards = (row: SteamBaseRow, historyRows: GameDaily90dCcu[] | un
     },
     {
       label: 'Reviews',
-      subtitle: row.reviews ? getReviewSummaryFallback(row.reviews.positive_ratio) : undefined,
+      subtitle: row.reviews
+        ? `${getReviewSummaryFallback(row.reviews.positive_ratio)} · ${formatSnapshotDate(row.reviews.snapshot_date)} snapshot`
+        : undefined,
       rows: [
         {
           label: 'Positive share',
           value: row.reviews ? formatPercentRatio(row.reviews.positive_ratio) : 'Pending',
         },
         {
-          label: '1D review delta',
+          label: '1D reviews added',
           value:
             row.reviews && row.reviews.delta_total_reviews !== null
-              ? formatInteger(row.reviews.delta_total_reviews)
+              ? formatSignedInteger(row.reviews.delta_total_reviews)
               : row.reviews
                 ? 'No prior delta'
                 : 'Pending',

@@ -88,6 +88,7 @@
 - latest reviews API는 `srv_game_latest_reviews`를 직접 읽는다.
 - list endpoint는 `/games/reviews/latest`, single-game endpoint는 `/games/{canonical_game_id}/reviews/latest` 이다.
 - `missing_flag = true` 는 전일 `snapshot_date` 기준 비교 행이 없어 Δ 필드가 계산되지 않았음을 뜻한다.
+- current minimum UI surface는 Steam-authored summary text 대신 `positive_ratio` 기반 derived summary fallback을 쓸 수 있고, `delta_total_reviews` 는 `1D reviews added` 의미로만 노출한다.
 - current wire example(`/games/{id}/reviews/latest`):
 
 ```json
