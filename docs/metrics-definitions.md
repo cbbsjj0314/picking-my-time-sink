@@ -183,6 +183,7 @@
 - `region`은 current slice에서 항상 `KR` 이고, generalized region query param은 아직 없다.
 - `is_free`는 `fact_steam_price_1h`에 적재된 existing fact semantics를 그대로 노출하며, broader free/unavailable/missing-price semantics는 아직 확장하지 않는다.
 - current minimum price surface는 전일 대비 Δ 필드를 노출하지 않는다.
+- current minimum UI surface는 latest `bucket_time`을 `Price snapshot` 시각으로만 노출하고, sale-end timing은 API가 없어 표시하지 않는다.
 - price timing/history interpretation은 별도 thin slice에서 필요성이 확인될 때만 확장한다.
 - current wire example(`/games/{id}/price/latest`):
 

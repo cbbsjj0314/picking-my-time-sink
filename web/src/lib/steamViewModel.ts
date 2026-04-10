@@ -87,6 +87,8 @@ const formatCompactInteger = (value: number) =>
     maximumFractionDigits: value >= 1000 ? 1 : 0,
   }).format(value)
 
+const formatSnapshotDateTime = (value: string) => `${KST_DATE_TIME_FORMATTER.format(new Date(value))} KST`
+
 const formatMinorPrice = (valueMinor: number, currencyCode: string, isFree: boolean | null) => {
   if (isFree) {
     return 'Free'
@@ -365,8 +367,8 @@ const buildDetailCards = (row: SteamBaseRow, historyRows: GameDaily90dCcu[] | un
               : 'Pending',
         },
         {
-          label: 'Sale ends in',
-          value: 'Pending',
+          label: 'Price snapshot',
+          value: row.price ? formatSnapshotDateTime(row.price.bucket_time) : 'Pending',
         },
       ],
     },
