@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import datetime as dt
+from enum import Enum
 
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
@@ -10,6 +11,24 @@ from pydantic import BaseModel
 from api.services import ccu_service, price_service, rankings_service, reviews_service
 
 router = APIRouter(prefix="/games", tags=["games"])
+
+
+class RankingWindow(str, Enum):
+    """Explicit ranking window values exposed on public read-only list endpoints."""
+
+    ONE_DAY = "1d"
+    LAST_7_DAYS = "7d"
+    LAST_30_DAYS = "30d"
+    LAST_90_DAYS = "90d"
+
+
+TOP_SELLING_UNSUPPORTED_WINDOW_DETAIL = (
+    "Top Selling currently supports only window=7d because the Steam topsellers source is weekly."
+)
+CCU_LIST_LIMIT_QUERY = Query(default=50, ge=1, le=200)
+CCU_LIST_WINDOW_QUERY = Query(default=RankingWindow.ONE_DAY)
+RANKINGS_LIST_LIMIT_QUERY = Query(default=50, ge=1, le=200)
+RANKINGS_LIST_WINDOW_QUERY = Query(default=RankingWindow.LAST_7_DAYS)
 
 
 class GameLatestCcuResponse(BaseModel):
@@ -74,11 +93,12 @@ class GameLatestRankingResponse(BaseModel):
 
 @router.get("/ccu/latest", response_model=list[GameLatestCcuResponse])
 def list_games_latest_ccu(
-    limit: int = Query(default=50, ge=1, le=200),
+    limit: int = CCU_LIST_LIMIT_QUERY,
+    window: RankingWindow = CCU_LIST_WINDOW_QUERY,
 ) -> list[GameLatestCcuResponse]:
-    """Return latest CCU rows from srv_game_latest_ccu with an optional limit."""
+    """Return latest CCU rows ordered by the requested Most Played list context."""
 
-    rows = ccu_service.list_latest_ccu(limit=limit)
+    rows = ccu_service.list_latest_ccu(limit=limit, window=window.value)
     return [GameLatestCcuResponse.model_validate(row) for row in rows]
 
 
@@ -140,9 +160,13 @@ def list_games_latest_reviews(
 
 @router.get("/rankings/latest", response_model=list[GameLatestRankingResponse])
 def list_games_latest_rankings(
-    limit: int = Query(default=50, ge=1, le=200),
+    limit: int = RANKINGS_LIST_LIMIT_QUERY,
+    window: RankingWindow = RANKINGS_LIST_WINDOW_QUERY,
 ) -> list[GameLatestRankingResponse]:
-    """Return latest fixed KR top-selling ranking rows with an optional limit."""
+    """Return latest fixed KR weekly top-selling ranking rows with an optional limit."""
+
+    if window != RankingWindow.LAST_7_DAYS:
+        raise HTTPException(status_code=400, detail=TOP_SELLING_UNSUPPORTED_WINDOW_DETAIL)
 
     rows = rankings_service.list_latest_rankings(limit=limit)
     return [GameLatestRankingResponse.model_validate(row) for row in rows]
