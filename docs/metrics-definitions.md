@@ -1,8 +1,8 @@
 # Metrics & Definitions (요구사항 + 지표 정의서)
 
 문서 목적: 용어/지표/Δ 기준을 고정해 구현 중 재해석을 방지
-버전: v0.5 (Steam ranking window semantics thin slice 반영)
-작성일: 2026-04-09 (KST)
+버전: v0.6 (Steam price/review snapshot semantics thin slices 반영)
+작성일: 2026-04-10 (KST)
 
 ## 0. 시간/기간 프리셋
 
