@@ -14,6 +14,7 @@ import type { RangeOption, SteamDiscoverMode, SteamReferenceGame } from '../type
 interface UseSteamOverviewArgs {
   mode: SteamDiscoverMode
   rankingWindow: RangeOption
+  rankingCardLimit?: number | null
   searchQuery: string
   selectedId: string | null
 }
@@ -21,6 +22,7 @@ interface UseSteamOverviewArgs {
 interface UseSteamOverviewResult {
   games: SteamReferenceGame[]
   selectedGame: SteamReferenceGame | null
+  totalGameCount: number
   loading: boolean
   error: string | null
 }
@@ -62,6 +64,7 @@ const mergeLatestRows = <Row extends LatestRowWithCanonicalGameId>(
 export function useSteamOverview({
   mode,
   rankingWindow,
+  rankingCardLimit = 4,
   searchQuery,
   selectedId,
 }: UseSteamOverviewArgs): UseSteamOverviewResult {
@@ -155,7 +158,7 @@ export function useSteamOverview({
     reviewRows: mergeLatestRows(overviewData?.reviewRows ?? EMPTY_OVERVIEW_DATA.reviewRows, supplementalReviewsByCanonicalGameId),
   }
 
-  const games = buildSteamGames({
+  const allGames = buildSteamGames({
     mode,
     rankingWindow,
     searchQuery,
@@ -164,6 +167,7 @@ export function useSteamOverview({
     historyLoadingCanonicalGameId,
     historyErrorCanonicalGameIds,
   })
+  const games = rankingCardLimit === null ? allGames : allGames.slice(0, rankingCardLimit)
 
   useEffect(() => {
     const surfacedCanonicalGameIds = games
@@ -406,6 +410,7 @@ export function useSteamOverview({
   return {
     games,
     selectedGame,
+    totalGameCount: allGames.length,
     loading,
     error,
   }

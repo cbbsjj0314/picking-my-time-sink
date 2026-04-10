@@ -5,8 +5,11 @@ interface SteamRankingListProps {
   range: RangeOption
   selectedId: string | null
   disabledRanges?: RangeOption[]
+  isExpanded?: boolean
+  canExpand?: boolean
   onRangeChange: (range: RangeOption) => void
   onSelect: (id: string) => void
+  onToggleExpanded: () => void
   loading?: boolean
   error?: string | null
   rangeStatusText?: string
@@ -80,8 +83,11 @@ export function SteamRankingList({
   range,
   selectedId,
   disabledRanges = [],
+  isExpanded = false,
+  canExpand = false,
   onRangeChange,
   onSelect,
+  onToggleExpanded,
   loading = false,
   error = null,
   rangeStatusText,
@@ -144,14 +150,20 @@ export function SteamRankingList({
       </div>
 
       <div className="mt-3.5 px-1">
-        <button
-          className="text-sm text-[var(--text-secondary)] transition hover:text-[var(--text-primary)]"
-          title="전체 랭킹 페이지는 아직 미구현"
-          type="button"
-        >
-          &rarr; View full ranking
-        </button>
-        <p className="mt-1 text-sm text-[var(--text-secondary)]">전체 랭킹 페이지는 아직 미구현</p>
+        {canExpand || isExpanded ? (
+          <>
+            <button
+              className="text-sm text-[var(--text-secondary)] transition hover:text-[var(--text-primary)]"
+              onClick={onToggleExpanded}
+              type="button"
+            >
+              {isExpanded ? '\u2190 Back to overview list' : '\u2192 View full ranking'}
+            </button>
+            <p className="mt-1 text-sm text-[var(--text-secondary)]">
+              {isExpanded ? '현재 latest ranking rows 전체를 이 화면에서 펼쳐서 보고 있습니다.' : '현재 선택한 Steam lens의 latest ranking rows 전체를 펼쳐 볼 수 있습니다.'}
+            </p>
+          </>
+        ) : null}
       </div>
     </section>
   )
