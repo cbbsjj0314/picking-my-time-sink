@@ -328,11 +328,11 @@ const buildDetailCards = (row: SteamBaseRow, historyRows: GameDaily90dCcu[] | un
       subtitle: row.reviews ? getReviewSummaryFallback(row.reviews.positive_ratio) : undefined,
       rows: [
         {
-          label: 'Recent positive',
+          label: 'Positive share',
           value: row.reviews ? formatPercentRatio(row.reviews.positive_ratio) : 'Pending',
         },
         {
-          label: 'Recent reviews',
+          label: '1D review delta',
           value:
             row.reviews && row.reviews.delta_total_reviews !== null
               ? formatInteger(row.reviews.delta_total_reviews)

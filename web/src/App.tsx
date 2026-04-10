@@ -31,15 +31,23 @@ function App() {
   const [steamDiscoverMode, setSteamDiscoverMode] = useState<SteamDiscoverMode>(DEFAULT_STEAM_DISCOVER_MODE)
   const [steamRankingWindow, setSteamRankingWindow] = useState<RangeOption>(DEFAULT_RANGE)
   const [steamChartRange, setSteamChartRange] = useState<SteamChartRange>(DEFAULT_STEAM_CHART_RANGE)
+  const [showExpandedRanking, setShowExpandedRanking] = useState(false)
   const [searchDraft, setSearchDraft] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedId, setSelectedId] = useState<string | null>(null)
 
   const deferredSearch = useDeferredValue(searchQuery)
   const supportedSteamRankingRanges = SUPPORTED_RANGES_BY_MODE[steamDiscoverMode]
-  const { games: steamGames, selectedGame: selectedSteamGame, loading, error } = useSteamOverview({
+  const {
+    games: steamGames,
+    selectedGame: selectedSteamGame,
+    totalGameCount: steamTotalGameCount,
+    loading,
+    error,
+  } = useSteamOverview({
     mode: steamDiscoverMode,
     rankingWindow: steamRankingWindow,
+    rankingCardLimit: showExpandedRanking ? null : 4,
     searchQuery: deferredSearch,
     selectedId,
   })
@@ -75,6 +83,7 @@ function App() {
       setSteamDiscoverMode(DEFAULT_STEAM_DISCOVER_MODE)
       setSteamRankingWindow(DEFAULT_RANGE)
       setSteamChartRange(DEFAULT_STEAM_CHART_RANGE)
+      setShowExpandedRanking(false)
       setSearchDraft('')
       setSearchQuery('')
       setSelectedId(null)
@@ -103,6 +112,7 @@ function App() {
           startTransition(() => {
             setSelectedId(null)
             setSourceTab(tab)
+            setShowExpandedRanking(false)
           })
         }}
         sourceTab={sourceTab}
@@ -132,8 +142,15 @@ function App() {
               games={steamGames}
               loading={loading}
               disabledRanges={rangeOptions.filter((range) => !supportedSteamRankingRanges.includes(range))}
+              isExpanded={showExpandedRanking}
+              canExpand={steamTotalGameCount > steamGames.length}
               onRangeChange={handleSteamRankingWindowChange}
               onSelect={setSelectedId}
+              onToggleExpanded={() => {
+                startTransition(() => {
+                  setShowExpandedRanking((current) => !current)
+                })
+              }}
               range={steamRankingWindow}
               rangeStatusText={RANGE_STATUS_TEXT_BY_MODE[steamDiscoverMode]}
               selectedId={selectedSteamGame?.id ?? null}
