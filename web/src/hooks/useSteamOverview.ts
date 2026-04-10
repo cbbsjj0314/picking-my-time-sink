@@ -122,6 +122,7 @@ export function useSteamOverview({
 
   const games = buildSteamGames({
     mode,
+    rankingWindow,
     searchQuery,
     data: overviewData ?? EMPTY_OVERVIEW_DATA,
     historyByCanonicalGameId,

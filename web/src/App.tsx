@@ -18,8 +18,8 @@ const SUPPORTED_RANGES_BY_MODE: Record<SteamDiscoverMode, readonly RangeOption[]
   'Most Played': ['1D', 'Last 7 Days', 'Last 30 Days', 'Last 3 Months'],
 }
 const RANGE_STATUS_TEXT_BY_MODE: Record<SteamDiscoverMode, string> = {
-  'Top Selling': 'Top Selling은 Steam weekly topsellers source라 Last 7 Days만 지원한다.',
-  'Most Played': '1D는 latest live CCU, 7D/30D/3M는 full-window daily CCU rollup 기준으로 리스트를 바꾼다.',
+  'Top Selling': 'Store Heat는 Steam weekly top sellers snapshot 기준이라 현재 Last 7 Days view만 지원한다.',
+  'Most Played': 'Player Heat는 1D live CCU, 7D/30D/3M full-window daily CCU rollup 기준으로 리스트를 바꾼다.',
 }
 
 const getInitialSourceTab = (): SourceTab => {

@@ -9,13 +9,13 @@ interface SteamDiscoverModeRowProps {
 const items = [
   {
     value: 'Top Selling',
-    label: 'Top Selling',
-    description: 'Steam에서 상점 매출이 높은 게임 보기',
+    label: 'Store Heat',
+    description: 'Steam weekly top sellers snapshot 기준으로 상점 강도가 높은 게임 보기',
   },
   {
     value: 'Most Played',
-    label: 'Most Played',
-    description: 'Steam에서 많이 플레이되고 있는 게임 보기',
+    label: 'Player Heat',
+    description: 'live / windowed CCU 기준으로 플레이어 강도가 높은 게임 보기',
   },
 ] as const satisfies ReadonlyArray<{ value: SteamDiscoverMode; label: string; description: string }>
 
