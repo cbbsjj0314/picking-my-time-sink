@@ -6,12 +6,21 @@ import { SteamDetailPanel } from './components/SteamDetailPanel'
 import { SteamRankingList } from './components/SteamRankingList'
 import { StickyShell } from './components/StickyShell'
 import { useSteamOverview } from './hooks/useSteamOverview'
+import { rangeOptions } from './types'
 import type { RangeOption, SourceTab, SteamChartRange, SteamDiscoverMode } from './types'
 
 const DEFAULT_SOURCE_TAB: SourceTab = 'Steam'
 const DEFAULT_STEAM_DISCOVER_MODE: SteamDiscoverMode = 'Top Selling'
 const DEFAULT_RANGE: RangeOption = 'Last 7 Days'
 const DEFAULT_STEAM_CHART_RANGE: SteamChartRange = '7D'
+const SUPPORTED_RANGES_BY_MODE: Record<SteamDiscoverMode, readonly RangeOption[]> = {
+  'Top Selling': ['Last 7 Days'],
+  'Most Played': ['1D', 'Last 7 Days', 'Last 30 Days', 'Last 3 Months'],
+}
+const RANGE_STATUS_TEXT_BY_MODE: Record<SteamDiscoverMode, string> = {
+  'Top Selling': 'Top Selling은 Steam weekly topsellers source라 Last 7 Days만 지원한다.',
+  'Most Played': '1D는 latest live CCU, 7D/30D/3M는 full-window daily CCU rollup 기준으로 리스트를 바꾼다.',
+}
 
 const getInitialSourceTab = (): SourceTab => {
   return DEFAULT_SOURCE_TAB
@@ -27,8 +36,10 @@ function App() {
   const [selectedId, setSelectedId] = useState<string | null>(null)
 
   const deferredSearch = useDeferredValue(searchQuery)
+  const supportedSteamRankingRanges = SUPPORTED_RANGES_BY_MODE[steamDiscoverMode]
   const { games: steamGames, selectedGame: selectedSteamGame, loading, error } = useSteamOverview({
     mode: steamDiscoverMode,
+    rankingWindow: steamRankingWindow,
     searchQuery: deferredSearch,
     selectedId,
   })
@@ -101,9 +112,13 @@ function App() {
         <SteamDiscoverModeRow
           mode={steamDiscoverMode}
           onChange={(mode) => {
+            const supportedRanges = SUPPORTED_RANGES_BY_MODE[mode]
+            const nextRange = supportedRanges.includes(steamRankingWindow) ? steamRankingWindow : supportedRanges[0]
+
             startTransition(() => {
               setSelectedId(null)
               setSteamDiscoverMode(mode)
+              setSteamRankingWindow(nextRange)
             })
           }}
         />
@@ -116,11 +131,11 @@ function App() {
               error={error}
               games={steamGames}
               loading={loading}
+              disabledRanges={rangeOptions.filter((range) => !supportedSteamRankingRanges.includes(range))}
               onRangeChange={handleSteamRankingWindowChange}
               onSelect={setSelectedId}
               range={steamRankingWindow}
-              rangeDisabled
-              rangeStatusText="Top Ranked의 기간 필터는 아직 백엔드 연동이 완료되지 않음."
+              rangeStatusText={RANGE_STATUS_TEXT_BY_MODE[steamDiscoverMode]}
               selectedId={selectedSteamGame?.id ?? null}
             />
 

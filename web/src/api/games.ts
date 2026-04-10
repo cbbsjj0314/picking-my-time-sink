@@ -8,6 +8,12 @@ type ListOptions = RequestOptions & {
   limit?: number
 }
 
+type WindowedListOptions = ListOptions & {
+  window?: GameRankingWindow
+}
+
+export type GameRankingWindow = '1d' | '7d' | '30d' | '90d'
+
 export type GameLatestRanking = {
   snapshot_date: string
   rank_position: number
@@ -83,16 +89,16 @@ async function requestOptional<T>(path: string, signal?: AbortSignal): Promise<T
   }
 }
 
-function listLatestRankings(options: ListOptions = {}): Promise<GameLatestRanking[]> {
+function listLatestRankings(options: WindowedListOptions = {}): Promise<GameLatestRanking[]> {
   return requestJson<GameLatestRanking[]>(
-    withQuery('/games/rankings/latest', { limit: options.limit ?? 12 }),
+    withQuery('/games/rankings/latest', { limit: options.limit ?? 12, window: options.window }),
     { signal: options.signal },
   )
 }
 
-function listLatestCcu(options: ListOptions = {}): Promise<GameLatestCcu[]> {
+function listLatestCcu(options: WindowedListOptions = {}): Promise<GameLatestCcu[]> {
   return requestJson<GameLatestCcu[]>(
-    withQuery('/games/ccu/latest', { limit: options.limit ?? 12 }),
+    withQuery('/games/ccu/latest', { limit: options.limit ?? 12, window: options.window }),
     { signal: options.signal },
   )
 }

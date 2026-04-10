@@ -28,7 +28,38 @@ SELECT
     delta_ccu_day AS delta_ccu_abs,
     prev_day_same_bucket_ccu
 FROM srv_game_latest_ccu
-ORDER BY priority, canonical_game_id
+ORDER BY latest_ccu DESC, canonical_game_id ASC
+LIMIT %s
+"""
+
+LIST_LATEST_WINDOW_SQL = """
+WITH latest_window_anchor AS (
+    SELECT MAX(bucket_date) AS bucket_date
+    FROM agg_steam_ccu_daily
+),
+ranked_games AS (
+    SELECT
+        agg.canonical_game_id,
+        AVG(agg.avg_ccu) AS window_avg_ccu
+    FROM agg_steam_ccu_daily AS agg
+    CROSS JOIN latest_window_anchor AS anchor
+    WHERE anchor.bucket_date IS NOT NULL
+      AND agg.bucket_date >= (anchor.bucket_date - (%s - 1))
+      AND agg.bucket_date <= anchor.bucket_date
+    GROUP BY agg.canonical_game_id
+    HAVING COUNT(*) = %s
+)
+SELECT
+    latest.canonical_game_id,
+    latest.canonical_name,
+    latest.bucket_time,
+    latest.latest_ccu AS ccu,
+    latest.delta_ccu_day AS delta_ccu_abs,
+    latest.prev_day_same_bucket_ccu
+FROM ranked_games AS ranked
+INNER JOIN srv_game_latest_ccu AS latest
+    ON latest.canonical_game_id = ranked.canonical_game_id
+ORDER BY ranked.window_avg_ccu DESC, latest.latest_ccu DESC, latest.canonical_game_id ASC
 LIMIT %s
 """
 
@@ -44,6 +75,12 @@ WHERE canonical_game_id = %s
   AND bucket_date <= (NOW() AT TIME ZONE 'Asia/Seoul')::date
 ORDER BY bucket_date ASC
 """
+
+WINDOW_DAY_COUNTS = {
+    "7d": 7,
+    "30d": 30,
+    "90d": 90,
+}
 
 
 def require_psycopg() -> tuple[Any, Any]:
@@ -122,15 +159,25 @@ def get_latest_ccu_by_game(canonical_game_id: int) -> dict[str, Any] | None:
     return to_response_record(row)
 
 
-def list_latest_ccu(limit: int = 50) -> list[dict[str, Any]]:
-    """Return latest CCU rows for active games from serving view."""
+def list_latest_ccu(limit: int = 50, window: str = "1d") -> list[dict[str, Any]]:
+    """Return latest CCU rows ordered by the requested Most Played list context."""
+
+    if window != "1d" and window not in WINDOW_DAY_COUNTS:
+        raise ValueError(f"Unsupported most-played window: {window}")
 
     psycopg, dict_row = require_psycopg()
     conninfo = build_pg_conninfo_from_env()
 
     with psycopg.connect(conninfo=conninfo) as conn:
         with conn.cursor(row_factory=dict_row) as cursor:
-            cursor.execute(LIST_LATEST_SQL, (limit,))
+            if window == "1d":
+                cursor.execute(LIST_LATEST_SQL, (limit,))
+            else:
+                window_day_count = WINDOW_DAY_COUNTS[window]
+                cursor.execute(
+                    LIST_LATEST_WINDOW_SQL,
+                    (window_day_count, window_day_count, limit),
+                )
             rows = cursor.fetchall()
 
     return [to_response_record(row) for row in rows]

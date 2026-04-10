@@ -4,11 +4,11 @@ interface SteamRankingListProps {
   games: SteamReferenceGame[]
   range: RangeOption
   selectedId: string | null
+  disabledRanges?: RangeOption[]
   onRangeChange: (range: RangeOption) => void
   onSelect: (id: string) => void
   loading?: boolean
   error?: string | null
-  rangeDisabled?: boolean
   rangeStatusText?: string
 }
 
@@ -79,11 +79,11 @@ export function SteamRankingList({
   games,
   range,
   selectedId,
+  disabledRanges = [],
   onRangeChange,
   onSelect,
   loading = false,
   error = null,
-  rangeDisabled = false,
   rangeStatusText,
 }: SteamRankingListProps) {
   const rangeControlOptions: Array<{ value: RangeOption; label: string }> = [
@@ -105,13 +105,17 @@ export function SteamRankingList({
 
         <label className="surface-high panel-worn ghost-outline flex w-full items-center gap-3 rounded-[18px] px-4 py-2.5 text-sm text-[var(--paper-dim)] shadow-[inset_0_1px_0_rgba(255,249,239,0.04),0_12px_24px_rgba(0,0,0,0.16)] sm:w-auto">
           <select
-            className={`type-display w-full bg-transparent font-semibold tracking-[0.02em] text-[var(--paper)] outline-none sm:w-auto ${rangeDisabled ? 'cursor-not-allowed opacity-70' : ''}`}
-            disabled={rangeDisabled}
+            className="type-display w-full bg-transparent font-semibold tracking-[0.02em] text-[var(--paper)] outline-none sm:w-auto"
             onChange={(event: { target: HTMLSelectElement }) => onRangeChange(event.target.value as RangeOption)}
             value={range}
           >
             {rangeControlOptions.map((option) => (
-              <option key={option.value} className="bg-[#1f1915] text-[#f8efe1]" value={option.value}>
+              <option
+                key={option.value}
+                className="bg-[#1f1915] text-[#f8efe1]"
+                disabled={disabledRanges.includes(option.value)}
+                value={option.value}
+              >
                 {option.label}
               </option>
             ))}

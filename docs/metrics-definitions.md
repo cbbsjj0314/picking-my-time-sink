@@ -1,8 +1,8 @@
 # Metrics & Definitions (요구사항 + 지표 정의서)
 
 문서 목적: 용어/지표/Δ 기준을 고정해 구현 중 재해석을 방지
-버전: v0.4 (latest rankings API semantics 반영)
-작성일: 2026-03-31 (KST)
+버전: v0.5 (Steam ranking window semantics thin slice 반영)
+작성일: 2026-04-09 (KST)
 
 ## 0. 시간/기간 프리셋
 
@@ -53,10 +53,17 @@
 
 ### 1.3 Δ(전일 대비) 규칙
 
-- 30분/1시간 시계열: 전일 동일 버킷 대비
+- Δ는 signal별 자연스러운 비교 기준을 따른다.
+- 모든 latest surface가 Δ를 반드시 가져야 하는 것은 아니다.
+- 30분/1시간 시계열:
+    - 전일 동일 버킷 대비
     - 예: 2026-03-04 14:30 버킷의 값 vs 2026-03-03 14:30 버킷
-- 1일 스냅샷: 전일 snapshot_date 대비
+- 1일 스냅샷:
+    - 전일 snapshot_date 대비
     - 예: 2026-03-04 스냅샷 vs 2026-03-03 스냅샷
+- 이벤트/상태형 latest surface:
+    - current MVP에서는 상태 요약만 두고 Δ를 강제하지 않을 수 있다.
+    - 대표 예: latest price surface는 현재 가격, 할인율, 세일 상태, 마지막 세일 시점 같은 현재 문맥을 우선한다.
 
 ## 2. Steam 리뷰 대시보드(살 만한가)
 
@@ -109,6 +116,18 @@
 - 정의(30분 버킷 기준):
     - Δ_ccu_abs = ccu(t) - ccu(t - 1day_same_bucket)
     - Δ_ccu_pct = (ccu(t) - ccu(t-1d)) / NULLIF(ccu(t-1d), 0)
+
+### 3.3 Most Played list context windows
+
+- `Top Ranked` 의 Most Played window는 row payload meaning을 바꾸지 않고, 어떤 게임이 리스트에 들어오고 어떤 순서로 보이는지만 바꾼다.
+- `/games/ccu/latest` 는 `window=1d|7d|30d|90d` 를 받는다.
+- `window=1d`:
+    - `srv_game_latest_ccu` 최신 행을 `latest_ccu DESC` 기준으로 정렬한 live list다.
+- `window=7d|30d|90d`:
+    - `agg_steam_ccu_daily` 의 latest available `bucket_date` 를 anchor로 잡고, full-window daily row가 있는 게임만 남긴 뒤 그 기간의 `avg_ccu` 평균으로 리스트 컨텍스트를 정한다.
+    - 응답 payload는 여전히 같은 latest CCU row shape를 반환한다.
+- current slice는 fake score, gap fill, synthetic timeline을 추가하지 않는다.
+- 따라서 full-window daily row가 없는 게임은 해당 window list에서 제외되고, longer window는 빈 리스트가 될 수 있다.
 
 ## 4. 스트리밍 요약(화제인가) — Chzzk/Twitch 공통 지향
 
@@ -163,6 +182,8 @@
 - list endpoint는 `/games/price/latest`, single-game endpoint는 `/games/{canonical_game_id}/price/latest` 이다.
 - `region`은 current slice에서 항상 `KR` 이고, generalized region query param은 아직 없다.
 - `is_free`는 `fact_steam_price_1h`에 적재된 existing fact semantics를 그대로 노출하며, broader free/unavailable/missing-price semantics는 아직 확장하지 않는다.
+- current minimum price surface는 전일 대비 Δ 필드를 노출하지 않는다.
+- price timing/history interpretation은 별도 thin slice에서 필요성이 확인될 때만 확장한다.
 - current wire example(`/games/{id}/price/latest`):
 
 ```json
@@ -191,8 +212,11 @@
 ### 6.1 Latest rankings API serving shape
 
 - latest rankings API는 `srv_rank_latest_kr_top_selling` 를 직접 읽는다.
-- current minimum path는 latest KR top-selling list만 다루며, generalized market/rank_type query param은 아직 없다.
+- current minimum path는 latest KR top-selling weekly list만 다루며, generalized market/rank_type query param은 아직 없다.
 - list endpoint는 `/games/rankings/latest` 이다.
+- `Top Ranked` window는 list context만 바꾸고 row payload meaning은 바꾸지 않는다.
+- current Top Selling contract는 `window=7d` 만 지원한다.
+- `window=1d|30d|90d` 는 current repo에 daily/monthly/quarterly topsellers source가 없어 `400` 으로 명시적으로 거절한다.
 - `canonical_game_id`, `canonical_name` 은 current Steam mapping이 없으면 `null` 이다.
 - current wire example(`/games/rankings/latest` item):
 

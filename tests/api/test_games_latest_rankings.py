@@ -35,7 +35,7 @@ def test_list_games_latest_rankings_returns_rows_and_passes_limit(monkeypatch) -
     monkeypatch.setattr(rankings_service, "list_latest_rankings", fake_list_latest_rankings)
 
     client = build_test_client()
-    response = client.get("/games/rankings/latest", params={"limit": 25})
+    response = client.get("/games/rankings/latest", params={"limit": 25, "window": "7d"})
 
     assert response.status_code == 200
     assert captured["limit"] == 25
@@ -78,3 +78,26 @@ def test_to_response_record_preserves_nullable_mapping_fields() -> None:
     assert mapped["rank_position"] == 2
     assert mapped["canonical_game_id"] is None
     assert mapped["canonical_name"] is None
+
+
+def test_list_games_latest_rankings_rejects_unsupported_window(monkeypatch) -> None:
+    expected_detail = (
+        "Top Selling currently supports only window=7d because the Steam topsellers "
+        "source is weekly."
+    )
+    called = False
+
+    def fake_list_latest_rankings(limit: int = 50) -> list[dict[str, object]]:
+        del limit
+        nonlocal called
+        called = True
+        return []
+
+    monkeypatch.setattr(rankings_service, "list_latest_rankings", fake_list_latest_rankings)
+
+    client = build_test_client()
+    response = client.get("/games/rankings/latest", params={"window": "30d"})
+
+    assert response.status_code == 400
+    assert called is False
+    assert response.json()["detail"] == expected_detail
