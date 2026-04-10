@@ -1,10 +1,15 @@
 import type { RangeOption, SteamReferenceGame } from '../types'
 
+interface RangeControlOption {
+  value: RangeOption
+  label: string
+}
+
 interface SteamRankingListProps {
   games: SteamReferenceGame[]
   range: RangeOption
   selectedId: string | null
-  disabledRanges?: RangeOption[]
+  rangeControlOptions: ReadonlyArray<RangeControlOption>
   isExpanded?: boolean
   canExpand?: boolean
   onRangeChange: (range: RangeOption) => void
@@ -82,7 +87,7 @@ export function SteamRankingList({
   games,
   range,
   selectedId,
-  disabledRanges = [],
+  rangeControlOptions,
   isExpanded = false,
   canExpand = false,
   onRangeChange,
@@ -92,12 +97,7 @@ export function SteamRankingList({
   error = null,
   rangeStatusText,
 }: SteamRankingListProps) {
-  const rangeControlOptions: Array<{ value: RangeOption; label: string }> = [
-    { value: '1D', label: '1D' },
-    { value: 'Last 7 Days', label: 'Last 7 Days' },
-    { value: 'Last 30 Days', label: 'Last 30 Days' },
-    { value: 'Last 3 Months', label: 'Last 3 Months' },
-  ]
+  const hasFixedRange = rangeControlOptions.length === 1
 
   return (
     <section className="surface-low panel-worn ghost-outline self-start rounded-[24px] px-4 py-3.5 sm:px-5 sm:py-4">
@@ -109,24 +109,27 @@ export function SteamRankingList({
           </p>
         </div>
 
-        <label className="surface-high panel-worn ghost-outline flex w-full items-center gap-3 rounded-[18px] px-4 py-2.5 text-sm text-[var(--paper-dim)] shadow-[inset_0_1px_0_rgba(255,249,239,0.04),0_12px_24px_rgba(0,0,0,0.16)] sm:w-auto">
-          <select
-            className="type-display w-full bg-transparent font-semibold tracking-[0.02em] text-[var(--paper)] outline-none sm:w-auto"
-            onChange={(event: { target: HTMLSelectElement }) => onRangeChange(event.target.value as RangeOption)}
-            value={range}
-          >
-            {rangeControlOptions.map((option) => (
-              <option
-                key={option.value}
-                className="bg-[#1f1915] text-[#f8efe1]"
-                disabled={disabledRanges.includes(option.value)}
-                value={option.value}
-              >
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </label>
+        {hasFixedRange ? (
+          <div className="surface-high panel-worn ghost-outline flex w-full items-center rounded-[18px] px-4 py-2.5 text-sm text-[var(--paper-dim)] shadow-[inset_0_1px_0_rgba(255,249,239,0.04),0_12px_24px_rgba(0,0,0,0.16)] sm:w-auto">
+            <span className="type-display w-full font-semibold tracking-[0.02em] text-[var(--paper)] sm:w-auto">
+              {rangeControlOptions[0]?.label ?? range}
+            </span>
+          </div>
+        ) : (
+          <label className="surface-high panel-worn ghost-outline flex w-full items-center gap-3 rounded-[18px] px-4 py-2.5 text-sm text-[var(--paper-dim)] shadow-[inset_0_1px_0_rgba(255,249,239,0.04),0_12px_24px_rgba(0,0,0,0.16)] sm:w-auto">
+            <select
+              className="type-display w-full bg-transparent font-semibold tracking-[0.02em] text-[var(--paper)] outline-none sm:w-auto"
+              onChange={(event: { target: HTMLSelectElement }) => onRangeChange(event.target.value as RangeOption)}
+              value={range}
+            >
+              {rangeControlOptions.map((option) => (
+                <option key={option.value} className="bg-[#1f1915] text-[#f8efe1]" value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
       </div>
 
       <div className="mt-4 space-y-2.5">

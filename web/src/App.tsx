@@ -6,7 +6,6 @@ import { SteamDetailPanel } from './components/SteamDetailPanel'
 import { SteamRankingList } from './components/SteamRankingList'
 import { StickyShell } from './components/StickyShell'
 import { useSteamOverview } from './hooks/useSteamOverview'
-import { rangeOptions } from './types'
 import type { RangeOption, SourceTab, SteamChartRange, SteamDiscoverMode } from './types'
 
 const DEFAULT_SOURCE_TAB: SourceTab = 'Steam'
@@ -17,8 +16,20 @@ const SUPPORTED_RANGES_BY_MODE: Record<SteamDiscoverMode, readonly RangeOption[]
   'Top Selling': ['Last 7 Days'],
   'Most Played': ['1D', 'Last 7 Days', 'Last 30 Days', 'Last 3 Months'],
 }
+const RANGE_CONTROL_OPTIONS_BY_MODE: Record<
+  SteamDiscoverMode,
+  ReadonlyArray<{ value: RangeOption; label: string }>
+> = {
+  'Top Selling': [{ value: 'Last 7 Days', label: 'Weekly' }],
+  'Most Played': [
+    { value: '1D', label: '1D' },
+    { value: 'Last 7 Days', label: 'Last 7 Days' },
+    { value: 'Last 30 Days', label: 'Last 30 Days' },
+    { value: 'Last 3 Months', label: 'Last 3 Months' },
+  ],
+}
 const RANGE_STATUS_TEXT_BY_MODE: Record<SteamDiscoverMode, string> = {
-  'Top Selling': 'Store Heat는 Steam weekly top sellers snapshot 기준이라 현재 Last 7 Days view만 지원한다.',
+  'Top Selling': 'Store Heat는 Steam weekly top sellers snapshot 기준이라 현재 Weekly view로 고정된다.',
   'Most Played': 'Player Heat는 1D live CCU, 7D/30D/3M full-window daily CCU rollup 기준으로 리스트를 바꾼다.',
 }
 
@@ -38,6 +49,7 @@ function App() {
 
   const deferredSearch = useDeferredValue(searchQuery)
   const supportedSteamRankingRanges = SUPPORTED_RANGES_BY_MODE[steamDiscoverMode]
+  const rankingControlOptions = RANGE_CONTROL_OPTIONS_BY_MODE[steamDiscoverMode]
   const {
     games: steamGames,
     selectedGame: selectedSteamGame,
@@ -141,7 +153,6 @@ function App() {
               error={error}
               games={steamGames}
               loading={loading}
-              disabledRanges={rangeOptions.filter((range) => !supportedSteamRankingRanges.includes(range))}
               isExpanded={showExpandedRanking}
               canExpand={steamTotalGameCount > steamGames.length}
               onRangeChange={handleSteamRankingWindowChange}
@@ -152,6 +163,7 @@ function App() {
                 })
               }}
               range={steamRankingWindow}
+              rangeControlOptions={rankingControlOptions}
               rangeStatusText={RANGE_STATUS_TEXT_BY_MODE[steamDiscoverMode]}
               selectedId={selectedSteamGame?.id ?? null}
             />
