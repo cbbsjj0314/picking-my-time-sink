@@ -13,9 +13,11 @@ import type {
   SteamDataState,
   SteamDataStateTarget,
   SteamDetailCard,
+  RangeOption,
   SteamDiscoverMode,
   SteamReferenceGame,
 } from '../types'
+import { getSteamDiscoverModeDisplayLabel } from '../types'
 
 export interface SteamOverviewApiData {
   rankings: GameLatestRanking[]
@@ -26,6 +28,7 @@ export interface SteamOverviewApiData {
 
 interface BuildSteamGamesArgs {
   mode: SteamDiscoverMode
+  rankingWindow: RangeOption
   searchQuery: string
   data: SteamOverviewApiData
   historyByCanonicalGameId: Record<number, GameDaily90dCcu[]>
@@ -370,14 +373,28 @@ const buildDetailCards = (row: SteamBaseRow, historyRows: GameDaily90dCcu[] | un
   ]
 }
 
-const getSurfaceContext = (row: SteamBaseRow, mode: SteamDiscoverMode) => {
-  if (mode === 'Top Selling') {
-    return row.canonicalGameId === null
-      ? `#${row.rank} in Top Selling · canonical mapping pending`
-      : `#${row.rank} in Top Selling`
+const getPlayerHeatContextSuffix = (rankingWindow: RangeOption) => {
+  if (rankingWindow === '1D') {
+    return 'Highest live CCU now'
   }
 
-  return `#${row.rank} in Most Played`
+  if (rankingWindow === 'Last 7 Days') {
+    return 'Strong 7D player floor'
+  }
+
+  if (rankingWindow === 'Last 30 Days') {
+    return 'Strong 30D player floor'
+  }
+
+  return 'Strong 90D player floor'
+}
+
+const getSurfaceContext = (row: SteamBaseRow, mode: SteamDiscoverMode, rankingWindow: RangeOption) => {
+  if (mode === 'Top Selling') {
+    return `${getSteamDiscoverModeDisplayLabel(mode)} #${row.rank} · Weekly top sellers snapshot`
+  }
+
+  return `${getSteamDiscoverModeDisplayLabel(mode)} #${row.rank} · ${getPlayerHeatContextSuffix(rankingWindow)}`
 }
 
 const buildTopSellingRows = (data: SteamOverviewApiData): SteamBaseRow[] => {
@@ -415,6 +432,7 @@ const buildMostPlayedRows = (data: SteamOverviewApiData): SteamBaseRow[] => {
 
 export function buildSteamGames({
   mode,
+  rankingWindow,
   searchQuery,
   data,
   historyByCanonicalGameId,
@@ -441,7 +459,7 @@ export function buildSteamGames({
         reviewSummary: buildReviewSummary(row.reviews),
         statusBadge: getStatusBadge(cardStates),
         verdictChips: getVerdictChips(row),
-        surfaceContext: getSurfaceContext(row, mode),
+        surfaceContext: getSurfaceContext(row, mode, rankingWindow),
         detailCards: buildDetailCards(row, historyRows),
         timeline: {
           '7D': buildTimelinePoints(historyRows, '7D'),

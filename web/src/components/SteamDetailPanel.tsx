@@ -1,5 +1,12 @@
 import cardCaveatIcon from '../assets/ui/icons/steam-data-caveat-card-icon.svg'
-import type { SteamChartRange, SteamDataStateTarget, SteamDetailCard, SteamDiscoverMode, SteamReferenceGame } from '../types'
+import {
+  getSteamDiscoverModeDisplayLabel,
+  type SteamChartRange,
+  type SteamDataStateTarget,
+  type SteamDetailCard,
+  type SteamDiscoverMode,
+  type SteamReferenceGame,
+} from '../types'
 import { SteamCcuChart } from './SteamCcuChart'
 
 interface SteamDetailPanelProps {
@@ -87,7 +94,9 @@ export function SteamDetailPanel({
     <section className="animate-rise space-y-5">
       <div className="surface-low panel-worn ghost-outline rounded-[28px] p-4 sm:p-6">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">Steam • {mode}</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">
+            Steam • {getSteamDiscoverModeDisplayLabel(mode)}
+          </p>
           <h2 className="type-display paper-ink mt-3 text-[2rem] font-bold leading-none sm:text-[2.3rem] xl:text-[2.5rem]">
             {game.title}
           </h2>

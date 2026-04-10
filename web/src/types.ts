@@ -16,6 +16,15 @@ export type SteamChartRange = (typeof steamChartRanges)[number]
 export type SteamDataStateKind = (typeof steamDataStateKinds)[number]
 export type SteamDataStateTarget = (typeof steamDataStateTargets)[number]
 
+export const steamDiscoverModeDisplayLabels: Record<SteamDiscoverMode, string> = {
+  'Top Selling': 'Store Heat',
+  'Most Played': 'Player Heat',
+}
+
+export function getSteamDiscoverModeDisplayLabel(mode: SteamDiscoverMode): string {
+  return steamDiscoverModeDisplayLabels[mode]
+}
+
 export interface TimelinePoint {
   label: string
   ccu: number
