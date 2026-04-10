@@ -1,8 +1,8 @@
 # Metrics & Definitions (요구사항 + 지표 정의서)
 
 문서 목적: 용어/지표/Δ 기준을 고정해 구현 중 재해석을 방지
-버전: v0.5 (Steam ranking window semantics thin slice 반영)
-작성일: 2026-04-09 (KST)
+버전: v0.6 (Steam price/review snapshot semantics thin slices 반영)
+작성일: 2026-04-10 (KST)
 
 ## 0. 시간/기간 프리셋
 
@@ -88,6 +88,7 @@
 - latest reviews API는 `srv_game_latest_reviews`를 직접 읽는다.
 - list endpoint는 `/games/reviews/latest`, single-game endpoint는 `/games/{canonical_game_id}/reviews/latest` 이다.
 - `missing_flag = true` 는 전일 `snapshot_date` 기준 비교 행이 없어 Δ 필드가 계산되지 않았음을 뜻한다.
+- current minimum UI surface는 Steam-authored summary text 대신 `positive_ratio` 기반 derived summary fallback을 쓸 수 있고, `delta_total_reviews` 는 `1D reviews added` 의미로만 노출한다.
 - current wire example(`/games/{id}/reviews/latest`):
 
 ```json
