@@ -40,6 +40,25 @@ const EMPTY_OVERVIEW_DATA: SteamOverviewApiData = {
   reviewRows: [],
 }
 
+type LatestRowWithCanonicalGameId = {
+  canonical_game_id: number
+}
+
+const mergeLatestRows = <Row extends LatestRowWithCanonicalGameId>(
+  baseRows: Row[],
+  supplementalRowsByCanonicalGameId: Record<number, Row | null>,
+): Row[] => {
+  const rowsByCanonicalGameId = new Map(baseRows.map((row) => [row.canonical_game_id, row] as const))
+
+  Object.entries(supplementalRowsByCanonicalGameId).forEach(([canonicalGameId, row]) => {
+    if (row !== null) {
+      rowsByCanonicalGameId.set(Number(canonicalGameId), row)
+    }
+  })
+
+  return Array.from(rowsByCanonicalGameId.values())
+}
+
 export function useSteamOverview({
   mode,
   rankingWindow,
@@ -47,6 +66,15 @@ export function useSteamOverview({
   selectedId,
 }: UseSteamOverviewArgs): UseSteamOverviewResult {
   const [overviewData, setOverviewData] = useState<SteamOverviewApiData | null>(null)
+  const [supplementalCcuByCanonicalGameId, setSupplementalCcuByCanonicalGameId] = useState<Record<number, GameLatestCcu | null>>({})
+  const [supplementalPriceByCanonicalGameId, setSupplementalPriceByCanonicalGameId] = useState<Record<number, GameLatestPrice | null>>({})
+  const [supplementalReviewsByCanonicalGameId, setSupplementalReviewsByCanonicalGameId] = useState<Record<number, GameLatestReviews | null>>({})
+  const [supplementalCcuLoadingCanonicalGameIds, setSupplementalCcuLoadingCanonicalGameIds] = useState<Record<number, true>>({})
+  const [supplementalPriceLoadingCanonicalGameIds, setSupplementalPriceLoadingCanonicalGameIds] = useState<Record<number, true>>({})
+  const [supplementalReviewsLoadingCanonicalGameIds, setSupplementalReviewsLoadingCanonicalGameIds] = useState<Record<number, true>>({})
+  const [supplementalCcuErrorCanonicalGameIds, setSupplementalCcuErrorCanonicalGameIds] = useState<Record<number, true>>({})
+  const [supplementalPriceErrorCanonicalGameIds, setSupplementalPriceErrorCanonicalGameIds] = useState<Record<number, true>>({})
+  const [supplementalReviewsErrorCanonicalGameIds, setSupplementalReviewsErrorCanonicalGameIds] = useState<Record<number, true>>({})
   const [historyByCanonicalGameId, setHistoryByCanonicalGameId] = useState<Record<number, GameDaily90dCcu[]>>({})
   const [historyLoadingCanonicalGameId, setHistoryLoadingCanonicalGameId] = useState<number | null>(null)
   const [historyErrorCanonicalGameIds, setHistoryErrorCanonicalGameIds] = useState<Record<number, true>>({})
@@ -120,15 +148,207 @@ export function useSteamOverview({
     }
   }, [mode, rankingWindow])
 
+  const mergedOverviewData: SteamOverviewApiData = {
+    rankings: overviewData?.rankings ?? EMPTY_OVERVIEW_DATA.rankings,
+    ccuRows: mergeLatestRows(overviewData?.ccuRows ?? EMPTY_OVERVIEW_DATA.ccuRows, supplementalCcuByCanonicalGameId),
+    priceRows: mergeLatestRows(overviewData?.priceRows ?? EMPTY_OVERVIEW_DATA.priceRows, supplementalPriceByCanonicalGameId),
+    reviewRows: mergeLatestRows(overviewData?.reviewRows ?? EMPTY_OVERVIEW_DATA.reviewRows, supplementalReviewsByCanonicalGameId),
+  }
+
   const games = buildSteamGames({
     mode,
     rankingWindow,
     searchQuery,
-    data: overviewData ?? EMPTY_OVERVIEW_DATA,
+    data: mergedOverviewData,
     historyByCanonicalGameId,
     historyLoadingCanonicalGameId,
     historyErrorCanonicalGameIds,
   })
+
+  useEffect(() => {
+    const surfacedCanonicalGameIds = games
+      .map((game) => game.canonicalGameId)
+      .filter((canonicalGameId): canonicalGameId is number => canonicalGameId !== null)
+
+    if (surfacedCanonicalGameIds.length === 0) {
+      return
+    }
+
+    const currentCcuGameIds = new Set(mergedOverviewData.ccuRows.map((row) => row.canonical_game_id))
+    const currentPriceGameIds = new Set(mergedOverviewData.priceRows.map((row) => row.canonical_game_id))
+    const currentReviewGameIds = new Set(mergedOverviewData.reviewRows.map((row) => row.canonical_game_id))
+
+    const ccuTargets =
+      mode === 'Top Selling'
+        ? surfacedCanonicalGameIds.filter(
+            (canonicalGameId) =>
+              !currentCcuGameIds.has(canonicalGameId) &&
+              supplementalCcuByCanonicalGameId[canonicalGameId] === undefined &&
+              !supplementalCcuLoadingCanonicalGameIds[canonicalGameId] &&
+              !supplementalCcuErrorCanonicalGameIds[canonicalGameId],
+          )
+        : []
+
+    const priceTargets = surfacedCanonicalGameIds.filter(
+      (canonicalGameId) =>
+        !currentPriceGameIds.has(canonicalGameId) &&
+        supplementalPriceByCanonicalGameId[canonicalGameId] === undefined &&
+        !supplementalPriceLoadingCanonicalGameIds[canonicalGameId] &&
+        !supplementalPriceErrorCanonicalGameIds[canonicalGameId],
+    )
+
+    const reviewTargets = surfacedCanonicalGameIds.filter(
+      (canonicalGameId) =>
+        !currentReviewGameIds.has(canonicalGameId) &&
+        supplementalReviewsByCanonicalGameId[canonicalGameId] === undefined &&
+        !supplementalReviewsLoadingCanonicalGameIds[canonicalGameId] &&
+        !supplementalReviewsErrorCanonicalGameIds[canonicalGameId],
+    )
+
+    if (ccuTargets.length === 0 && priceTargets.length === 0 && reviewTargets.length === 0) {
+      return
+    }
+
+    const controller = new AbortController()
+
+    if (ccuTargets.length > 0) {
+      setSupplementalCcuLoadingCanonicalGameIds((current) => ({
+        ...current,
+        ...Object.fromEntries(ccuTargets.map((canonicalGameId) => [canonicalGameId, true])),
+      }))
+    }
+
+    if (priceTargets.length > 0) {
+      setSupplementalPriceLoadingCanonicalGameIds((current) => ({
+        ...current,
+        ...Object.fromEntries(priceTargets.map((canonicalGameId) => [canonicalGameId, true])),
+      }))
+    }
+
+    if (reviewTargets.length > 0) {
+      setSupplementalReviewsLoadingCanonicalGameIds((current) => ({
+        ...current,
+        ...Object.fromEntries(reviewTargets.map((canonicalGameId) => [canonicalGameId, true])),
+      }))
+    }
+
+    async function loadSupplementalRows() {
+      await Promise.all([
+        ...ccuTargets.map(async (canonicalGameId) => {
+          try {
+            const row = await gamesApi.getGameLatestCcu(canonicalGameId, controller.signal)
+
+            if (controller.signal.aborted) {
+              return
+            }
+
+            setSupplementalCcuByCanonicalGameId((current) => ({
+              ...current,
+              [canonicalGameId]: row,
+            }))
+          } catch {
+            if (controller.signal.aborted) {
+              return
+            }
+
+            setSupplementalCcuErrorCanonicalGameIds((current) => ({
+              ...current,
+              [canonicalGameId]: true,
+            }))
+          } finally {
+            if (!controller.signal.aborted) {
+              setSupplementalCcuLoadingCanonicalGameIds((current) => {
+                const next = { ...current }
+                delete next[canonicalGameId]
+                return next
+              })
+            }
+          }
+        }),
+        ...priceTargets.map(async (canonicalGameId) => {
+          try {
+            const row = await gamesApi.getGameLatestPrice(canonicalGameId, controller.signal)
+
+            if (controller.signal.aborted) {
+              return
+            }
+
+            setSupplementalPriceByCanonicalGameId((current) => ({
+              ...current,
+              [canonicalGameId]: row,
+            }))
+          } catch {
+            if (controller.signal.aborted) {
+              return
+            }
+
+            setSupplementalPriceErrorCanonicalGameIds((current) => ({
+              ...current,
+              [canonicalGameId]: true,
+            }))
+          } finally {
+            if (!controller.signal.aborted) {
+              setSupplementalPriceLoadingCanonicalGameIds((current) => {
+                const next = { ...current }
+                delete next[canonicalGameId]
+                return next
+              })
+            }
+          }
+        }),
+        ...reviewTargets.map(async (canonicalGameId) => {
+          try {
+            const row = await gamesApi.getGameLatestReviews(canonicalGameId, controller.signal)
+
+            if (controller.signal.aborted) {
+              return
+            }
+
+            setSupplementalReviewsByCanonicalGameId((current) => ({
+              ...current,
+              [canonicalGameId]: row,
+            }))
+          } catch {
+            if (controller.signal.aborted) {
+              return
+            }
+
+            setSupplementalReviewsErrorCanonicalGameIds((current) => ({
+              ...current,
+              [canonicalGameId]: true,
+            }))
+          } finally {
+            if (!controller.signal.aborted) {
+              setSupplementalReviewsLoadingCanonicalGameIds((current) => {
+                const next = { ...current }
+                delete next[canonicalGameId]
+                return next
+              })
+            }
+          }
+        }),
+      ])
+    }
+
+    void loadSupplementalRows()
+
+    return () => {
+      controller.abort()
+    }
+  }, [
+    games,
+    mergedOverviewData,
+    mode,
+    supplementalCcuByCanonicalGameId,
+    supplementalCcuErrorCanonicalGameIds,
+    supplementalCcuLoadingCanonicalGameIds,
+    supplementalPriceByCanonicalGameId,
+    supplementalPriceErrorCanonicalGameIds,
+    supplementalPriceLoadingCanonicalGameIds,
+    supplementalReviewsByCanonicalGameId,
+    supplementalReviewsErrorCanonicalGameIds,
+    supplementalReviewsLoadingCanonicalGameIds,
+  ])
 
   const selectedGame = games.find((game) => game.id === selectedId) ?? games[0] ?? null
   const selectedCanonicalGameId = selectedGame?.canonicalGameId ?? null
