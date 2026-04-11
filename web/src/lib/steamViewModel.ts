@@ -89,7 +89,6 @@ const formatCompactInteger = (value: number) =>
   }).format(value)
 
 const formatSnapshotDateTime = (value: string) => `${KST_DATE_TIME_FORMATTER.format(new Date(value))} KST`
-const formatSnapshotDate = (value: string) => KST_MONTH_DAY_FORMATTER.format(new Date(`${value}T00:00:00+09:00`))
 
 const formatMinorPrice = (valueMinor: number, currencyCode: string, isFree: boolean | null) => {
   if (isFree) {
@@ -107,15 +106,49 @@ const formatMinorPrice = (valueMinor: number, currencyCode: string, isFree: bool
   }).format(valueMinor / 100)
 }
 
-const getReviewSummaryFallback = (positiveRatio: number) => {
-  const percent = Math.round(positiveRatio * 100)
+// Project-derived banding; current reviews API does not serve Steam-authored review_score_desc.
+const getReviewBand = (positiveRatio: number, totalReviews: number) => {
+  if (totalReviews < 10) {
+    return 'Not Enough Reviews'
+  }
 
-  if (percent >= 95) return 'Overwhelmingly Positive'
-  if (percent >= 85) return 'Very Positive'
-  if (percent >= 70) return 'Mostly Positive'
-  if (percent >= 40) return 'Mixed'
-  if (percent >= 20) return 'Mostly Negative'
-  return 'Very Negative'
+  if (positiveRatio >= 0.95 && totalReviews >= 500) {
+    return 'Overwhelmingly Positive'
+  }
+
+  if (positiveRatio >= 0.8 && totalReviews >= 50) {
+    return 'Very Positive'
+  }
+
+  if (positiveRatio >= 0.8 && totalReviews >= 10 && totalReviews <= 49) {
+    return 'Positive'
+  }
+
+  if (positiveRatio >= 0.7 && positiveRatio < 0.8 && totalReviews >= 10) {
+    return 'Mostly Positive'
+  }
+
+  if (positiveRatio >= 0.4 && positiveRatio < 0.7 && totalReviews >= 10) {
+    return 'Mixed'
+  }
+
+  if (positiveRatio < 0.2 && totalReviews >= 500) {
+    return 'Overwhelmingly Negative'
+  }
+
+  if (positiveRatio < 0.2 && totalReviews >= 50) {
+    return 'Very Negative'
+  }
+
+  if (positiveRatio < 0.2 && totalReviews >= 10 && totalReviews <= 49) {
+    return 'Negative'
+  }
+
+  if (positiveRatio >= 0.2 && positiveRatio < 0.4 && totalReviews >= 10) {
+    return 'Mostly Negative'
+  }
+
+  return 'Mixed'
 }
 
 const addChip = (chips: string[], value: string) => {
@@ -304,7 +337,7 @@ const buildReviewSummary = (reviews: GameLatestReviews | null) => {
     return '리뷰 집계 대기 중'
   }
 
-  return getReviewSummaryFallback(reviews.positive_ratio)
+  return getReviewBand(reviews.positive_ratio, reviews.total_reviews)
 }
 
 const buildDetailCards = (row: SteamBaseRow, historyRows: GameDaily90dCcu[] | undefined): SteamDetailCard[] => {
@@ -330,7 +363,7 @@ const buildDetailCards = (row: SteamBaseRow, historyRows: GameDaily90dCcu[] | un
     {
       label: 'Reviews',
       subtitle: row.reviews
-        ? `${getReviewSummaryFallback(row.reviews.positive_ratio)} · ${formatSnapshotDate(row.reviews.snapshot_date)} snapshot`
+        ? getReviewBand(row.reviews.positive_ratio, row.reviews.total_reviews)
         : undefined,
       rows: [
         {
