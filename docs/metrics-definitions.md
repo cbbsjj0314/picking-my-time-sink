@@ -1,8 +1,8 @@
 # Metrics & Definitions (요구사항 + 지표 정의서)
 
 문서 목적: 용어/지표/Δ 기준을 고정해 구현 중 재해석을 방지
-버전: v0.6 (Steam price/review snapshot semantics thin slices 반영)
-작성일: 2026-04-10 (KST)
+버전: v0.9 (Steam review signal subtitle snapshot 제거 반영)
+작성일: 2026-04-12 (KST)
 
 ## 0. 시간/기간 프리셋
 
@@ -88,7 +88,22 @@
 - latest reviews API는 `srv_game_latest_reviews`를 직접 읽는다.
 - list endpoint는 `/games/reviews/latest`, single-game endpoint는 `/games/{canonical_game_id}/reviews/latest` 이다.
 - `missing_flag = true` 는 전일 `snapshot_date` 기준 비교 행이 없어 Δ 필드가 계산되지 않았음을 뜻한다.
-- current minimum UI surface는 Steam-authored summary text 대신 `positive_ratio` 기반 derived summary fallback을 쓸 수 있고, `delta_total_reviews` 는 `1D reviews added` 의미로만 노출한다.
+- current latest reviews API는 Steam-authored `review_score_desc`를 서빙하지 않는다.
+- review summary band는 UI local derived label이며, `positive_ratio` 와 `total_reviews` 만으로 아래 순서를 위에서 아래로 적용한다.
+- current UI의 Reviews signal card subtitle은 review summary band만 보여주고 latest `snapshot_date` 는 함께 붙이지 않는다.
+- signal card 자체의 refresh/update cadence 표기는 별도 UI semantics slice에서 다룬다.
+- `total_reviews < 10`: `Not Enough Reviews`
+- `positive_ratio >= 0.95` and `total_reviews >= 500`: `Overwhelmingly Positive`
+- `positive_ratio >= 0.80` and `total_reviews >= 50`: `Very Positive`
+- `positive_ratio >= 0.80` and `10 <= total_reviews <= 49`: `Positive`
+- `0.70 <= positive_ratio < 0.80` and `total_reviews >= 10`: `Mostly Positive`
+- `0.40 <= positive_ratio < 0.70` and `total_reviews >= 10`: `Mixed`
+- `positive_ratio < 0.20` and `total_reviews >= 500`: `Overwhelmingly Negative`
+- `positive_ratio < 0.20` and `total_reviews >= 50`: `Very Negative`
+- `positive_ratio < 0.20` and `10 <= total_reviews <= 49`: `Negative`
+- `0.20 <= positive_ratio < 0.40` and `total_reviews >= 10`: `Mostly Negative`
+- fallback: `Mixed`
+- `delta_total_reviews` 는 `1D reviews added` 의미로만 노출한다.
 - current wire example(`/games/{id}/reviews/latest`):
 
 ```json
