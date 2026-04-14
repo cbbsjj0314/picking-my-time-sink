@@ -1,6 +1,6 @@
 문서 목적: 테이블/파일 목록 + 그레인(1행 키) + 적재 규칙(증분/스냅샷) + 보존 기준 + repo-grounded provider 확장 경계 기록
-버전: v0.4 (ranking daily fact / latest ranking API minimum path 반영)
-작성일: 2026-03-31 (KST)
+버전: v0.5 (Steam Explore period metric serving implications 반영)
+작성일: 2026-04-14 (KST)
 
 ## 0. 레이어 개요
 
@@ -120,6 +120,9 @@
 
 - 테이블: fact_steam_reviews_daily
 - 그레인/PK: (canonical_game_id, snapshot_date)
+- current source contract:
+    - Steam `appreviews` query summary cumulative snapshot
+    - request params: `filter=all`, `language=all`, `purchase_type=all`, `num_per_page=20`
 - 컬럼(초안):
     - canonical_game_id
     - snapshot_date
@@ -128,7 +131,14 @@
     - total_negative
     - positive_ratio (total_positive / total_reviews)
     - collected_at
-    - (선택) language/filter 파라미터 기록용 컬럼
+    - current DDL에는 language/filter/purchase_type 파라미터 기록용 컬럼이 없다.
+- period-derived candidates:
+    - `reviews_added_7d`, `reviews_added_30d`, `period_positive_ratio_7d`, `period_positive_ratio_30d` 는 cumulative daily boundary snapshot 차이로 계산할 수 있다.
+    - exact formula와 null handling은 `docs/metrics-definitions.md` 의 `Explore review period-derived candidates` 를 따른다.
+    - current fact는 위 후보 계산에 필요한 cumulative totals를 담고 있지만, source series provenance를 DB에 보존하지는 않는다.
+- future schema implication:
+    - `filter`, `language`, `purchase_type` 별 review series를 동시에 보존해야 하면 이 테이블의 grain/PK와 ingest path를 별도 slice에서 확장한다.
+    - current canonical all/all/all series만 다루는 동안에는 schema 변경 없이 derived serving view/API를 추가할 수 있다.
 
 ### 4.5 Steam Ranking Snapshot (1일)
 
@@ -159,9 +169,30 @@
     - srv_game_latest_price: game별 최신 KR bucket_time 가격 스냅샷
     - srv_game_latest_reviews: game별 최신 snapshot_date의 positive_ratio + Δ(전일)
     - srv_rank_latest_kr_top_selling: current minimum path의 최신 KR top-selling 랭킹 리스트
+    - srv_game_explore_period_metrics 또는 동등한 future serving object: target/proposed `Explore` evidence table용 period metric bundle
     - broader KR/global + top_selling/top_played serving split은 후속 slice에서 필요 시 확장
 
-### 5.2 90일 프리셋용 일 단위 rollup (권장)
+### 5.2 Explore period metric serving implications
+
+- current runtime에는 target/proposed `Explore` table API가 없다.
+- current `Most Played` longer-window API는 `7d|30d|90d` list ordering context만 바꾸고 latest CCU row shape를 반환한다. 이를 `Explore` period avg/peak metric API로 재해석하지 않는다.
+- CCU period metrics:
+    - `agg_steam_ccu_daily` 는 `period_avg_ccu_Nd`, `period_peak_ccu_Nd`, selected vs previous same-length delta 계산에 필요한 daily `avg_ccu` / `peak_ccu` 를 담고 있다.
+    - 단, current table은 daily row 존재 여부만 알려주며 하루 내부 30분 bucket coverage completeness는 저장하지 않는다.
+    - strict intra-day completeness가 metric contract에 필요해지면 daily quality metadata 또는 별도 coverage table을 추가한다.
+- Review period-derived metrics:
+    - `fact_steam_reviews_daily` 는 current all/all/all cumulative daily snapshot 기준 `reviews_added_7d`, `reviews_added_30d`, `period_positive_ratio_7d`, `period_positive_ratio_30d` 계산에 충분한 boundary totals를 담고 있다.
+    - DB에 request-param provenance를 보존해야 하거나 여러 review series를 병렬 보존해야 하면 schema/ingest 확장이 필요하다.
+- Price evidence:
+    - current `srv_game_latest_price` 는 KR-only latest price evidence column으로만 사용할 수 있다.
+    - KR/USD 또는 generalized region query는 provider/region serving/API slice까지 열지 않는다.
+- Future serving shape가 추가되면 다음을 regression test로 고정한다.
+    - metric-wide latest available KST anchor
+    - selected/previous full-window requirement
+    - null on missing boundary/full-window/zero denominator/inconsistent cumulative review delta
+    - no per-game older-anchor fallback, gap fill, synthetic score
+
+### 5.3 90일 프리셋용 일 단위 rollup (권장)
 
 - 예시:
     - agg_steam_ccu_daily: (canonical_game_id, date) → avg_ccu, peak_ccu

@@ -1,6 +1,6 @@
 문서 목적: probe(샘플 검증) 실행 체크리스트 + 이후 스키마/파서/테스트의 기준점 + repo-grounded provider 확장 진입 기준 기록
-버전: v0.2 (provider-boundary 정리 반영)
-작성일: 2026-03-28 (KST)
+버전: v0.3 (Steam reviews request contract 반영)
+작성일: 2026-04-14 (KST)
 
 ## 0. 공통 원칙
 
@@ -64,12 +64,21 @@
 - 인증: 보통 Key 불필요
 - 주기: 1일 1회(03:20 KST)
 - 입력 키: steam_appid
+- current repo-grounded request params:
+    - `json=1`
+    - `filter=all`
+    - `language=all`
+    - `purchase_type=all`
+    - `num_per_page=20`
 - 주요 필드(예상):
     - query_summary: total_reviews, total_positive, total_negative 등
     - (선택) 리뷰 텍스트/태그 분류는 MVP 이후 단계로 둔다(비용/용량 이슈)
+- current metric contract:
+    - `query_summary` cumulative totals를 all languages / all purchases / all reviews canonical daily snapshot으로 적재한다.
+    - current gold fact에는 위 request-param provenance 컬럼이 없으므로, 여러 review series를 병렬 보존해야 하면 schema/ingest 확장이 필요하다.
 - 실패/주의:
     - 대량 호출 시 차단/429 가능 → tracked 대상만, 백오프 필수
-    - 언어/필터 조건은 probe에서 최소 옵션 확정
+    - 언어/필터 조건은 위 current request params로 고정한다.
 
 ### 1.4 Price (가격/할인)
 

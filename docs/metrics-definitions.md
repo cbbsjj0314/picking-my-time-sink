@@ -1,8 +1,8 @@
 # Metrics & Definitions (요구사항 + 지표 정의서)
 
 문서 목적: 용어/지표/Δ 기준을 고정해 구현 중 재해석을 방지
-버전: v0.9 (Steam review signal subtitle snapshot 제거 반영)
-작성일: 2026-04-12 (KST)
+버전: v0.10 (Steam Explore period metric durable semantics 반영)
+작성일: 2026-04-14 (KST)
 
 ## 0. 시간/기간 프리셋
 
@@ -65,6 +65,22 @@
     - current MVP에서는 상태 요약만 두고 Δ를 강제하지 않을 수 있다.
     - 대표 예: latest price surface는 현재 가격, 할인율, 세일 상태, 마지막 세일 시점 같은 현재 문맥을 우선한다.
 
+### 1.4 Explore period metric anchor / null rule
+
+- 이 섹션은 target/proposed `Explore` evidence table의 durable metric semantics다. current runtime API/schema contract는 section 2.5, 3.4, 5.3, 6.1을 따른다.
+- `Explore` target base universe는 `tracked_game.is_active = true` 인 Steam canonical game이다.
+- tracked universe seed provenance는 `topsellers_global`, `topsellers_kr`, `mostplayed_global`, `mostplayed_kr` 의 합집합으로 본다.
+- `Explore` default period preset은 `Last 7 Days` 이고, target default sort는 `7일 평균 동접 desc` 다.
+- period metric family는 KST date 기준 `latest available data date` 를 anchor로 쓴다.
+- anchor는 per-game anchor가 아니라 metric-wide anchor를 우선한다. 같은 테이블의 row들이 같은 기준일로 비교되도록, 특정 게임의 더 오래된 최신일로 fallback하지 않는다.
+- metric-wide anchor 예시:
+    - CCU daily rollup family: `agg_steam_ccu_daily.bucket_date` 의 latest available KST date
+    - review daily snapshot family: `fact_steam_reviews_daily.snapshot_date` 의 latest available KST date
+- selected period window가 N일이면 selected window는 `[anchor - (N - 1), anchor]`, previous same-length window는 `[anchor - (2N - 1), anchor - N]` 로 둔다.
+- insufficient full-window data는 null/no data다. fake fallback, gap fill, synthetic score, per-game older anchor fallback으로 메우지 않는다.
+- list/table-level no rows는 empty state로 처리할 수 있고, field-level missing은 null / `-` / caveat로 표시한다.
+- current daily CCU rollup은 day row 존재 여부만 알려준다. 하루 안의 30분 bucket coverage completeness까지 보장해야 하는 metric이 필요하면 별도 quality metadata가 필요하다.
+
 ## 2. Steam 리뷰 대시보드(살 만한가)
 
 ### 2.1 Positive Ratio
@@ -82,8 +98,34 @@
 - 정의(일 스냅샷 기준):
     - Δ_total_reviews = total_reviews(D) - total_reviews(D-1)
     - Δ_positive_ratio = positive_ratio(D) - positive_ratio(D-1)
+- `delta_positive_ratio` 같은 ratio 차이는 표시할 때 percentage points(pp)로 해석한다. percent change(`%`)로 라벨링하지 않는다.
 
-### 2.4 Latest reviews API serving shape
+### 2.4 Explore review period-derived candidates
+
+- 이 섹션은 target/proposed `Explore` table 후보 metric semantics다. current latest reviews API에 아직 노출된 contract가 아니다.
+- current canonical review source series는 Steam `appreviews` query summary 기준 `filter=all`, `language=all`, `purchase_type=all`, `num_per_page=20` 이다.
+- cumulative metrics(`total_reviews`, `total_positive`, `total_negative`, `positive_ratio`)는 period-derived metrics와 별도 필드로 유지한다.
+- `reviews_added_7d`, `reviews_added_30d`:
+    - `reviews_added_Nd = total_reviews(anchor) - total_reviews(anchor - N)`
+    - N은 7 또는 30이다.
+    - 최신 boundary snapshot(`anchor`)과 이전 boundary snapshot(`anchor - N`)이 모두 있어야 한다.
+    - 결과가 음수이면 cumulative source inconsistency로 보고 null 처리한다.
+    - 결과가 0이면 0으로 유지한다.
+- `period_positive_ratio_7d`, `period_positive_ratio_30d`:
+    - `period_positive_ratio_Nd = positive_delta_Nd / reviews_added_Nd`
+    - `positive_delta_Nd = total_positive(anchor) - total_positive(anchor - N)`
+    - N은 7 또는 30이다.
+    - missing boundary snapshot, `reviews_added_Nd <= 0`, `positive_delta_Nd < 0`, `positive_delta_Nd > reviews_added_Nd` 인 경우 null 처리한다.
+    - 단위는 0~1 ratio이고, 화면에서는 %로 표시할 수 있다.
+- period positive ratio delta가 필요하면 selected period와 previous same-length period의 ratio 차이로 계산한다.
+    - `period_positive_ratio_delta_Nd_pp = (period_positive_ratio_Nd(selected) - period_positive_ratio_Nd(previous)) * 100`
+    - previous period boundary는 `anchor - N` 과 `anchor - 2N` 을 사용한다.
+    - selected 또는 previous ratio가 null이면 delta도 null이다.
+    - 표시 단위는 percentage points(pp)이고, percent change(`%`)가 아니다.
+- current `fact_steam_reviews_daily` 의 cumulative daily snapshot은 위 후보 metric 계산에 필요한 boundary totals를 담고 있다.
+- 다만 current gold fact에는 `filter`, `language`, `purchase_type` provenance 컬럼이 없으므로, 여러 review source series를 같은 테이블에 보존해야 하면 schema/ingest 확장이 필요하다.
+
+### 2.5 Latest reviews API serving shape
 
 - latest reviews API는 `srv_game_latest_reviews`를 직접 읽는다.
 - list endpoint는 `/games/reviews/latest`, single-game endpoint는 `/games/{canonical_game_id}/reviews/latest` 이다.
@@ -132,8 +174,28 @@
 - 정의(30분 버킷 기준):
     - Δ_ccu_abs = ccu(t) - ccu(t - 1day_same_bucket)
     - Δ_ccu_pct = (ccu(t) - ccu(t-1d)) / NULLIF(ccu(t-1d), 0)
+- 이 latest/current CCU delta는 period avg/peak CCU delta와 다른 metric이다. selected period 변화량으로 재해석하지 않는다.
 
-### 3.3 Most Played list context windows
+### 3.3 Explore CCU period avg/peak metrics
+
+- 이 섹션은 target/proposed `Explore` table 후보 metric semantics다. current latest CCU API row shape에 아직 노출된 contract가 아니다.
+- `period_avg_ccu_Nd`:
+    - `agg_steam_ccu_daily.avg_ccu` 를 selected N-day window에서 평균한다.
+    - `period_avg_ccu_Nd = AVG(avg_ccu for bucket_date in selected window)`
+- `period_peak_ccu_Nd`:
+    - `agg_steam_ccu_daily.peak_ccu` 를 selected N-day window에서 최댓값으로 집계한다.
+    - `period_peak_ccu_Nd = MAX(peak_ccu for bucket_date in selected window)`
+- period delta는 selected period와 previous same-length period를 비교한다.
+    - `delta_period_avg_ccu_Nd_abs = period_avg_ccu_Nd(selected) - period_avg_ccu_Nd(previous)`
+    - `delta_period_avg_ccu_Nd_pct = delta_period_avg_ccu_Nd_abs / NULLIF(period_avg_ccu_Nd(previous), 0)`
+    - `delta_period_peak_ccu_Nd_abs = period_peak_ccu_Nd(selected) - period_peak_ccu_Nd(previous)`
+    - `delta_period_peak_ccu_Nd_pct = delta_period_peak_ccu_Nd_abs / NULLIF(period_peak_ccu_Nd(previous), 0)`
+- selected window와 previous same-length window 모두에 N개의 daily rollup row가 있어야 한다.
+- 둘 중 하나라도 full-window 조건을 만족하지 못하면 delta는 null이다. selected window가 부족하면 period value 자체도 null이다.
+- percent delta의 previous baseline이 0이면 percent delta는 null이다.
+- 이 period delta는 `srv_game_latest_ccu` / latest CCU API의 전일 동일 KST bucket delta와 별개다.
+
+### 3.4 Most Played list context windows
 
 - `Top Ranked` 의 Most Played window는 row payload meaning을 바꾸지 않고, 어떤 게임이 리스트에 들어오고 어떤 순서로 보이는지만 바꾼다.
 - `/games/ccu/latest` 는 `window=1d|7d|30d|90d` 를 받는다.
