@@ -1,6 +1,6 @@
 문서 목적: 테이블/파일 목록 + 그레인(1행 키) + 적재 규칙(증분/스냅샷) + 보존 기준 + repo-grounded provider 확장 경계 기록
-버전: v0.5 (Steam Explore period metric serving implications 반영)
-작성일: 2026-04-14 (KST)
+버전: v0.6 (Steam Explore 개요 서빙 객체 반영)
+작성일: 2026-04-15 (KST)
 
 ## 0. 레이어 개요
 
@@ -169,28 +169,34 @@
     - srv_game_latest_price: game별 최신 KR bucket_time 가격 스냅샷
     - srv_game_latest_reviews: game별 최신 snapshot_date의 positive_ratio + Δ(전일)
     - srv_rank_latest_kr_top_selling: current minimum path의 최신 KR top-selling 랭킹 리스트
-    - srv_game_explore_period_metrics 또는 동등한 future serving object: target/proposed `Explore` evidence table용 period metric bundle
+    - srv_game_explore_period_metrics: 현재 최소 `Explore` 개요 근거 테이블용 기간 지표 묶음
     - broader KR/global + top_selling/top_played serving split은 후속 slice에서 필요 시 확장
 
-### 5.2 Explore period metric serving implications
+### 5.2 Explore 기간 지표 서빙 객체
 
-- current runtime에는 target/proposed `Explore` table API가 없다.
+- 현재 runtime에는 target/proposed `Explore` table UI가 없지만, backend/API 읽기 계약은 최소 경로로 추가되었다.
+- 서빙 객체는 `srv_game_explore_period_metrics` 이고, 목록 엔드포인트는 `/games/explore/overview` 이다.
+- 현재 엔드포인트는 `limit`만 지원한다. period/window, region, market, rank_type 쿼리 계약은 아직 없다.
+- 기준 유니버스는 `tracked_game.is_active = true` 인 Steam canonical game이다.
+- 기본 정렬은 `period_avg_ccu_7d DESC NULLS LAST, canonical_game_id ASC` 이다.
+- 현재 서빙 형태는 게임 식별 정보, current/latest CCU, 7일 CCU 기간 평균/최고 및 same-window delta, 리뷰 누적 기준 snapshot, 리뷰 7일/30일 boundary 기반 파생 필드, 최신 KR 가격 근거를 한 row에 담는다.
 - current `Most Played` longer-window API는 `7d|30d|90d` list ordering context만 바꾸고 latest CCU row shape를 반환한다. 이를 `Explore` period avg/peak metric API로 재해석하지 않는다.
-- CCU period metrics:
+- CCU 기간 지표:
     - `agg_steam_ccu_daily` 는 `period_avg_ccu_Nd`, `period_peak_ccu_Nd`, selected vs previous same-length delta 계산에 필요한 daily `avg_ccu` / `peak_ccu` 를 담고 있다.
     - 단, current table은 daily row 존재 여부만 알려주며 하루 내부 30분 bucket coverage completeness는 저장하지 않는다.
     - strict intra-day completeness가 metric contract에 필요해지면 daily quality metadata 또는 별도 coverage table을 추가한다.
-- Review period-derived metrics:
+    - 현재 `Explore` 개요 minimum path는 7d CCU period fields만 노출한다.
+- 리뷰 기간 파생 지표:
     - `fact_steam_reviews_daily` 는 current all/all/all cumulative daily snapshot 기준 `reviews_added_7d`, `reviews_added_30d`, `period_positive_ratio_7d`, `period_positive_ratio_30d` 계산에 충분한 boundary totals를 담고 있다.
     - DB에 request-param provenance를 보존해야 하거나 여러 review series를 병렬 보존해야 하면 schema/ingest 확장이 필요하다.
-- Price evidence:
-    - current `srv_game_latest_price` 는 KR-only latest price evidence column으로만 사용할 수 있다.
+- 가격 근거:
+    - 현재 `srv_game_latest_price` 는 KR-only latest price evidence column으로만 사용할 수 있다.
     - KR/USD 또는 generalized region query는 provider/region serving/API slice까지 열지 않는다.
-- Future serving shape가 추가되면 다음을 regression test로 고정한다.
-    - metric-wide latest available KST anchor
-    - selected/previous full-window requirement
-    - null on missing boundary/full-window/zero denominator/inconsistent cumulative review delta
-    - no per-game older-anchor fallback, gap fill, synthetic score
+- Explore 서빙 형태는 다음을 회귀 테스트로 고정한다.
+    - metric-wide 최신 가용 KST anchor
+    - 선택 기간/이전 기간의 full-window 요구조건
+    - boundary/full-window 누락, 분모 0, inconsistent cumulative review delta 시 null 반환
+    - per-game older-anchor fallback, gap fill, synthetic score 금지
 
 ### 5.3 90일 프리셋용 일 단위 rollup (권장)
 
