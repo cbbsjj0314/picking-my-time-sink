@@ -1,8 +1,8 @@
 # Metrics & Definitions (요구사항 + 지표 정의서)
 
 문서 목적: 용어/지표/Δ 기준을 고정해 구현 중 재해석을 방지
-버전: v0.10 (Steam Explore period metric durable semantics 반영)
-작성일: 2026-04-14 (KST)
+버전: v0.11 (Steam Explore 개요 서빙/API 최소 경로 반영)
+작성일: 2026-04-15 (KST)
 
 ## 0. 시간/기간 프리셋
 
@@ -67,7 +67,7 @@
 
 ### 1.4 Explore period metric anchor / null rule
 
-- 이 섹션은 target/proposed `Explore` evidence table의 durable metric semantics다. current runtime API/schema contract는 section 2.5, 3.4, 5.3, 6.1을 따른다.
+- 이 섹션은 target/proposed `Explore` evidence table의 durable metric semantics다. latest 개별 API contract는 section 2.5, 3.4, 5.3, 6.1을 따르고, current `Explore` overview API contract는 section 1.5를 따른다.
 - `Explore` target base universe는 `tracked_game.is_active = true` 인 Steam canonical game이다.
 - tracked universe seed provenance는 `topsellers_global`, `topsellers_kr`, `mostplayed_global`, `mostplayed_kr` 의 합집합으로 본다.
 - `Explore` default period preset은 `Last 7 Days` 이고, target default sort는 `7일 평균 동접 desc` 다.
@@ -80,6 +80,26 @@
 - insufficient full-window data는 null/no data다. fake fallback, gap fill, synthetic score, per-game older anchor fallback으로 메우지 않는다.
 - list/table-level no rows는 empty state로 처리할 수 있고, field-level missing은 null / `-` / caveat로 표시한다.
 - current daily CCU rollup은 day row 존재 여부만 알려준다. 하루 안의 30분 bucket coverage completeness까지 보장해야 하는 metric이 필요하면 별도 quality metadata가 필요하다.
+
+### 1.5 Explore 개요 API 서빙 형태
+
+- `Explore` 개요 API는 `srv_game_explore_period_metrics`를 직접 읽는다.
+- 목록 엔드포인트는 `/games/explore/overview` 이다.
+- 현재 최소 경로는 쿼리 파라미터로 `limit`만 받는다. period/window, region, market, rank_type 쿼리 계약은 아직 없다.
+- 기준 유니버스는 `tracked_game.is_active = true` 인 Steam canonical game이다.
+- 기본 정렬은 `period_avg_ccu_7d DESC NULLS LAST, canonical_game_id ASC` 이다.
+- 현재 응답 row는 아래의 실제 근거 필드 묶음으로 구성된다.
+    - 식별 정보: `canonical_game_id`, `canonical_name`, `steam_appid`
+    - 현재 CCU: `ccu_bucket_time`, `current_ccu`, `current_delta_ccu_abs`, `current_delta_ccu_pct`, `current_ccu_missing_flag`
+    - 7일 CCU 기간 지표: `ccu_period_anchor_date`, `period_avg_ccu_7d`, `period_peak_ccu_7d`, `delta_period_avg_ccu_7d_abs`, `delta_period_avg_ccu_7d_pct`, `delta_period_peak_ccu_7d_abs`, `delta_period_peak_ccu_7d_pct`
+    - 리뷰 metric-wide anchor의 누적 snapshot: `reviews_snapshot_date`, `total_reviews`, `total_positive`, `total_negative`, `positive_ratio`
+    - 리뷰 기간 파생 지표: `reviews_added_7d`, `reviews_added_30d`, `period_positive_ratio_7d`, `period_positive_ratio_30d`
+    - 최신 KR 가격 근거: `price_bucket_time`, `region`, `currency_code`, `initial_price_minor`, `final_price_minor`, `discount_percent`, `is_free`
+- 7일 CCU 기간 지표는 `agg_steam_ccu_daily` 의 최신 가용 `bucket_date` 를 metric-wide anchor로 사용한다.
+- 리뷰 기간 파생 지표는 `fact_steam_reviews_daily` 의 최신 가용 `snapshot_date` 를 metric-wide anchor로 사용한다.
+- 선택/이전 기간의 full-window daily row, 리뷰 boundary snapshot, 유효한 분모가 없거나 누적 delta가 일관되지 않으면 null을 반환한다.
+- 현재 CCU와 최신 KR 가격은 최신 근거 필드로 유지하며, 기간 지표로 재해석하지 않는다.
+- `Top Selling` 순위는 의도적으로 `Explore` 개요 응답에 포함하지 않는다.
 
 ## 2. Steam 리뷰 대시보드(살 만한가)
 
@@ -100,9 +120,9 @@
     - Δ_positive_ratio = positive_ratio(D) - positive_ratio(D-1)
 - `delta_positive_ratio` 같은 ratio 차이는 표시할 때 percentage points(pp)로 해석한다. percent change(`%`)로 라벨링하지 않는다.
 
-### 2.4 Explore review period-derived candidates
+### 2.4 Explore 리뷰 기간 파생 지표
 
-- 이 섹션은 target/proposed `Explore` table 후보 metric semantics다. current latest reviews API에 아직 노출된 contract가 아니다.
+- 이 섹션은 target/proposed `Explore` table metric semantics다. current latest reviews API에는 노출되지 않고, `/games/explore/overview` 에서 최소 경로 필드로 노출된다.
 - current canonical review source series는 Steam `appreviews` query summary 기준 `filter=all`, `language=all`, `purchase_type=all`, `num_per_page=20` 이다.
 - cumulative metrics(`total_reviews`, `total_positive`, `total_negative`, `positive_ratio`)는 period-derived metrics와 별도 필드로 유지한다.
 - `reviews_added_7d`, `reviews_added_30d`:
@@ -176,9 +196,9 @@
     - Δ_ccu_pct = (ccu(t) - ccu(t-1d)) / NULLIF(ccu(t-1d), 0)
 - 이 latest/current CCU delta는 period avg/peak CCU delta와 다른 metric이다. selected period 변화량으로 재해석하지 않는다.
 
-### 3.3 Explore CCU period avg/peak metrics
+### 3.3 Explore CCU 기간 평균/최고 지표
 
-- 이 섹션은 target/proposed `Explore` table 후보 metric semantics다. current latest CCU API row shape에 아직 노출된 contract가 아니다.
+- 이 섹션은 target/proposed `Explore` table metric semantics다. current latest CCU API row shape에는 노출되지 않고, `/games/explore/overview` 에서 7d 최소 경로 필드로 노출된다.
 - `period_avg_ccu_Nd`:
     - `agg_steam_ccu_daily.avg_ccu` 를 selected N-day window에서 평균한다.
     - `period_avg_ccu_Nd = AVG(avg_ccu for bucket_date in selected window)`

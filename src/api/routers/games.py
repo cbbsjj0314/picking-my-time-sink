@@ -8,7 +8,13 @@ from enum import Enum
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
-from api.services import ccu_service, price_service, rankings_service, reviews_service
+from api.services import (
+    ccu_service,
+    explore_service,
+    price_service,
+    rankings_service,
+    reviews_service,
+)
 
 router = APIRouter(prefix="/games", tags=["games"])
 
@@ -29,6 +35,7 @@ CCU_LIST_LIMIT_QUERY = Query(default=50, ge=1, le=200)
 CCU_LIST_WINDOW_QUERY = Query(default=RankingWindow.ONE_DAY)
 RANKINGS_LIST_LIMIT_QUERY = Query(default=50, ge=1, le=200)
 RANKINGS_LIST_WINDOW_QUERY = Query(default=RankingWindow.LAST_7_DAYS)
+EXPLORE_OVERVIEW_LIMIT_QUERY = Query(default=50, ge=1, le=200)
 
 
 class GameLatestCcuResponse(BaseModel):
@@ -89,6 +96,52 @@ class GameLatestRankingResponse(BaseModel):
     steam_appid: int
     canonical_game_id: int | None
     canonical_name: str | None
+
+
+class GameExploreOverviewResponse(BaseModel):
+    """Explore overview response model for one active tracked Steam game."""
+
+    canonical_game_id: int
+    canonical_name: str
+    steam_appid: int | None
+    ccu_bucket_time: dt.datetime | None
+    current_ccu: int | None
+    current_delta_ccu_abs: int | None
+    current_delta_ccu_pct: float | None
+    current_ccu_missing_flag: bool
+    ccu_period_anchor_date: dt.date | None
+    period_avg_ccu_7d: float | None
+    period_peak_ccu_7d: int | None
+    delta_period_avg_ccu_7d_abs: float | None
+    delta_period_avg_ccu_7d_pct: float | None
+    delta_period_peak_ccu_7d_abs: int | None
+    delta_period_peak_ccu_7d_pct: float | None
+    reviews_snapshot_date: dt.date | None
+    total_reviews: int | None
+    total_positive: int | None
+    total_negative: int | None
+    positive_ratio: float | None
+    reviews_added_7d: int | None
+    reviews_added_30d: int | None
+    period_positive_ratio_7d: float | None
+    period_positive_ratio_30d: float | None
+    price_bucket_time: dt.datetime | None
+    region: str | None
+    currency_code: str | None
+    initial_price_minor: int | None
+    final_price_minor: int | None
+    discount_percent: int | None
+    is_free: bool | None
+
+
+@router.get("/explore/overview", response_model=list[GameExploreOverviewResponse])
+def list_games_explore_overview(
+    limit: int = EXPLORE_OVERVIEW_LIMIT_QUERY,
+) -> list[GameExploreOverviewResponse]:
+    """Return active tracked Steam games with grounded Explore evidence fields."""
+
+    rows = explore_service.list_explore_overview(limit=limit)
+    return [GameExploreOverviewResponse.model_validate(row) for row in rows]
 
 
 @router.get("/ccu/latest", response_model=list[GameLatestCcuResponse])
