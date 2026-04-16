@@ -24,6 +24,9 @@ SELECT
     delta_period_avg_ccu_7d_pct,
     delta_period_peak_ccu_7d_abs,
     delta_period_peak_ccu_7d_pct,
+    estimated_player_hours_7d,
+    delta_estimated_player_hours_7d_abs,
+    delta_estimated_player_hours_7d_pct,
     reviews_snapshot_date,
     total_reviews,
     total_positive,
@@ -33,6 +36,12 @@ SELECT
     reviews_added_30d,
     period_positive_ratio_7d,
     period_positive_ratio_30d,
+    delta_reviews_added_7d_abs,
+    delta_reviews_added_7d_pct,
+    delta_period_positive_ratio_7d_pp,
+    delta_reviews_added_30d_abs,
+    delta_reviews_added_30d_pct,
+    delta_period_positive_ratio_30d_pp,
     price_bucket_time,
     region,
     currency_code,
@@ -91,6 +100,15 @@ def to_response_record(row: Mapping[str, Any]) -> dict[str, Any]:
         "delta_period_peak_ccu_7d_pct": _optional_float(
             row.get("delta_period_peak_ccu_7d_pct")
         ),
+        "estimated_player_hours_7d": _optional_float(
+            row.get("estimated_player_hours_7d")
+        ),
+        "delta_estimated_player_hours_7d_abs": _optional_float(
+            row.get("delta_estimated_player_hours_7d_abs")
+        ),
+        "delta_estimated_player_hours_7d_pct": _optional_float(
+            row.get("delta_estimated_player_hours_7d_pct")
+        ),
         "reviews_snapshot_date": row.get("reviews_snapshot_date"),
         "total_reviews": _optional_int(row.get("total_reviews")),
         "total_positive": _optional_int(row.get("total_positive")),
@@ -103,6 +121,24 @@ def to_response_record(row: Mapping[str, Any]) -> dict[str, Any]:
         ),
         "period_positive_ratio_30d": _optional_float(
             row.get("period_positive_ratio_30d")
+        ),
+        "delta_reviews_added_7d_abs": _optional_int(
+            row.get("delta_reviews_added_7d_abs")
+        ),
+        "delta_reviews_added_7d_pct": _optional_float(
+            row.get("delta_reviews_added_7d_pct")
+        ),
+        "delta_period_positive_ratio_7d_pp": _optional_float(
+            row.get("delta_period_positive_ratio_7d_pp")
+        ),
+        "delta_reviews_added_30d_abs": _optional_int(
+            row.get("delta_reviews_added_30d_abs")
+        ),
+        "delta_reviews_added_30d_pct": _optional_float(
+            row.get("delta_reviews_added_30d_pct")
+        ),
+        "delta_period_positive_ratio_30d_pp": _optional_float(
+            row.get("delta_period_positive_ratio_30d_pp")
         ),
         "price_bucket_time": row.get("price_bucket_time"),
         "region": str(row["region"]) if row.get("region") is not None else None,
