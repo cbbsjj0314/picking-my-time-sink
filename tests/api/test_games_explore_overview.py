@@ -165,6 +165,23 @@ def test_to_response_record_preserves_null_evidence_fields() -> None:
     assert mapped["is_free"] is None
 
 
+def test_to_response_record_maps_non_finite_float_evidence_to_null() -> None:
+    row = sample_response_record(77)
+    row["current_delta_ccu_pct"] = float("nan")
+    row["delta_period_avg_ccu_7d_abs"] = "NaN"
+    row["delta_period_avg_ccu_7d_pct"] = "Infinity"
+    row["estimated_player_hours_7d"] = float("inf")
+    row["delta_period_positive_ratio_7d_pp"] = "-Infinity"
+
+    mapped = explore_service.to_response_record(row)
+
+    assert mapped["current_delta_ccu_pct"] is None
+    assert mapped["delta_period_avg_ccu_7d_abs"] is None
+    assert mapped["delta_period_avg_ccu_7d_pct"] is None
+    assert mapped["estimated_player_hours_7d"] is None
+    assert mapped["delta_period_positive_ratio_7d_pp"] is None
+
+
 def test_list_explore_overview_executes_view_query(monkeypatch) -> None:
     captured: dict[str, object] = {}
     dict_row_sentinel = object()

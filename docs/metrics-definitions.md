@@ -110,6 +110,7 @@
 - 리뷰 기간 파생 지표는 `fact_steam_reviews_daily` 의 최신 가용 `snapshot_date` 를 metric-wide anchor로 사용한다.
 - 리뷰 previous-period comparison은 selected boundary snapshot과 previous same-length boundary snapshot을 사용한다. 7d는 `anchor`, `anchor - 7`, `anchor - 14`, 30d는 `anchor`, `anchor - 30`, `anchor - 60` 이 필요하다.
 - 선택/이전 기간의 full-window daily row, raw 30분 bucket full coverage, 리뷰 boundary snapshot, 유효한 분모가 없거나 누적 delta가 일관되지 않으면 null을 반환한다.
+- serving boundary에서 `NaN` / `Infinity` 같은 non-finite numeric output은 null로 정규화하고, UI는 이를 합성 delta처럼 표시하지 않는다.
 - strict `Estimated Player-Hours` 는 current `/games/explore/overview` 응답에 7d fields로 포함된다.
 - 현재 CCU와 최신 KR 가격은 최신 근거 필드로 유지하며, 기간 지표로 재해석하지 않는다.
 - `Top Selling` 순위는 의도적으로 `Explore` 개요 응답에 포함하지 않는다.
