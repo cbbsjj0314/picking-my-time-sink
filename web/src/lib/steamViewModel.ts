@@ -479,7 +479,12 @@ export function buildSteamGames({
   historyErrorCanonicalGameIds,
 }: BuildSteamGamesArgs): SteamReferenceGame[] {
   const normalizedSearch = searchQuery.trim().toLowerCase()
-  const baseRows = mode === 'Top Selling' ? buildTopSellingRows(data) : buildMostPlayedRows(data)
+  const baseRows =
+    mode === 'Explore'
+      ? []
+      : mode === 'Top Selling'
+        ? buildTopSellingRows(data)
+        : buildMostPlayedRows(data)
 
   return baseRows
     .filter((row) => (normalizedSearch.length > 0 ? row.title.toLowerCase().includes(normalizedSearch) : true))

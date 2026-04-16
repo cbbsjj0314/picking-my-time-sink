@@ -88,6 +88,13 @@ export function useSteamOverview({
     const controller = new AbortController()
 
     async function loadOverview() {
+      if (mode === 'Explore') {
+        setOverviewData(EMPTY_OVERVIEW_DATA)
+        setLoading(false)
+        setError(null)
+        return
+      }
+
       setLoading(true)
       setError(null)
 
