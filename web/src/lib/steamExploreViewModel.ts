@@ -13,6 +13,8 @@ export interface SteamExploreTableRow {
   avgCcuSupportLabel: string | null
   peakCcuLabel: string
   peakCcuSupportLabel: string | null
+  estimatedPlayerHoursLabel: string
+  estimatedPlayerHoursSupportLabel: string | null
   reviewsAddedLabel: string
   reviewsAddedSupportLabel: string | null
   positiveShareLabel: string
@@ -41,9 +43,15 @@ const KST_DATE_FORMATTER = new Intl.DateTimeFormat('en-US', {
   timeZone: 'Asia/Seoul',
 })
 
+const finiteNumberOrNull = (value: number | null) =>
+  typeof value === 'number' && Number.isFinite(value) ? value : null
+
 const formatInteger = (value: number) => Math.round(value).toLocaleString('en-US')
 
-const formatOptionalInteger = (value: number | null) => (value === null ? EMPTY_CELL : formatInteger(value))
+const formatOptionalInteger = (value: number | null) => {
+  const finiteValue = finiteNumberOrNull(value)
+  return finiteValue === null ? EMPTY_CELL : formatInteger(finiteValue)
+}
 
 const formatSignedInteger = (value: number) => {
   if (value > 0) {
@@ -68,31 +76,56 @@ const formatSignedPercentValue = (value: number) => {
 }
 
 const formatDelta = (deltaAbs: number | null, deltaPct: number | null) => {
-  if (deltaAbs === null && deltaPct === null) {
+  const finiteDeltaAbs = finiteNumberOrNull(deltaAbs)
+  const finiteDeltaPct = finiteNumberOrNull(deltaPct)
+
+  if (finiteDeltaAbs === null && finiteDeltaPct === null) {
     return null
   }
 
-  if (deltaAbs !== null && deltaPct !== null) {
-    return `Δ ${formatSignedInteger(deltaAbs)} (${formatSignedPercentValue(deltaPct)})`
+  if (finiteDeltaAbs !== null && finiteDeltaPct !== null) {
+    return `Δ ${formatSignedInteger(finiteDeltaAbs)} (${formatSignedPercentValue(finiteDeltaPct)})`
   }
 
-  if (deltaAbs !== null) {
-    return `Δ ${formatSignedInteger(deltaAbs)}`
+  if (finiteDeltaAbs !== null) {
+    return `Δ ${formatSignedInteger(finiteDeltaAbs)}`
   }
 
-  if (deltaPct !== null) {
-    return `Δ ${formatSignedPercentValue(deltaPct)}`
+  if (finiteDeltaPct !== null) {
+    return `Δ ${formatSignedPercentValue(finiteDeltaPct)}`
   }
 
   return null
 }
 
+const formatPointDelta = (deltaPp: number | null) => {
+  const finiteDeltaPp = finiteNumberOrNull(deltaPp)
+
+  if (finiteDeltaPp === null) {
+    return null
+  }
+
+  const formatted = `${Math.abs(finiteDeltaPp).toFixed(1)} pp`
+
+  if (finiteDeltaPp > 0) {
+    return `Δ +${formatted}`
+  }
+
+  if (finiteDeltaPp < 0) {
+    return `Δ -${formatted}`
+  }
+
+  return `Δ ${formatted}`
+}
+
 const formatRatio = (value: number | null) => {
-  if (value === null) {
+  const finiteValue = finiteNumberOrNull(value)
+
+  if (finiteValue === null) {
     return EMPTY_CELL
   }
 
-  return `${new Intl.NumberFormat('en-US', { maximumFractionDigits: 1 }).format(value * 100)}%`
+  return `${new Intl.NumberFormat('en-US', { maximumFractionDigits: 1 }).format(finiteValue * 100)}%`
 }
 
 const parseDate = (value: string) => {
@@ -142,16 +175,8 @@ const formatDiscountSupport = (row: GameExploreOverview) =>
   !row.is_free && row.discount_percent !== null && row.discount_percent > 0 ? `-${row.discount_percent}%` : null
 
 const formatCurrentCcuSupport = (row: GameExploreOverview) => {
-  const deltaLabel = formatDelta(row.current_delta_ccu_abs, row.current_delta_ccu_pct)
-
-  if (deltaLabel !== null) {
-    return deltaLabel
-  }
-
-  return row.current_ccu !== null && row.current_ccu_missing_flag ? 'No comparison' : null
+  return formatDelta(row.current_delta_ccu_abs, row.current_delta_ccu_pct)
 }
-
-const formatMissingComparisonSupport = (value: number | null) => (value === null ? null : 'No comparison')
 
 const buildSteamExploreTableRow = (row: GameExploreOverview): SteamExploreTableRow => ({
   id: `canonical:${row.canonical_game_id}`,
@@ -165,10 +190,15 @@ const buildSteamExploreTableRow = (row: GameExploreOverview): SteamExploreTableR
   avgCcuSupportLabel: formatDelta(row.delta_period_avg_ccu_7d_abs, row.delta_period_avg_ccu_7d_pct),
   peakCcuLabel: formatOptionalInteger(row.period_peak_ccu_7d),
   peakCcuSupportLabel: formatDelta(row.delta_period_peak_ccu_7d_abs, row.delta_period_peak_ccu_7d_pct),
+  estimatedPlayerHoursLabel: formatOptionalInteger(row.estimated_player_hours_7d),
+  estimatedPlayerHoursSupportLabel: formatDelta(
+    row.delta_estimated_player_hours_7d_abs,
+    row.delta_estimated_player_hours_7d_pct,
+  ),
   reviewsAddedLabel: formatOptionalInteger(row.reviews_added_7d),
-  reviewsAddedSupportLabel: formatMissingComparisonSupport(row.reviews_added_7d),
+  reviewsAddedSupportLabel: formatDelta(row.delta_reviews_added_7d_abs, row.delta_reviews_added_7d_pct),
   positiveShareLabel: formatRatio(row.period_positive_ratio_7d),
-  positiveShareSupportLabel: formatMissingComparisonSupport(row.period_positive_ratio_7d),
+  positiveShareSupportLabel: formatPointDelta(row.delta_period_positive_ratio_7d_pp),
   priceLabel: formatPrice(row),
   priceSupportLabel: formatDiscountSupport(row),
   priceTitle: formatKstDateTime(row.price_bucket_time),

@@ -28,6 +28,7 @@ const tableHeadings = [
   'Current CCU',
   'Avg CCU',
   'Peak CCU',
+  'Estimated Player-Hours',
   'Reviews Added',
   'Positive Share',
   'Price',
@@ -61,7 +62,7 @@ export function SteamExploreTable({
           <span className="type-display font-semibold tracking-[0.02em] text-[var(--paper)]">
             Last 7 Days · KR / KST
           </span>
-          <span>Avg, peak, reviews, and positive share use this fixed period.</span>
+          <span>Avg, peak, player-hours, reviews, and positive share use this fixed period.</span>
         </div>
       </div>
 
@@ -87,7 +88,7 @@ export function SteamExploreTable({
               : 'No Steam Explore rows are available.'}
           </div>
         ) : (
-          <table className="min-w-[980px] w-full border-collapse bg-[rgba(255,249,239,0.34)] text-left">
+          <table className="min-w-[1120px] w-full border-collapse bg-[rgba(255,249,239,0.34)] text-left">
             <thead>
               <tr className="border-b border-[var(--ghost-border)] text-xs uppercase tracking-[0.08em] text-[var(--text-muted)]">
                 {tableHeadings.map((heading) => (
@@ -110,6 +111,10 @@ export function SteamExploreTable({
                   />
                   <ExploreCell support={row.avgCcuSupportLabel} value={row.avgCcuLabel} />
                   <ExploreCell support={row.peakCcuSupportLabel} value={row.peakCcuLabel} />
+                  <ExploreCell
+                    support={row.estimatedPlayerHoursSupportLabel}
+                    value={row.estimatedPlayerHoursLabel}
+                  />
                   <ExploreCell support={row.reviewsAddedSupportLabel} value={row.reviewsAddedLabel} />
                   <ExploreCell support={row.positiveShareSupportLabel} value={row.positiveShareLabel} />
                   <ExploreCell support={row.priceSupportLabel} title={row.priceTitle} value={row.priceLabel} />

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from collections.abc import Mapping
 from typing import Any
 
@@ -62,9 +63,13 @@ def _optional_int(value: Any) -> int | None:
 
 
 def _optional_float(value: Any) -> float | None:
-    """Return float(value) while preserving None."""
+    """Return finite float(value) while preserving None."""
 
-    return float(value) if value is not None else None
+    if value is None:
+        return None
+
+    numeric_value = float(value)
+    return numeric_value if math.isfinite(numeric_value) else None
 
 
 def _optional_bool(value: Any) -> bool | None:
