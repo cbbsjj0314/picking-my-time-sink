@@ -80,6 +80,9 @@ export type GameExploreOverview = {
   delta_period_avg_ccu_7d_pct: number | null
   delta_period_peak_ccu_7d_abs: number | null
   delta_period_peak_ccu_7d_pct: number | null
+  estimated_player_hours_7d: number | null
+  delta_estimated_player_hours_7d_abs: number | null
+  delta_estimated_player_hours_7d_pct: number | null
   reviews_snapshot_date: string | null
   total_reviews: number | null
   total_positive: number | null
@@ -89,6 +92,12 @@ export type GameExploreOverview = {
   reviews_added_30d: number | null
   period_positive_ratio_7d: number | null
   period_positive_ratio_30d: number | null
+  delta_reviews_added_7d_abs: number | null
+  delta_reviews_added_7d_pct: number | null
+  delta_period_positive_ratio_7d_pp: number | null
+  delta_reviews_added_30d_abs: number | null
+  delta_reviews_added_30d_pct: number | null
+  delta_period_positive_ratio_30d_pp: number | null
   price_bucket_time: string | null
   region: string | null
   currency_code: string | null

@@ -116,6 +116,9 @@ class GameExploreOverviewResponse(BaseModel):
     delta_period_avg_ccu_7d_pct: float | None
     delta_period_peak_ccu_7d_abs: int | None
     delta_period_peak_ccu_7d_pct: float | None
+    estimated_player_hours_7d: float | None
+    delta_estimated_player_hours_7d_abs: float | None
+    delta_estimated_player_hours_7d_pct: float | None
     reviews_snapshot_date: dt.date | None
     total_reviews: int | None
     total_positive: int | None
@@ -125,6 +128,12 @@ class GameExploreOverviewResponse(BaseModel):
     reviews_added_30d: int | None
     period_positive_ratio_7d: float | None
     period_positive_ratio_30d: float | None
+    delta_reviews_added_7d_abs: int | None
+    delta_reviews_added_7d_pct: float | None
+    delta_period_positive_ratio_7d_pp: float | None
+    delta_reviews_added_30d_abs: int | None
+    delta_reviews_added_30d_pct: float | None
+    delta_period_positive_ratio_30d_pp: float | None
     price_bucket_time: dt.datetime | None
     region: str | None
     currency_code: str | None

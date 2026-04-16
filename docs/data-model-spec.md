@@ -1,5 +1,5 @@
 문서 목적: 테이블/파일 목록 + 그레인(1행 키) + 적재 규칙(증분/스냅샷) + 보존 기준 + repo-grounded provider 확장 경계 기록
-버전: v0.7 (Steam Explore activity metric semantics 반영)
+버전: v0.8 (Steam Explore activity metrics serving/API 반영)
 작성일: 2026-04-16 (KST)
 
 ## 0. 레이어 개요
@@ -87,6 +87,7 @@
     - selected/previous N-day window는 각각 expected KST half-hour bucket `48 * N` 개가 모두 있어야 full coverage다.
     - missing bucket, partial history, per-game older anchor fallback, gap fill, synthetic score는 허용하지 않는다.
     - 이 metric은 Steam public CCU 기반 근사 activity metric이며 unique players, sales, ownership, playtime telemetry가 아니다.
+    - current `srv_game_explore_period_metrics` / `/games/explore/overview` 는 7d strict fields를 raw 30분 bucket 기준으로 노출한다.
 
 ### 4.2 Streaming Category Metrics (30분) — Provider 확장 entry (초안)
 
@@ -139,7 +140,7 @@
     - collected_at
     - current DDL에는 language/filter/purchase_type 파라미터 기록용 컬럼이 없다.
 - period-derived candidates:
-    - `reviews_added_7d`, `reviews_added_30d`, `period_positive_ratio_7d`, `period_positive_ratio_30d` 는 cumulative daily boundary snapshot 차이로 계산할 수 있다.
+    - `reviews_added_7d`, `reviews_added_30d`, `period_positive_ratio_7d`, `period_positive_ratio_30d` 와 previous same-length comparison fields는 cumulative daily boundary snapshot 차이로 계산할 수 있다.
     - exact formula와 null handling은 `docs/metrics-definitions.md` 의 `Explore review period-derived candidates` 를 따른다.
     - current fact는 위 후보 계산에 필요한 cumulative totals를 담고 있지만, source series provenance를 DB에 보존하지는 않는다.
 - future schema implication:
@@ -180,12 +181,12 @@
 
 ### 5.2 Explore 기간 지표 서빙 객체
 
-- 현재 runtime에는 target/proposed `Explore` table UI가 없지만, backend/API 읽기 계약은 최소 경로로 추가되었다.
+- 현재 runtime에는 `Explore` table shell이 있고, 이번 slice는 web table UI 변경 없이 backend/API 읽기 계약을 확장했다.
 - 서빙 객체는 `srv_game_explore_period_metrics` 이고, 목록 엔드포인트는 `/games/explore/overview` 이다.
 - 현재 엔드포인트는 `limit`만 지원한다. period/window, region, market, rank_type 쿼리 계약은 아직 없다.
 - 기준 유니버스는 `tracked_game.is_active = true` 인 Steam canonical game이다.
 - 기본 정렬은 `period_avg_ccu_7d DESC NULLS LAST, canonical_game_id ASC` 이다.
-- 현재 서빙 형태는 게임 식별 정보, current/latest CCU, 7일 CCU 기간 평균/최고 및 same-window delta, 리뷰 누적 기준 snapshot, 리뷰 7일/30일 boundary 기반 파생 필드, 최신 KR 가격 근거를 한 row에 담는다.
+- 현재 서빙 형태는 게임 식별 정보, current/latest CCU, 7일 CCU 기간 평균/최고 및 same-window delta, strict 7일 `Estimated Player-Hours`, 리뷰 누적 기준 snapshot, 리뷰 7일/30일 boundary 기반 파생 필드와 previous-period comparison, 최신 KR 가격 근거를 한 row에 담는다.
 - current `Most Played` longer-window API는 `7d|30d|90d` list ordering context만 바꾸고 latest CCU row shape를 반환한다. 이를 `Explore` period avg/peak metric API로 재해석하지 않는다.
 - CCU 기간 지표:
     - `agg_steam_ccu_daily` 는 `period_avg_ccu_Nd`, `period_peak_ccu_Nd`, selected vs previous same-length delta 계산에 필요한 daily `avg_ccu` / `peak_ccu` 를 담고 있다.
@@ -193,12 +194,13 @@
     - strict `Estimated Player-Hours` 는 raw 30분 bucket coverage가 필요한 metric이므로, current `agg_steam_ccu_daily` 만으로는 충분하지 않다.
     - `SUM(avg_ccu * 24)` 또는 `AVG(avg_ccu) * 24 * N` 은 strict `estimated_player_hours_Nd` 의 current source of truth로 사용하지 않는다.
     - daily `avg_ccu * 24` path는 future approximation으로 별도 caveat/name을 붙이거나, daily rollup에 raw bucket count / expected bucket count / completeness flag 같은 coverage metadata가 추가되어 strict coverage를 증명할 수 있을 때만 derived path로 검토한다.
-    - strict intra-day completeness가 metric contract에 필요하면 daily quality metadata, 별도 coverage table, 또는 raw bucket 기반 serving query를 추가한다.
-    - 현재 `Explore` 개요 minimum path는 7d CCU period fields만 노출한다.
-    - strict `Estimated Player-Hours` 와 `delta_estimated_player_hours_Nd_abs` / `delta_estimated_player_hours_Nd_pct` 는 serving/API 후속 slice까지 노출하지 않는다.
+    - current `srv_game_explore_period_metrics` 는 `fact_steam_ccu_30m` 에서 KST date 기준 latest available raw CCU date를 anchor로 잡고, selected `[anchor - 6, anchor]` 와 previous `[anchor - 13, anchor - 7]` 가 각각 raw 30분 bucket 336개를 모두 가질 때만 7d strict fields를 계산한다.
+    - 노출 필드는 `estimated_player_hours_7d`, `delta_estimated_player_hours_7d_abs`, `delta_estimated_player_hours_7d_pct` 이다.
 - 리뷰 기간 파생 지표:
     - `fact_steam_reviews_daily` 는 current all/all/all cumulative daily snapshot 기준 `reviews_added_7d`, `reviews_added_30d`, `period_positive_ratio_7d`, `period_positive_ratio_30d` 계산에 충분한 boundary totals를 담고 있다.
-    - previous same-length comparison candidate names는 `delta_reviews_added_Nd_abs`, `delta_reviews_added_Nd_pct`, `delta_period_positive_ratio_Nd_pp` 로 둔다.
+    - previous same-length comparison fields는 `delta_reviews_added_Nd_abs`, `delta_reviews_added_Nd_pct`, `delta_period_positive_ratio_Nd_pp` 이며, current serving/API는 7d/30d variants를 노출한다.
+    - 7d comparison에는 `anchor`, `anchor - 7`, `anchor - 14` boundary snapshot이 필요하고, 30d comparison에는 `anchor`, `anchor - 30`, `anchor - 60` boundary snapshot이 필요하다.
+    - missing boundary snapshot, negative cumulative delta, invalid denominator, inconsistent positive delta는 null로 유지한다.
     - DB에 request-param provenance를 보존해야 하거나 여러 review series를 병렬 보존해야 하면 schema/ingest 확장이 필요하다.
 - 가격 근거:
     - 현재 `srv_game_latest_price` 는 KR-only latest price evidence column으로만 사용할 수 있다.
