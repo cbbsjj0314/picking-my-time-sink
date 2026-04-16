@@ -1,6 +1,7 @@
--- tracked_game stores serving eligibility and priority for monitored titles.
+-- tracked_game stores current serving and fetch eligibility for monitored titles.
 CREATE TABLE IF NOT EXISTS tracked_game (
     canonical_game_id BIGINT NOT NULL,
+    -- is_active is not a lifecycle phase or warm grace state.
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
     priority SMALLINT NOT NULL DEFAULT 3,
     sources TEXT[] NOT NULL DEFAULT ARRAY['steam']::TEXT[],

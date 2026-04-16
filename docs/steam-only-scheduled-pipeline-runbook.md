@@ -1,6 +1,6 @@
 문서 목적: Steam-only scheduled pipeline minimum handoff를 current repo 기준으로 1개 문서에 고정
-버전: v0.2 (manual handoff baseline + thin wrapper)
-작성일: 2026-04-01 (KST)
+버전: v0.3 (tracked universe active/lifecycle semantics 반영)
+작성일: 2026-04-17 (KST)
 
 ## 0. 현재 범위
 
@@ -79,7 +79,7 @@
 
 1. `run_tracked_universe_scheduled` 로 ranking payload 4종을 refresh 하고 tracked target을 갱신한다.
 2. `payload_to_gold_rankings` 로 같은 payload를 `fact_steam_rank_daily`에 올린다.
-3. `price`, `reviews`, `ccu`는 모두 updated `tracked_game`을 읽는다.
+3. `price`, `reviews`, `ccu`는 모두 updated `tracked_game`의 `is_active = true` row를 읽는다.
 4. 3단계 이후 세 branch는 서로 독립이지만, minimum handoff 문서에서는 operator confusion을 줄이기 위해 `price -> reviews -> ccu` 순서로 직렬 실행한다.
 
 - 위 순서를 1개 명령으로 그대로 실행하려면 아래 wrapper를 쓴다.
@@ -121,8 +121,11 @@ PYTHONPATH=src poetry run python -m steam.ingest.run_tracked_universe_scheduled 
   - ranking payload decode 실패 또는 zero-row payload
   - DB env 누락 / DB 연결 실패
 - 현재 의도된 한계:
+  - current MVP에서 `tracked_game.is_active = true` 는 serving eligibility 와 downstream Steam fetch eligibility를 함께 뜻한다.
   - optional App Catalog summary가 completed latest snapshot을 가리키면, 그 snapshot JSONL에 없는 ranking seed appid는 `tracked_game.is_active = false` 로 upsert 한다.
   - summary가 없거나 paginated/incomplete/unreadable 이면 catalog-driven active filter는 non-blocking 으로 건너뛴다.
+  - warm 7일 rule은 이 runbook의 active rule이 아니며, `tracked_game.is_active` 를 직접 바꾸는 grace/cooldown 상태로 구현하지 않는다.
+  - warm 7일 fetch-only grace가 필요하면 serving active bit와 분리된 lifecycle/fetch-cadence state를 먼저 추가하는 별도 slice로 진행한다.
   - `tracked_game.sources` 는 current-run attribution만 유지한다.
   - current slice에는 broader cull / generalized filtering / non-seed lifecycle semantics가 없다.
 
