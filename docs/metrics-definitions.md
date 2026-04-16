@@ -1,8 +1,8 @@
 # Metrics & Definitions (요구사항 + 지표 정의서)
 
 문서 목적: 용어/지표/Δ 기준을 고정해 구현 중 재해석을 방지
-버전: v0.11 (Steam Explore 개요 서빙/API 최소 경로 반영)
-작성일: 2026-04-15 (KST)
+버전: v0.12 (Steam Explore activity metric semantics 반영)
+작성일: 2026-04-16 (KST)
 
 ## 0. 시간/기간 프리셋
 
@@ -67,7 +67,7 @@
 
 ### 1.4 Explore period metric anchor / null rule
 
-- 이 섹션은 target/proposed `Explore` evidence table의 durable metric semantics다. latest 개별 API contract는 section 2.5, 3.4, 5.3, 6.1을 따르고, current `Explore` overview API contract는 section 1.5를 따른다.
+- 이 섹션은 target/proposed `Explore` evidence table의 durable metric semantics다. latest 개별 API contract는 section 2.5, 3.5, 5.3, 6.1을 따르고, current `Explore` overview API contract는 section 1.5를 따른다.
 - `Explore` target base universe는 `tracked_game.is_active = true` 인 Steam canonical game이다.
 - tracked universe seed provenance는 `topsellers_global`, `topsellers_kr`, `mostplayed_global`, `mostplayed_kr` 의 합집합으로 본다.
 - `Explore` default period preset은 `Last 7 Days` 이고, target default sort는 `7일 평균 동접 desc` 다.
@@ -75,9 +75,16 @@
 - anchor는 per-game anchor가 아니라 metric-wide anchor를 우선한다. 같은 테이블의 row들이 같은 기준일로 비교되도록, 특정 게임의 더 오래된 최신일로 fallback하지 않는다.
 - metric-wide anchor 예시:
     - CCU daily rollup family: `agg_steam_ccu_daily.bucket_date` 의 latest available KST date
+    - strict Estimated Player-Hours raw CCU family: `fact_steam_ccu_30m.bucket_time` 의 KST date 기준 latest available data date
     - review daily snapshot family: `fact_steam_reviews_daily.snapshot_date` 의 latest available KST date
 - selected period window가 N일이면 selected window는 `[anchor - (N - 1), anchor]`, previous same-length window는 `[anchor - (2N - 1), anchor - N]` 로 둔다.
-- insufficient full-window data는 null/no data다. fake fallback, gap fill, synthetic score, per-game older anchor fallback으로 메우지 않는다.
+- selected period의 full coverage 조건을 만족하지 못하면 selected period value 자체가 null이다.
+- previous same-length period의 full coverage 조건을 만족하지 못하면 previous-period comparison delta는 null이다.
+- raw 30분 CCU bucket 기반 period metric은 해당 window의 모든 expected KST half-hour bucket이 있어야 full coverage로 본다. KST는 DST가 없으므로 N일 window의 expected bucket 수는 `48 * N` 이다.
+- daily rollup 기반 period metric은 해당 window의 N개 daily row가 있어야 full coverage로 본다.
+- review cumulative snapshot 기반 period metric은 필요한 boundary snapshot이 모두 있어야 full coverage로 본다.
+- partial history, missing raw bucket, missing daily row, missing boundary snapshot, invalid denominator, inconsistent review cumulative delta는 null/no data다.
+- fake fallback, gap fill, synthetic score, per-game older anchor fallback으로 메우지 않는다.
 - list/table-level no rows는 empty state로 처리할 수 있고, field-level missing은 null / `-` / caveat로 표시한다.
 - current daily CCU rollup은 day row 존재 여부만 알려준다. 하루 안의 30분 bucket coverage completeness까지 보장해야 하는 metric이 필요하면 별도 quality metadata가 필요하다.
 
@@ -98,6 +105,7 @@
 - 7일 CCU 기간 지표는 `agg_steam_ccu_daily` 의 최신 가용 `bucket_date` 를 metric-wide anchor로 사용한다.
 - 리뷰 기간 파생 지표는 `fact_steam_reviews_daily` 의 최신 가용 `snapshot_date` 를 metric-wide anchor로 사용한다.
 - 선택/이전 기간의 full-window daily row, 리뷰 boundary snapshot, 유효한 분모가 없거나 누적 delta가 일관되지 않으면 null을 반환한다.
+- strict `Estimated Player-Hours` 는 current `/games/explore/overview` 최소 응답에 아직 포함하지 않는다.
 - 현재 CCU와 최신 KR 가격은 최신 근거 필드로 유지하며, 기간 지표로 재해석하지 않는다.
 - `Top Selling` 순위는 의도적으로 `Explore` 개요 응답에 포함하지 않는다.
 
@@ -131,6 +139,11 @@
     - 최신 boundary snapshot(`anchor`)과 이전 boundary snapshot(`anchor - N`)이 모두 있어야 한다.
     - 결과가 음수이면 cumulative source inconsistency로 보고 null 처리한다.
     - 결과가 0이면 0으로 유지한다.
+- Reviews Added previous same-length delta의 canonical serving field name은 `delta_reviews_added_Nd_abs` / `delta_reviews_added_Nd_pct` 로 둔다.
+    - `delta_reviews_added_Nd_abs = reviews_added_Nd(selected) - reviews_added_Nd(previous)`
+    - `delta_reviews_added_Nd_pct = delta_reviews_added_Nd_abs / NULLIF(reviews_added_Nd(previous), 0)`
+    - selected 또는 previous `reviews_added_Nd` 가 null이면 두 delta 모두 null이다.
+    - previous `reviews_added_Nd` 가 0이면 absolute delta는 계산할 수 있지만 percent delta는 null이다.
 - `period_positive_ratio_7d`, `period_positive_ratio_30d`:
     - `period_positive_ratio_Nd = positive_delta_Nd / reviews_added_Nd`
     - `positive_delta_Nd = total_positive(anchor) - total_positive(anchor - N)`
@@ -138,7 +151,8 @@
     - missing boundary snapshot, `reviews_added_Nd <= 0`, `positive_delta_Nd < 0`, `positive_delta_Nd > reviews_added_Nd` 인 경우 null 처리한다.
     - 단위는 0~1 ratio이고, 화면에서는 %로 표시할 수 있다.
 - period positive ratio delta가 필요하면 selected period와 previous same-length period의 ratio 차이로 계산한다.
-    - `period_positive_ratio_delta_Nd_pp = (period_positive_ratio_Nd(selected) - period_positive_ratio_Nd(previous)) * 100`
+    - canonical serving field name은 `delta_period_positive_ratio_Nd_pp` 로 둔다.
+    - `delta_period_positive_ratio_Nd_pp = (period_positive_ratio_Nd(selected) - period_positive_ratio_Nd(previous)) * 100`
     - previous period boundary는 `anchor - N` 과 `anchor - 2N` 을 사용한다.
     - selected 또는 previous ratio가 null이면 delta도 null이다.
     - 표시 단위는 percentage points(pp)이고, percent change(`%`)가 아니다.
@@ -215,7 +229,28 @@
 - percent delta의 previous baseline이 0이면 percent delta는 null이다.
 - 이 period delta는 `srv_game_latest_ccu` / latest CCU API의 전일 동일 KST bucket delta와 별개다.
 
-### 3.4 Most Played list context windows
+### 3.4 Explore Estimated Player-Hours
+
+- `Estimated Player-Hours` 는 Steam public CCU snapshot 기반 derived activity metric이다.
+- 해석: 기간 동안 Steam public CCU로 관측된 동시접속자 수를 시간으로 적분한 근사 플레이어-아워다. 실제 unique players, sales, ownership, playtime telemetry가 아니다.
+- strict canonical formula는 raw 30분 CCU bucket 기준이다.
+    - `estimated_player_hours_Nd = SUM(ccu * bucket_duration_hours for each raw CCU bucket in selected window)`
+    - 현재 Steam CCU bucket duration은 30분이므로 `bucket_duration_hours = 0.5` 이다.
+- strict metric의 source of truth는 `fact_steam_ccu_30m` 같은 raw half-hour bucket series다.
+- selected N-day window의 expected KST half-hour bucket `48 * N` 개가 모두 있어야 `estimated_player_hours_Nd` 를 계산한다.
+- selected window에 missing bucket이 하나라도 있으면 `estimated_player_hours_Nd` 는 null이다.
+- previous same-length comparison도 previous window의 expected bucket `48 * N` 개가 모두 있어야 한다.
+- Estimated Player-Hours previous same-length delta의 canonical serving field name은 `delta_estimated_player_hours_Nd_abs` / `delta_estimated_player_hours_Nd_pct` 로 둔다.
+    - `delta_estimated_player_hours_Nd_abs = estimated_player_hours_Nd(selected) - estimated_player_hours_Nd(previous)`
+    - `delta_estimated_player_hours_Nd_pct = delta_estimated_player_hours_Nd_abs / NULLIF(estimated_player_hours_Nd(previous), 0)`
+    - selected 또는 previous value가 null이면 두 delta 모두 null이다.
+    - previous value가 0이면 absolute delta는 계산할 수 있지만 percent delta는 null이다.
+- current `agg_steam_ccu_daily` 는 daily `avg_ccu` / `peak_ccu` 만 제공하고 하루 내부 30분 bucket coverage completeness metadata가 없다.
+- 따라서 `SUM(avg_ccu * 24)` 또는 `AVG(avg_ccu) * 24 * N` 은 strict `estimated_player_hours_Nd` 의 current source of truth로 사용하지 않는다.
+- daily `avg_ccu * 24` path는 future approximation으로 별도 caveat/name을 붙이거나, daily rollup에 raw bucket coverage completeness metadata가 추가되어 strict coverage를 증명할 수 있을 때만 derived path로 검토한다.
+- fake fallback, gap fill, per-game older anchor fallback, synthetic activity score는 금지한다.
+
+### 3.5 Most Played list context windows
 
 - `Top Ranked` 의 Most Played window는 row payload meaning을 바꾸지 않고, 어떤 게임이 리스트에 들어오고 어떤 순서로 보이는지만 바꾼다.
 - `/games/ccu/latest` 는 `window=1d|7d|30d|90d` 를 받는다.
