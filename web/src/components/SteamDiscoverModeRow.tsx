@@ -8,9 +8,14 @@ interface SteamDiscoverModeRowProps {
 
 const items = [
   {
+    value: 'Explore',
+    label: 'Explore',
+    description: 'active tracked Steam universe를 7D 플레이, 리뷰, KR 가격 근거 테이블로 보기',
+  },
+  {
     value: 'Top Selling',
-    label: 'Store Heat',
-    description: 'Steam weekly top sellers snapshot 기준으로 상점 강도가 높은 게임 보기',
+    label: 'Top Selling',
+    description: 'Steam weekly top sellers snapshot 기준으로 Top Selling 게임 보기',
   },
   {
     value: 'Most Played',

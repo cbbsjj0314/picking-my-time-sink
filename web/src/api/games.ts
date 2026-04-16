@@ -64,6 +64,40 @@ export type GameLatestReviews = {
   missing_flag: boolean
 }
 
+export type GameExploreOverview = {
+  canonical_game_id: number
+  canonical_name: string
+  steam_appid: number | null
+  ccu_bucket_time: string | null
+  current_ccu: number | null
+  current_delta_ccu_abs: number | null
+  current_delta_ccu_pct: number | null
+  current_ccu_missing_flag: boolean
+  ccu_period_anchor_date: string | null
+  period_avg_ccu_7d: number | null
+  period_peak_ccu_7d: number | null
+  delta_period_avg_ccu_7d_abs: number | null
+  delta_period_avg_ccu_7d_pct: number | null
+  delta_period_peak_ccu_7d_abs: number | null
+  delta_period_peak_ccu_7d_pct: number | null
+  reviews_snapshot_date: string | null
+  total_reviews: number | null
+  total_positive: number | null
+  total_negative: number | null
+  positive_ratio: number | null
+  reviews_added_7d: number | null
+  reviews_added_30d: number | null
+  period_positive_ratio_7d: number | null
+  period_positive_ratio_30d: number | null
+  price_bucket_time: string | null
+  region: string | null
+  currency_code: string | null
+  initial_price_minor: number | null
+  final_price_minor: number | null
+  discount_percent: number | null
+  is_free: boolean | null
+}
+
 function withQuery(path: string, query: Record<string, string | number | undefined>): string {
   const params = new URLSearchParams()
 
@@ -135,7 +169,15 @@ function getGameLatestReviews(canonicalGameId: number, signal?: AbortSignal): Pr
   return requestOptional<GameLatestReviews>(`/games/${canonicalGameId}/reviews/latest`, signal)
 }
 
+function listExploreOverview(options: ListOptions = {}): Promise<GameExploreOverview[]> {
+  return requestJson<GameExploreOverview[]>(
+    withQuery('/games/explore/overview', { limit: options.limit ?? 50 }),
+    { signal: options.signal },
+  )
+}
+
 export const gamesApi = {
+  listExploreOverview,
   listLatestRankings,
   listLatestCcu,
   getGameLatestCcu,

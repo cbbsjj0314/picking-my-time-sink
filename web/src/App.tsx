@@ -3,16 +3,19 @@ import { PendingSourcePanel } from './components/PendingSourcePanel'
 import { SourceTabsRow } from './components/SourceTabsRow'
 import { SteamDiscoverModeRow } from './components/SteamDiscoverModeRow'
 import { SteamDetailPanel } from './components/SteamDetailPanel'
+import { SteamExploreTable } from './components/SteamExploreTable'
 import { SteamRankingList } from './components/SteamRankingList'
 import { StickyShell } from './components/StickyShell'
+import { useSteamExploreOverview } from './hooks/useSteamExploreOverview'
 import { useSteamOverview } from './hooks/useSteamOverview'
 import type { RangeOption, SourceTab, SteamChartRange, SteamDiscoverMode } from './types'
 
 const DEFAULT_SOURCE_TAB: SourceTab = 'Steam'
-const DEFAULT_STEAM_DISCOVER_MODE: SteamDiscoverMode = 'Top Selling'
+const DEFAULT_STEAM_DISCOVER_MODE: SteamDiscoverMode = 'Explore'
 const DEFAULT_RANGE: RangeOption = 'Last 7 Days'
 const DEFAULT_STEAM_CHART_RANGE: SteamChartRange = '7D'
 const SUPPORTED_RANGES_BY_MODE: Record<SteamDiscoverMode, readonly RangeOption[]> = {
+  Explore: ['Last 7 Days'],
   'Top Selling': ['Last 7 Days'],
   'Most Played': ['1D', 'Last 7 Days', 'Last 30 Days', 'Last 3 Months'],
 }
@@ -20,6 +23,7 @@ const RANGE_CONTROL_OPTIONS_BY_MODE: Record<
   SteamDiscoverMode,
   ReadonlyArray<{ value: RangeOption; label: string }>
 > = {
+  Explore: [{ value: 'Last 7 Days', label: 'Last 7 Days' }],
   'Top Selling': [{ value: 'Last 7 Days', label: 'Weekly' }],
   'Most Played': [
     { value: '1D', label: '1D' },
@@ -29,7 +33,8 @@ const RANGE_CONTROL_OPTIONS_BY_MODE: Record<
   ],
 }
 const RANGE_STATUS_TEXT_BY_MODE: Record<SteamDiscoverMode, string> = {
-  'Top Selling': 'Store Heat는 Steam weekly top sellers snapshot 기준이라 현재 Weekly view로 고정된다.',
+  Explore: 'Explore는 /games/explore/overview의 Last 7 Days evidence table을 그대로 보여준다.',
+  'Top Selling': 'Top Selling은 Steam weekly top sellers snapshot 기준이라 현재 Weekly view로 고정된다.',
   'Most Played': 'Player Heat는 1D live CCU, 7D/30D/3M full-window daily CCU rollup 기준으로 리스트를 바꾼다.',
 }
 
@@ -62,6 +67,15 @@ function App() {
     rankingCardLimit: showExpandedRanking ? null : 4,
     searchQuery: deferredSearch,
     selectedId,
+  })
+  const {
+    rows: steamExploreRows,
+    totalRowCount: steamExploreTotalRowCount,
+    loading: steamExploreLoading,
+    error: steamExploreError,
+  } = useSteamExploreOverview({
+    enabled: steamDiscoverMode === 'Explore' && sourceTab === 'Steam',
+    searchQuery: deferredSearch,
   })
   const activeGames = steamGames
 
@@ -141,6 +155,7 @@ function App() {
               setSelectedId(null)
               setSteamDiscoverMode(mode)
               setSteamRankingWindow(nextRange)
+              setShowExpandedRanking(false)
             })
           }}
         />
@@ -148,35 +163,45 @@ function App() {
 
       <main className="mx-auto mt-4 grid max-w-[1520px] grid-cols-1 gap-5 px-4 sm:mt-5 sm:gap-6 sm:px-6 lg:mt-6 lg:grid-cols-[minmax(320px,380px)_minmax(0,1fr)] lg:px-8 xl:grid-cols-[380px_minmax(0,1fr)]">
         {sourceTab === 'Steam' ? (
-          <>
-            <SteamRankingList
-              error={error}
-              games={steamGames}
-              loading={loading}
-              isExpanded={showExpandedRanking}
-              canExpand={steamTotalGameCount > steamGames.length}
-              onRangeChange={handleSteamRankingWindowChange}
-              onSelect={setSelectedId}
-              onToggleExpanded={() => {
-                startTransition(() => {
-                  setShowExpandedRanking((current) => !current)
-                })
-              }}
-              range={steamRankingWindow}
-              rangeControlOptions={rankingControlOptions}
-              rangeStatusText={RANGE_STATUS_TEXT_BY_MODE[steamDiscoverMode]}
-              selectedId={selectedSteamGame?.id ?? null}
+          steamDiscoverMode === 'Explore' ? (
+            <SteamExploreTable
+              error={steamExploreError}
+              loading={steamExploreLoading}
+              rows={steamExploreRows}
+              searchQuery={deferredSearch}
+              totalRowCount={steamExploreTotalRowCount}
             />
+          ) : (
+            <>
+              <SteamRankingList
+                error={error}
+                games={steamGames}
+                loading={loading}
+                isExpanded={showExpandedRanking}
+                canExpand={steamTotalGameCount > steamGames.length}
+                onRangeChange={handleSteamRankingWindowChange}
+                onSelect={setSelectedId}
+                onToggleExpanded={() => {
+                  startTransition(() => {
+                    setShowExpandedRanking((current) => !current)
+                  })
+                }}
+                range={steamRankingWindow}
+                rangeControlOptions={rankingControlOptions}
+                rangeStatusText={RANGE_STATUS_TEXT_BY_MODE[steamDiscoverMode]}
+                selectedId={selectedSteamGame?.id ?? null}
+              />
 
-            <SteamDetailPanel
-              chartRange={steamChartRange}
-              error={error}
-              game={selectedSteamGame}
-              loading={loading}
-              mode={steamDiscoverMode}
-              onRangeChange={setSteamChartRange}
-            />
-          </>
+              <SteamDetailPanel
+                chartRange={steamChartRange}
+                error={error}
+                game={selectedSteamGame}
+                loading={loading}
+                mode={steamDiscoverMode}
+                onRangeChange={setSteamChartRange}
+              />
+            </>
+          )
         ) : (
           <PendingSourcePanel sourceTab={sourceTab} />
         )}
