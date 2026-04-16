@@ -145,7 +145,7 @@
     - current fact는 위 후보 계산에 필요한 cumulative totals를 담고 있지만, source series provenance를 DB에 보존하지는 않는다.
 - future schema implication:
     - `filter`, `language`, `purchase_type` 별 review series를 동시에 보존해야 하면 이 테이블의 grain/PK와 ingest path를 별도 slice에서 확장한다.
-    - current canonical all/all/all series만 다루는 동안에는 schema 변경 없이 derived serving view/API를 추가할 수 있다.
+    - current canonical all/all/all series만 다루는 동안에는 schema 변경 없이 current derived serving view/API path를 유지할 수 있다.
 
 ### 4.5 Steam Ranking Snapshot (1일)
 
@@ -181,7 +181,7 @@
 
 ### 5.2 Explore 기간 지표 서빙 객체
 
-- 현재 runtime에는 `Explore` table shell이 있고, 이번 slice는 web table UI 변경 없이 backend/API 읽기 계약을 확장했다.
+- 현재 runtime에는 `Explore` table shell이 있고, backend/API 7d metric fields는 current web table default surface까지 연결되어 있다.
 - 서빙 객체는 `srv_game_explore_period_metrics` 이고, 목록 엔드포인트는 `/games/explore/overview` 이다.
 - 현재 엔드포인트는 `limit`만 지원한다. period/window, region, market, rank_type 쿼리 계약은 아직 없다.
 - 기준 유니버스는 `tracked_game.is_active = true` 인 Steam canonical game이다.
