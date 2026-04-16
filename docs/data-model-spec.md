@@ -1,6 +1,6 @@
 문서 목적: 테이블/파일 목록 + 그레인(1행 키) + 적재 규칙(증분/스냅샷) + 보존 기준 + repo-grounded provider 확장 경계 기록
-버전: v0.8 (Steam Explore activity metrics serving/API 반영)
-작성일: 2026-04-16 (KST)
+버전: v0.9 (tracked universe active/lifecycle semantics 반영)
+작성일: 2026-04-17 (KST)
 
 ## 0. 레이어 개요
 
@@ -63,9 +63,15 @@
     - first_seen_at, last_seen_at
     - note
 - current repo-grounded Steam-only semantics:
+    - current persisted `tracked_game.is_active` 는 serving eligibility 와 price/reviews/ccu fetch eligibility 를 함께 뜻한다.
+    - current `srv_game_*` serving views 와 Steam price/reviews/ccu fetchers 는 모두 `tracked_game.is_active = true` 만 읽는다.
+    - 따라서 current MVP에서 `is_active` 는 lifecycle phase, cooldown, warm grace 상태가 아니다.
     - ranking seed updater는 completed App Catalog latest summary가 가리키는 full snapshot JSONL을 읽을 수 있을 때만 catalog-driven active filter를 적용한다.
     - current thin slice에서는 ranking seed appid가 그 snapshot에 없으면 row를 삭제하지 않고 `tracked_game.is_active = false` 로 upsert 한다.
     - summary가 없거나 incomplete/unreadable 이면 기존처럼 non-blocking 으로 건너뛴다.
+    - warm 7일 rule은 current serving active rule 이 아니며, current `tracked_game.is_active` 를 직접 바꾸는 rule로 구현하지 않는다.
+    - warm 7일이 필요해지면 `is_active` 와 분리된 lifecycle/fetch-cadence 상태(예: lifecycle state 또는 warm-until/fetch eligibility)를 먼저 정의한 뒤 별도 schema/code/test slice에서 구현한다.
+    - 그 전까지 warm 7일은 fetch-only grace proposal/deferred 항목으로만 취급한다.
 
 ## 4. Fact / Snapshot (Gold 중심)
 
@@ -145,7 +151,7 @@
     - current fact는 위 후보 계산에 필요한 cumulative totals를 담고 있지만, source series provenance를 DB에 보존하지는 않는다.
 - future schema implication:
     - `filter`, `language`, `purchase_type` 별 review series를 동시에 보존해야 하면 이 테이블의 grain/PK와 ingest path를 별도 slice에서 확장한다.
-    - current canonical all/all/all series만 다루는 동안에는 schema 변경 없이 derived serving view/API를 추가할 수 있다.
+    - current canonical all/all/all series만 다루는 동안에는 schema 변경 없이 current derived serving view/API path를 유지할 수 있다.
 
 ### 4.5 Steam Ranking Snapshot (1일)
 
@@ -181,7 +187,7 @@
 
 ### 5.2 Explore 기간 지표 서빙 객체
 
-- 현재 runtime에는 `Explore` table shell이 있고, 이번 slice는 web table UI 변경 없이 backend/API 읽기 계약을 확장했다.
+- 현재 runtime에는 `Explore` table shell이 있고, backend/API 7d metric fields는 current web table default surface까지 연결되어 있다.
 - 서빙 객체는 `srv_game_explore_period_metrics` 이고, 목록 엔드포인트는 `/games/explore/overview` 이다.
 - 현재 엔드포인트는 `limit`만 지원한다. period/window, region, market, rank_type 쿼리 계약은 아직 없다.
 - 기준 유니버스는 `tracked_game.is_active = true` 인 Steam canonical game이다.
