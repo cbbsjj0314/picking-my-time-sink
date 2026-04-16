@@ -1,6 +1,6 @@
 문서 목적: 테이블/파일 목록 + 그레인(1행 키) + 적재 규칙(증분/스냅샷) + 보존 기준 + repo-grounded provider 확장 경계 기록
-버전: v0.6 (Steam Explore 개요 서빙 객체 반영)
-작성일: 2026-04-15 (KST)
+버전: v0.7 (Steam Explore activity metric semantics 반영)
+작성일: 2026-04-16 (KST)
 
 ## 0. 레이어 개요
 
@@ -81,6 +81,12 @@
     - ccu
     - collected_at
     - source_appid (추적/디버그용)
+- strict `Estimated Player-Hours` semantics:
+    - 이 raw 30분 bucket series가 strict `estimated_player_hours_Nd` 의 source of truth다.
+    - canonical formula는 `SUM(ccu * bucket_duration_hours)` 이며, 현재 30분 bucket은 `bucket_duration_hours = 0.5` 로 계산한다.
+    - selected/previous N-day window는 각각 expected KST half-hour bucket `48 * N` 개가 모두 있어야 full coverage다.
+    - missing bucket, partial history, per-game older anchor fallback, gap fill, synthetic score는 허용하지 않는다.
+    - 이 metric은 Steam public CCU 기반 근사 activity metric이며 unique players, sales, ownership, playtime telemetry가 아니다.
 
 ### 4.2 Streaming Category Metrics (30분) — Provider 확장 entry (초안)
 
@@ -184,10 +190,15 @@
 - CCU 기간 지표:
     - `agg_steam_ccu_daily` 는 `period_avg_ccu_Nd`, `period_peak_ccu_Nd`, selected vs previous same-length delta 계산에 필요한 daily `avg_ccu` / `peak_ccu` 를 담고 있다.
     - 단, current table은 daily row 존재 여부만 알려주며 하루 내부 30분 bucket coverage completeness는 저장하지 않는다.
-    - strict intra-day completeness가 metric contract에 필요해지면 daily quality metadata 또는 별도 coverage table을 추가한다.
+    - strict `Estimated Player-Hours` 는 raw 30분 bucket coverage가 필요한 metric이므로, current `agg_steam_ccu_daily` 만으로는 충분하지 않다.
+    - `SUM(avg_ccu * 24)` 또는 `AVG(avg_ccu) * 24 * N` 은 strict `estimated_player_hours_Nd` 의 current source of truth로 사용하지 않는다.
+    - daily `avg_ccu * 24` path는 future approximation으로 별도 caveat/name을 붙이거나, daily rollup에 raw bucket count / expected bucket count / completeness flag 같은 coverage metadata가 추가되어 strict coverage를 증명할 수 있을 때만 derived path로 검토한다.
+    - strict intra-day completeness가 metric contract에 필요하면 daily quality metadata, 별도 coverage table, 또는 raw bucket 기반 serving query를 추가한다.
     - 현재 `Explore` 개요 minimum path는 7d CCU period fields만 노출한다.
+    - strict `Estimated Player-Hours` 와 `delta_estimated_player_hours_Nd_abs` / `delta_estimated_player_hours_Nd_pct` 는 serving/API 후속 slice까지 노출하지 않는다.
 - 리뷰 기간 파생 지표:
     - `fact_steam_reviews_daily` 는 current all/all/all cumulative daily snapshot 기준 `reviews_added_7d`, `reviews_added_30d`, `period_positive_ratio_7d`, `period_positive_ratio_30d` 계산에 충분한 boundary totals를 담고 있다.
+    - previous same-length comparison candidate names는 `delta_reviews_added_Nd_abs`, `delta_reviews_added_Nd_pct`, `delta_period_positive_ratio_Nd_pp` 로 둔다.
     - DB에 request-param provenance를 보존해야 하거나 여러 review series를 병렬 보존해야 하면 schema/ingest 확장이 필요하다.
 - 가격 근거:
     - 현재 `srv_game_latest_price` 는 KR-only latest price evidence column으로만 사용할 수 있다.
@@ -195,7 +206,7 @@
 - Explore 서빙 형태는 다음을 회귀 테스트로 고정한다.
     - metric-wide 최신 가용 KST anchor
     - 선택 기간/이전 기간의 full-window 요구조건
-    - boundary/full-window 누락, 분모 0, inconsistent cumulative review delta 시 null 반환
+    - raw bucket/daily row/boundary snapshot 누락, 분모 0, inconsistent cumulative review delta 시 null 반환
     - per-game older-anchor fallback, gap fill, synthetic score 금지
 
 ### 5.3 90일 프리셋용 일 단위 rollup (권장)
