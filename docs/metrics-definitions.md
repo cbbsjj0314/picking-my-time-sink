@@ -24,7 +24,7 @@
 - `srv_game_latest_ccu`와 latest CCU API의 전일 대비는 section 1.3 규칙대로 전일 동일 KST 버킷을 비교한다.
 - latest CCU API의 `bucket_time` wire output은 같은 instant를 표현한 timezone-aware ISO datetime string으로 본다.
 - 현재 API 런타임은 timezone-aware `datetime`을 그대로 직렬화하며, UTC-only serialization을 강제하지 않는다.
-- checkpoint 실측 단건 API 예시(`/games/{id}/ccu/latest`):
+- Historical 단건 API 예시(`/games/{id}/ccu/latest`):
 
 ```json
 {
@@ -47,9 +47,9 @@
 - `srv_game_latest_reviews`와 latest reviews API의 `snapshot_date`는 같은 KST 날짜를 뜻하며, wire output은 ISO date string(`YYYY-MM-DD`)으로 본다.
 - current rankings gold path는 raw payload contract에 별도 collected timestamp가 없으므로 runtime artifact file mtime을 `collected_at` anchor로 사용하고, 그 KST 날짜를 `snapshot_date`로 저장한다.
 - latest reviews API의 전일 대비는 section 1.3 규칙대로 전일 `snapshot_date`를 비교한다.
-- 스케줄:
-    - Steam 랭킹: 03:10 KST
-    - Steam 리뷰: 03:20 KST
+- 수집 cadence:
+    - Steam 랭킹: daily
+    - Steam 리뷰: daily
 
 ### 1.3 Δ(전일 대비) 규칙
 

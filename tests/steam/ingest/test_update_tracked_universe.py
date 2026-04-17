@@ -36,6 +36,8 @@ from steam.probe.probe_rankings import (
     DEFAULT_TOPSELLERS_KR_PATH,
 )
 
+GETAPPLIST_SUMMARY_FIXTURE = Path("tests/fixtures/steam/getapplist/representative.summary.json")
+
 
 def make_candidate(
     *,
@@ -206,10 +208,8 @@ def test_optional_catalog_metadata_runtime_latest_summary_extracts_summary(
     assert metadata["top_level_keys"] == ["apps", "have_more_results"]
 
 
-def test_optional_catalog_metadata_explicit_probe_sample_still_extracts_summary() -> None:
-    metadata = load_optional_catalog_metadata(
-        Path("docs/probe/steam/getapplist/representative.json")
-    )
+def test_optional_catalog_metadata_fixture_extracts_summary() -> None:
+    metadata = load_optional_catalog_metadata(GETAPPLIST_SUMMARY_FIXTURE)
     assert metadata["app_count"] == 10000
     assert metadata["pagination"] == {"have_more_results": True, "last_appid": 507030}
     assert metadata["snapshot_path"] is None

@@ -1,13 +1,4 @@
 {
-  "attempts": [
-    {
-      "attempt": 1,
-      "error": null,
-      "sleep_seconds": 0.0,
-      "status_code": 200
-    }
-  ],
-  "collected_at_utc": "2026-03-06T21:46:06Z",
   "error": null,
   "probe_name": "reviews",
   "request": {
@@ -19,12 +10,10 @@
       "num_per_page": "20",
       "purchase_type": "all"
     },
-    "timeout_seconds": 10.0,
+    "timeout_seconds": 10,
     "url": "https://store.steampowered.com/appreviews/730"
   },
   "response": {
-    "body_sha256": "b7cddadf785d7f26e1cf6395723d67712e54bfe265e82067c57be86fbb176303",
-    "body_size": 31259,
     "is_empty": false,
     "payload_excerpt_or_json": {
       "author_fields_present": [
@@ -181,15 +170,6 @@
         "reviews",
         "success"
       ]
-    },
-    "selected_headers": {
-      "cache-control": "private,max-age=600",
-      "content-length": "31259",
-      "content-type": "application/json; charset=utf-8",
-      "date": "Fri, 06 Mar 2026 21:46:06 GMT",
-      "etag": null,
-      "last-modified": null,
-      "retry-after": null
     },
     "status_code": 200
   },

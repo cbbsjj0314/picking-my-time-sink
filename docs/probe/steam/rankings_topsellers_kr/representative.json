@@ -1,41 +1,20 @@
 {
-  "attempts": [
-    {
-      "attempt": 1,
-      "error": null,
-      "sleep_seconds": 0.0,
-      "status_code": 200
-    }
-  ],
-  "collected_at_utc": "2026-03-06T21:46:14Z",
   "error": null,
   "probe_name": "rankings_topsellers_kr",
   "request": {
     "method": "GET",
     "params": {},
-    "timeout_seconds": 10.0,
+    "timeout_seconds": 10,
     "url": "https://store.steampowered.com/charts/topsellers/KR"
   },
   "response": {
-    "body_sha256": "46515d5843ce2fdd1b256c68caff8840f2e90fa2a55afa8056f6fbe30920ff11",
-    "body_size": 30630,
     "is_empty": false,
     "payload_excerpt_or_json": {
       "parsed_rows": [],
-      "raw_html_excerpt": "<!DOCTYPE html>\n<html class=\" responsive DesktopUI\" lang=\"en\"  >\n<head>\n\t<meta http-equiv=\"Content-Type\" content=\"text/html; charset=UTF-8\">\n\t\t\t<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">\n\t\t<meta name=\"theme-color\" content=\"#171a21\">\n\t\t<title>Steam Charts</title>\n\t<link rel=\"shortcut icon\" href=\"/favicon.ico\" type=\"image/x-icon\">\n\n\t\n\t\n\t<link href=\"https://store.akamai.steamstatic.com/public/shared/css/motiva_sans.css?v=4Vj7bvhvv_UL&amp;l=english&amp;_cdn=akamai\" rel=\"stylesheet\" type=\"text/css\">\n<link href=\"https://store.akamai.steamstatic.com/public/shared/css/shared_global.css?v=fNjyilod6jgc&amp;l=english&amp;_cdn=akamai\" rel=\"stylesheet\" type=\"text/css\">\n<link href=\"https://store.akamai.steamstatic.com/public/shared/css/buttons.css?v=u7ItYmj40jWH&amp;l=english&amp;_cdn=akamai\" rel=\"stylesheet\" type=\"text/css\">\n<link href=\"https://store.akamai.steamstatic.com/public/css/v6/store.css?v=7I2JdcUuYsRY&amp;l=english&amp;_cdn=akamai\" rel=\"stylesheet\" type=\"text/css\">\n<link href=\"https://store.akamai.steamstatic.com/public/css/v6/store.css?v=7I2JdcUuYsRY&amp;l=english&amp;_cdn=akamai\" rel=\"stylesheet\" type=\"text/css\">\n<link href=\"https://store.akamai.steamstatic.com/public/shared/css/shared_responsive.css?v=8zUcJAgCg1Ml&amp;l=english&amp;_cdn=akamai\" rel=\"stylesheet\" type=\"text/css\">\n<script type=\"text/javascript\" src=\"https://store.akamai.steamstatic.com/public/shared/javascript/jquery-1.8.3.min.js?v=NXam5zydzNu8&amp;l=english&amp;_cdn=akamai\"></script>\n<script type=\"text/javascript\">$J = jQuery.noConflict();</script><script type=\"text/javascript\">VALVE_PUBLIC_PATH = \"https:\\/\\/store.akamai.steamstatic.com\\/public\\/\";</script><script type=\"text/javascript\" src=\"https://store.akamai.steamstatic.com/public/shared/javascript/tooltip.js?v=k5leO7MVvAaV&amp;l=english&amp;_cdn=akamai\"></script>\n\n<script type=\"text/javascript\" src=\"https://store.akamai.steamstatic.com/public/shared/javascript/shared_global.js?v=K7zEIg1b7fg1&amp;l=english&amp;_cdn=akamai\"></script>\n\n<script type=\"text/javascript\" src=\"https://store.akamai.steamstatic.com/public/shared/javascript/auth_refresh.js?v=w6QbwI-5-j2S&amp;l=english&amp;_cdn=akamai\"></script>\n\n<script type=\"text/javascript\" src=\"https://store.akamai.steamstatic.com/public/javascript/main.js?v=QJi1xvGAhCH-&amp;l=english&amp;_cdn=akamai\"></script>\n\n<script type=\"text/javascript\" src=\"https://store.akamai.steamstatic.com/public/javascript/dynamicstore.js?v=Ip2--85Texdk&amp;l=english&amp;_cdn=akamai\"></script>\n\n<script type=\"text/javascript\">Object.seal && [ Object, Array, String, Number ].map( function( builtin ) { Object.seal( builtin.prototype ); } );</script>\n\t\t<script type=\"text/javascript\">\n\t\t\tdocument.addEventListener('DOMContentLoaded', function(event) {\n\t\t\t\t$J.data( document, 'x_readytime', new Date().getTime() );\n\t\t\t\t$J.data( document, 'x_oldref', GetNavCookie() );\n\t\t\t\tSetupTooltips( { tooltipCSSClass: 'store_tooltip'  } );\n\t\t});\n\t\t</script><script type=\"text/javascript\" src=\"https://store.akamai.steamstatic.com/public/shared/javascript/shared_responsive_adapter.js?v=htU2ZedfDXGF&amp;l=english&amp;_cdn=akamai\"></script>\n\n\t\t\t\t\t\t<meta name=\"twitter:card\" content=\"summary_large_image\">\n\t\t\t\t\t<meta name=\"Description\" content=\"Top selling and top played games across Steam\">\n\t\t\t\n\t<meta name=\"twitter:site\" content=\"@steam\" />\n\n\t\t\t\t\t\t<meta property=\"og:title\" content=\"Steam Charts\">\n\t\t\t\t\t<meta property=\"twitter:title\" content=\"Steam Charts\">\n\t\t\t\t\t<meta property=\"og:type\" content=\"website\">\n\t\t\t\t\t<meta property=\"fb:app_id\" content=\"105386699540688\">\n\t\t\t\t\t<meta property=\"og:site\" content=\"Steam\">\n\t\t\t\t\t<meta property=\"og:description\" content=\"Top selling and top played games across Steam\">\n\t\t\t\t\t<meta property=\"twitter:description\" content=\"Top selling and top played games across Steam\">\n\t\t\t\n\t\n\t\t\t<link rel=\"image_src\" href=\"https://store.akamai.steamstatic.com/public/images/steamcharts/share_image.png\">\n\t\t<meta property=\"og:image\" content=\"https://store.akamai.steamstatic.com/public/",
       "target": {
         "chart": "topsellers",
         "region": "KR"
       }
-    },
-    "selected_headers": {
-      "cache-control": "no-cache",
-      "content-length": "30630",
-      "content-type": "text/html; charset=UTF-8",
-      "date": "Fri, 06 Mar 2026 21:46:14 GMT",
-      "etag": null,
-      "last-modified": null,
-      "retry-after": null
     },
     "status_code": 200
   },
