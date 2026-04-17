@@ -20,6 +20,7 @@ from steam.common.execution_meta import (
 from steam.normalize.bronze_to_silver_ccu import format_kst_iso, parse_timestamp
 
 LOGGER = logging.getLogger(__name__)
+PRICE_REGION_KR = "KR"
 
 
 UPSERT_SQL = """
@@ -113,6 +114,17 @@ def write_jsonl(path: Path, rows: list[dict[str, Any]]) -> None:
             handle.write("\n")
 
 
+def normalize_price_region(value: object) -> str:
+    """Normalize the current Steam price region contract to public KR casing."""
+
+    region = str(value).strip().upper()
+    if not region:
+        raise ValueError("region must be non-empty")
+    if region != PRICE_REGION_KR:
+        raise ValueError(f"unsupported Steam price region: {region}")
+    return PRICE_REGION_KR
+
+
 def upsert_fact_price_row(
     cursor: Any,
     *,
@@ -181,7 +193,7 @@ def process_silver_rows(
     for row in silver_rows:
         canonical_game_id = int(row["canonical_game_id"])
         bucket_time = parse_timestamp(str(row["bucket_time"]))
-        region = str(row["region"])
+        region = normalize_price_region(row["region"])
         currency_code = str(row["currency_code"])
         initial_price_minor = int(row["initial_price_minor"])
         final_price_minor = int(row["final_price_minor"])

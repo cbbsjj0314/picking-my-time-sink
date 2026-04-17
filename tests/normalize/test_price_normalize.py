@@ -43,7 +43,7 @@ def test_normalize_bronze_record_maps_price_overview_fields() -> None:
         "final_price_minor": 4200000,
         "initial_price_minor": 4200000,
         "is_free": None,
-        "region": "kr",
+        "region": "KR",
         "steam_appid": 252490,
     }
 
@@ -96,7 +96,7 @@ def test_dedupe_silver_records_keeps_latest_collected_at_for_same_key() -> None:
                 "final_price_minor": 4200000,
                 "initial_price_minor": 4200000,
                 "is_free": None,
-                "region": "kr",
+                "region": "KR",
                 "steam_appid": 252490,
             },
             {
@@ -108,7 +108,7 @@ def test_dedupe_silver_records_keeps_latest_collected_at_for_same_key() -> None:
                 "final_price_minor": 4100000,
                 "initial_price_minor": 4200000,
                 "is_free": None,
-                "region": "kr",
+                "region": "KR",
                 "steam_appid": 252490,
             },
         ]

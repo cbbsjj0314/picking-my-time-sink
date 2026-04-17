@@ -7,6 +7,8 @@ from typing import Any
 
 from api.services.ccu_service import build_pg_conninfo_from_env, require_psycopg
 
+PRICE_REGION_KR = "KR"
+
 GET_LATEST_BY_GAME_SQL = """
 SELECT
     canonical_game_id,
@@ -40,6 +42,15 @@ LIMIT %s
 """
 
 
+def to_public_price_region(value: object) -> str:
+    """Return the current public latest-price region contract."""
+
+    region = str(value).strip().upper()
+    if region != PRICE_REGION_KR:
+        raise ValueError(f"unexpected latest price region: {region}")
+    return PRICE_REGION_KR
+
+
 def to_response_record(row: Mapping[str, Any]) -> dict[str, Any]:
     """Map one DB row from srv_game_latest_price to API response shape."""
 
@@ -49,7 +60,7 @@ def to_response_record(row: Mapping[str, Any]) -> dict[str, Any]:
         "canonical_game_id": int(row["canonical_game_id"]),
         "canonical_name": str(row["canonical_name"]),
         "bucket_time": row["bucket_time"],
-        "region": str(row["region"]),
+        "region": to_public_price_region(row["region"]),
         "currency_code": str(row["currency_code"]),
         "initial_price_minor": int(row["initial_price_minor"]),
         "final_price_minor": int(row["final_price_minor"]),

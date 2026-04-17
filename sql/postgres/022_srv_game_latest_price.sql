@@ -12,7 +12,7 @@ latest_per_game AS (
     SELECT DISTINCT ON (f.canonical_game_id)
         f.canonical_game_id,
         f.bucket_time,
-        f.region,
+        'KR'::TEXT AS region,
         f.currency_code,
         f.initial_price_minor,
         f.final_price_minor,
@@ -22,8 +22,12 @@ latest_per_game AS (
     FROM fact_steam_price_1h AS f
     INNER JOIN active_games AS ag
         ON ag.canonical_game_id = f.canonical_game_id
-    WHERE f.region = 'KR'
-    ORDER BY f.canonical_game_id, f.bucket_time DESC
+    WHERE UPPER(f.region) = 'KR'
+    ORDER BY
+        f.canonical_game_id,
+        f.bucket_time DESC,
+        f.collected_at DESC,
+        CASE WHEN f.region = 'KR' THEN 0 ELSE 1 END
 )
 SELECT
     l.canonical_game_id,

@@ -124,13 +124,15 @@
 - 컬럼(초안):
     - canonical_game_id
     - bucket_time
-    - region (MVP: KR만)
+    - region (MVP: KR만, write path는 `KR` casing으로 정규화)
     - currency_code
     - initial_price_minor
     - final_price_minor
     - discount_percent
     - is_free (nullable)
     - collected_at
+- current serving compatibility:
+    - `srv_game_latest_price` 는 기존 lowercase `kr` fact도 KR fact로 읽고, public serving/API `region`은 `KR`로 고정한다.
 
 ### 4.4 Steam Reviews Snapshot (1일)
 
