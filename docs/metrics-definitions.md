@@ -1,7 +1,7 @@
 # Metrics & Definitions (요구사항 + 지표 정의서)
 
 문서 목적: 용어/지표/Δ 기준을 고정해 구현 중 재해석을 방지
-버전: v0.14 (tracked universe active/lifecycle semantics 반영)
+버전: v0.15 (tracked universe lifecycle / fetch cadence semantics lock)
 작성일: 2026-04-17 (KST)
 
 ## 0. 시간/기간 프리셋
@@ -70,6 +70,7 @@
 - 이 섹션은 target/proposed `Explore` evidence table의 durable metric semantics다. latest 개별 API contract는 section 2.5, 3.5, 5.3, 6.1을 따르고, current `Explore` overview API contract는 section 1.5를 따른다.
 - `Explore` target base universe는 `tracked_game.is_active = true` 인 Steam canonical game이다.
 - current MVP에서 `tracked_game.is_active` 는 serving eligibility 와 Steam price/reviews/ccu fetch eligibility를 함께 뜻한다.
+- `tracked_game.last_seen_at` 은 current metric freshness anchor가 아니며, 오래 관측되지 않은 row를 자동으로 포함/제외하는 lifecycle timer로 사용하지 않는다.
 - warm 7일 rule은 current `Explore` serving active rule이 아니며, `is_active` 와 분리된 lifecycle/fetch-cadence 상태가 정의되기 전까지 metric base universe에 반영하지 않는다.
 - tracked universe seed provenance는 `topsellers_global`, `topsellers_kr`, `mostplayed_global`, `mostplayed_kr` 의 합집합으로 본다.
 - `Explore` default period preset은 `Last 7 Days` 이고, target default sort는 `7일 평균 동접 desc` 다.

@@ -1,5 +1,5 @@
 문서 목적: 테이블/파일 목록 + 그레인(1행 키) + 적재 규칙(증분/스냅샷) + 보존 기준 + repo-grounded provider 확장 경계 기록
-버전: v0.9 (tracked universe active/lifecycle semantics 반영)
+버전: v0.10 (tracked universe lifecycle / fetch cadence semantics lock)
 작성일: 2026-04-17 (KST)
 
 ## 0. 레이어 개요
@@ -65,10 +65,13 @@
 - current repo-grounded Steam-only semantics:
     - current persisted `tracked_game.is_active` 는 serving eligibility 와 price/reviews/ccu fetch eligibility 를 함께 뜻한다.
     - current `srv_game_*` serving views 와 Steam price/reviews/ccu fetchers 는 모두 `tracked_game.is_active = true` 만 읽는다.
+    - `is_active = false` row는 삭제되지 않고 historical facts도 남을 수 있지만, current active serving views와 downstream Steam price/reviews/ccu fetch 대상에서는 제외된다.
     - 따라서 current MVP에서 `is_active` 는 lifecycle phase, cooldown, warm grace 상태가 아니다.
     - ranking seed updater는 completed App Catalog latest summary가 가리키는 full snapshot JSONL을 읽을 수 있을 때만 catalog-driven active filter를 적용한다.
     - current thin slice에서는 ranking seed appid가 그 snapshot에 없으면 row를 삭제하지 않고 `tracked_game.is_active = false` 로 upsert 한다.
     - summary가 없거나 incomplete/unreadable 이면 기존처럼 non-blocking 으로 건너뛴다.
+    - current ranking seed에 더 이상 나타나지 않는 기존 tracked row는 이 updater가 자동 deactivate/delete 하지 않는다.
+    - 오래 관측되지 않은 row에 대한 staleness cull rule은 없다. `tracked_game.last_seen_at` 은 updater가 처리한 current ranking candidate의 관측 시각 기록이며, 현재 fetch cadence나 serving lifecycle을 결정하지 않는다.
     - warm 7일 rule은 current serving active rule 이 아니며, current `tracked_game.is_active` 를 직접 바꾸는 rule로 구현하지 않는다.
     - warm 7일이 필요해지면 `is_active` 와 분리된 lifecycle/fetch-cadence 상태(예: lifecycle state 또는 warm-until/fetch eligibility)를 먼저 정의한 뒤 별도 schema/code/test slice에서 구현한다.
     - 그 전까지 warm 7일은 fetch-only grace proposal/deferred 항목으로만 취급한다.
