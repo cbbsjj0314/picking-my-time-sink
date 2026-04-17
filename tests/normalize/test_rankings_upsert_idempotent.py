@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import datetime as dt
+import json
 import os
 from pathlib import Path
 from typing import Any
 
+from steam.normalize import payload_to_gold_rankings
 from steam.normalize.payload_to_gold_rankings import (
     RankingPayloadSource,
     process_payload_sources,
@@ -134,3 +136,86 @@ def test_process_payload_sources_keeps_null_mapping_for_unresolved_appid(tmp_pat
         }
     ]
     assert store.rows[("2026-03-10", "global", "top_selling", 1)]["canonical_game_id"] is None
+
+
+def test_run_writes_result_and_meta_paths(tmp_path: Path, monkeypatch) -> None:
+    timestamp = dt.datetime(2026, 3, 9, 18, 42, 39, tzinfo=dt.UTC).timestamp()
+    topsellers_kr_path = copy_fixture_with_mtime(
+        tmp_path,
+        "topsellers_kr.payload.json",
+        timestamp=timestamp,
+    )
+    topsellers_global_path = copy_fixture_with_mtime(
+        tmp_path,
+        "topsellers_global.payload.json",
+        timestamp=timestamp,
+    )
+    mostplayed_kr_path = copy_fixture_with_mtime(
+        tmp_path,
+        "mostplayed_kr.payload.json",
+        timestamp=timestamp,
+    )
+    mostplayed_global_path = copy_fixture_with_mtime(
+        tmp_path,
+        "mostplayed_global.payload.json",
+        timestamp=timestamp,
+    )
+    result_path = tmp_path / "rankings-result.jsonl"
+    meta_path = tmp_path / "rankings.meta.json"
+
+    class FakeCursor:
+        def __enter__(self) -> FakeCursor:
+            return self
+
+        def __exit__(self, exc_type, exc, tb) -> bool:
+            del exc_type, exc, tb
+            return False
+
+        def execute(self, sql: str, params: tuple[object, ...]) -> None:
+            del sql, params
+
+    class FakeConnection:
+        def __enter__(self) -> FakeConnection:
+            return self
+
+        def __exit__(self, exc_type, exc, tb) -> bool:
+            del exc_type, exc, tb
+            return False
+
+        def cursor(self) -> FakeCursor:
+            return FakeCursor()
+
+    class FakePsycopg:
+        @staticmethod
+        def connect(*, conninfo: str) -> FakeConnection:
+            assert conninfo == "fake"
+            return FakeConnection()
+
+    monkeypatch.setattr(payload_to_gold_rankings, "require_psycopg", lambda: FakePsycopg)
+    monkeypatch.setattr(
+        payload_to_gold_rankings,
+        "build_pg_conninfo_from_env",
+        lambda: "fake",
+    )
+    monkeypatch.setattr(
+        payload_to_gold_rankings,
+        "load_canonical_mapping_by_steam_appid",
+        lambda conn: {},
+    )
+
+    results = payload_to_gold_rankings.run(
+        topsellers_kr_path=topsellers_kr_path,
+        topsellers_global_path=topsellers_global_path,
+        mostplayed_kr_path=mostplayed_kr_path,
+        mostplayed_global_path=mostplayed_global_path,
+        result_path=result_path,
+        meta_path=meta_path,
+        max_rows=1,
+    )
+
+    assert len(results) == 4
+    assert result_path.exists()
+    meta = json.loads(meta_path.read_text(encoding="utf-8"))
+    assert meta["job_name"] == "payload_to_gold_rankings"
+    assert meta["success"] is True
+    assert meta["records_out"] == 4

@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from steam.normalize.bronze_to_silver_ccu import format_kst_iso, parse_timestamp
-from steam.normalize.silver_to_gold_price import process_silver_rows
+from steam.normalize.silver_to_gold_price import normalize_price_region, process_silver_rows
 
 
 class FakeFactStore:
@@ -68,9 +68,14 @@ def test_process_silver_rows_is_idempotent_for_same_input() -> None:
     second_results = process_silver_rows(rows, upsert_row=store.upsert)
 
     assert len(store.rows) == 2
-    assert first_results[0]["region"] == "kr"
-    assert second_results[0]["region"] == "kr"
+    assert first_results[0]["region"] == "KR"
+    assert second_results[0]["region"] == "KR"
 
-    first_key = (1, format_kst_iso(parse_timestamp("2026-03-13T06:00:00+09:00")), "kr")
+    first_key = (1, format_kst_iso(parse_timestamp("2026-03-13T06:00:00+09:00")), "KR")
     assert store.rows[first_key]["final_price_minor"] == 4200000
     assert store.rows[first_key]["is_free"] is None
+
+
+def test_normalize_price_region_accepts_legacy_lowercase_kr() -> None:
+    assert normalize_price_region("kr") == "KR"
+    assert normalize_price_region(" KR ") == "KR"

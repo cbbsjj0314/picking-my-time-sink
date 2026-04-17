@@ -221,7 +221,7 @@ def test_list_explore_overview_executes_view_query(monkeypatch) -> None:
             "delta_reviews_added_30d_pct": "25.0",
             "delta_period_positive_ratio_30d_pp": "-2.0",
             "price_bucket_time": dt.datetime(2026, 3, 29, 14, 0, tzinfo=KST),
-            "region": "KR",
+            "region": "kr",
             "currency_code": "KRW",
             "initial_price_minor": "4200000",
             "final_price_minor": "3360000",

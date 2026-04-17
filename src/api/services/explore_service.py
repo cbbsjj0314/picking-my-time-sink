@@ -7,6 +7,7 @@ from collections.abc import Mapping
 from typing import Any
 
 from api.services.ccu_service import build_pg_conninfo_from_env, require_psycopg
+from api.services.price_service import to_public_price_region
 
 LIST_EXPLORE_OVERVIEW_SQL = """
 SELECT
@@ -146,7 +147,11 @@ def to_response_record(row: Mapping[str, Any]) -> dict[str, Any]:
             row.get("delta_period_positive_ratio_30d_pp")
         ),
         "price_bucket_time": row.get("price_bucket_time"),
-        "region": str(row["region"]) if row.get("region") is not None else None,
+        "region": (
+            to_public_price_region(row["region"])
+            if row.get("region") is not None
+            else None
+        ),
         "currency_code": (
             str(row["currency_code"]) if row.get("currency_code") is not None else None
         ),

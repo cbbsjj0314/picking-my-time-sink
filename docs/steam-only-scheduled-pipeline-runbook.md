@@ -212,7 +212,9 @@ PYTHONPATH=src poetry run python -m steam.normalize.silver_to_gold_price \
   - gold 단계의 DB env 누락 / DB 연결 실패
 - 현재 의도된 한계:
   - per-app HTTP 실패나 invalid payload는 bronze row로 남고, normalize 단계에서 loadable KR paid-price row만 통과한다.
-  - current slice는 KR only 이고, `is_free` 는 `null` 유지다.
+  - current slice는 KR only 이고, price write path와 public API는 `KR` casing으로 고정한다.
+  - latest price serving은 legacy lowercase `kr` fact도 KR price evidence로 읽는다.
+  - `is_free` 는 `null` 유지다.
 
 ### 3.4 Reviews branch
 

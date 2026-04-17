@@ -118,6 +118,24 @@ def test_to_response_record_preserves_nullable_is_free() -> None:
     assert mapped["discount_percent"] == 0
 
 
+def test_to_response_record_normalizes_legacy_lowercase_region() -> None:
+    row = {
+        "canonical_game_id": 77,
+        "canonical_name": "example",
+        "bucket_time": dt.datetime(2026, 3, 29, 14, 0, tzinfo=KST),
+        "region": "kr",
+        "currency_code": "KRW",
+        "initial_price_minor": 4200000,
+        "final_price_minor": 4200000,
+        "discount_percent": 0,
+        "is_free": None,
+    }
+
+    mapped = price_service.to_response_record(row)
+
+    assert mapped["region"] == "KR"
+
+
 def test_to_response_record_preserves_boolean_is_free() -> None:
     row = {
         "canonical_game_id": 77,

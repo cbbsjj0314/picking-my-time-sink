@@ -13,6 +13,7 @@ from typing import Any
 from steam.normalize.bronze_to_silver_ccu import format_kst_iso, parse_timestamp, to_kst_datetime
 
 LOGGER = logging.getLogger(__name__)
+PRICE_REGION_KR = "KR"
 
 
 def configure_logging() -> None:
@@ -119,7 +120,7 @@ def normalize_bronze_record(row: Mapping[str, Any]) -> dict[str, Any] | None:
         "final_price_minor": price_fields["final_price_minor"],
         "initial_price_minor": price_fields["initial_price_minor"],
         "is_free": None,
-        "region": "kr",
+        "region": PRICE_REGION_KR,
         "steam_appid": steam_appid,
     }
 

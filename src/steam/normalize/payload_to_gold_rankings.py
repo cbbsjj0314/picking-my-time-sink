@@ -422,7 +422,7 @@ def run(
             error_type=error_type,
             error_message=error_message,
         )
-        save_execution_meta(resolved_meta_path, execution_meta)
+        save_execution_meta(execution_meta, resolved_meta_path)
 
 
 def main() -> None:
