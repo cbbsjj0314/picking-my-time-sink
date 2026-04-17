@@ -31,6 +31,7 @@ def test_run_executes_manual_runbook_order_with_fixed_handoff_paths(
         "ccu_bronze": [{"stage": "ccu_bronze"}],
         "ccu_silver": [{"stage": "ccu_silver"}],
         "ccu_gold": [{"stage": "ccu_gold"}],
+        "ccu_daily_rollup": [{"stage": "ccu_daily_rollup"}],
     }
 
     def fake_tracked_universe_run(**kwargs: object) -> list[dict[str, object]]:
@@ -76,6 +77,10 @@ def test_run_executes_manual_runbook_order_with_fixed_handoff_paths(
     def fake_ccu_gold_run(**kwargs: object) -> list[dict[str, object]]:
         calls.append(("ccu_gold", dict(kwargs)))
         return expected_results["ccu_gold"]
+
+    def fake_ccu_daily_rollup_run(**kwargs: object) -> list[dict[str, object]]:
+        calls.append(("ccu_daily_rollup", dict(kwargs)))
+        return expected_results["ccu_daily_rollup"]
 
     monkeypatch.setattr(
         run_steam_only_scheduled_pipeline.run_tracked_universe_scheduled,
@@ -131,6 +136,11 @@ def test_run_executes_manual_runbook_order_with_fixed_handoff_paths(
         run_steam_only_scheduled_pipeline.silver_to_gold_ccu,
         "run",
         fake_ccu_gold_run,
+    )
+    monkeypatch.setattr(
+        run_steam_only_scheduled_pipeline.gold_to_agg_ccu_daily,
+        "run",
+        fake_ccu_daily_rollup_run,
     )
 
     result = run_steam_only_scheduled_pipeline.run()
@@ -227,6 +237,14 @@ def test_run_executes_manual_runbook_order_with_fixed_handoff_paths(
             {
                 "input_path": Path("tmp/steam/handoff/ccu.silver.jsonl"),
                 "result_path": Path("tmp/steam/handoff/ccu.gold-result.jsonl"),
+            },
+        ),
+        (
+            "ccu_daily_rollup",
+            {
+                "result_path": (
+                    run_steam_only_scheduled_pipeline.DEFAULT_CCU_DAILY_ROLLUP_RESULT_PATH
+                ),
             },
         ),
     ]

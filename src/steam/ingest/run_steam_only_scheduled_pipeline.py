@@ -17,6 +17,7 @@ from steam.normalize import (
     bronze_to_silver_ccu,
     bronze_to_silver_price,
     bronze_to_silver_reviews,
+    gold_to_agg_ccu_daily,
     payload_to_gold_rankings,
     silver_to_gold_ccu,
     silver_to_gold_price,
@@ -37,6 +38,9 @@ DEFAULT_REVIEWS_GOLD_RESULT_PATH = Path("tmp/steam/handoff/reviews.gold-result.j
 DEFAULT_CCU_BRONZE_PATH = Path("tmp/steam/handoff/ccu.bronze.jsonl")
 DEFAULT_CCU_SILVER_PATH = Path("tmp/steam/handoff/ccu.silver.jsonl")
 DEFAULT_CCU_GOLD_RESULT_PATH = Path("tmp/steam/handoff/ccu.gold-result.jsonl")
+DEFAULT_CCU_DAILY_ROLLUP_RESULT_PATH = Path(
+    "tmp/steam/handoff/ccu.daily-rollup-result.jsonl"
+)
 
 
 def configure_logging() -> None:
@@ -84,20 +88,21 @@ def run(
     ccu_bronze_path: Path = DEFAULT_CCU_BRONZE_PATH,
     ccu_silver_path: Path = DEFAULT_CCU_SILVER_PATH,
     ccu_gold_result_path: Path = DEFAULT_CCU_GOLD_RESULT_PATH,
+    ccu_daily_rollup_result_path: Path = DEFAULT_CCU_DAILY_ROLLUP_RESULT_PATH,
 ) -> dict[str, list[dict[str, Any]]]:
     """Run the current manual handoff sequence as one fixed-order command."""
 
-    LOGGER.info("Step 1/5: refreshing ranking payloads and updating tracked universe")
+    LOGGER.info("Step 1/6: refreshing ranking payloads and updating tracked universe")
     tracked_universe_rows = run_tracked_universe_scheduled.run(
         result_path=tracked_universe_result_path,
     )
 
-    LOGGER.info("Step 2/5: loading ranking payloads into gold")
+    LOGGER.info("Step 2/6: loading ranking payloads into gold")
     rankings_rows = payload_to_gold_rankings.run(
         result_path=rankings_result_path,
     )
 
-    LOGGER.info("Step 3/5: running price fetch -> silver -> gold")
+    LOGGER.info("Step 3/6: running price fetch -> silver -> gold")
     price_bronze_rows = fetch_price_1h.run(
         **build_fetch_run_kwargs(fetch_price_1h, output_path=price_bronze_path),
     )
@@ -110,7 +115,7 @@ def run(
         result_path=price_gold_result_path,
     )
 
-    LOGGER.info("Step 4/5: running reviews fetch -> silver -> gold")
+    LOGGER.info("Step 4/6: running reviews fetch -> silver -> gold")
     reviews_bronze_rows = fetch_reviews_daily.run(
         **build_fetch_run_kwargs(fetch_reviews_daily, output_path=reviews_bronze_path),
     )
@@ -123,7 +128,7 @@ def run(
         result_path=reviews_gold_result_path,
     )
 
-    LOGGER.info("Step 5/5: running CCU fetch -> silver -> gold")
+    LOGGER.info("Step 5/6: running CCU fetch -> silver -> gold")
     ccu_bronze_rows = fetch_ccu_30m.run(
         **build_fetch_run_kwargs(fetch_ccu_30m, output_path=ccu_bronze_path),
     )
@@ -134,6 +139,11 @@ def run(
     ccu_gold_rows = silver_to_gold_ccu.run(
         input_path=ccu_silver_path,
         result_path=ccu_gold_result_path,
+    )
+
+    LOGGER.info("Step 6/6: aggregating CCU gold into daily rollup")
+    ccu_daily_rollup_rows = gold_to_agg_ccu_daily.run(
+        result_path=ccu_daily_rollup_result_path,
     )
 
     return {
@@ -148,6 +158,7 @@ def run(
         "ccu_bronze": ccu_bronze_rows,
         "ccu_silver": ccu_silver_rows,
         "ccu_gold": ccu_gold_rows,
+        "ccu_daily_rollup": ccu_daily_rollup_rows,
     }
 
 
@@ -160,13 +171,14 @@ def main() -> None:
     LOGGER.info(
         (
             "Completed scheduled pipeline with tracked_universe=%s rankings=%s "
-            "price_gold=%s reviews_gold=%s ccu_gold=%s"
+            "price_gold=%s reviews_gold=%s ccu_gold=%s ccu_daily_rollup=%s"
         ),
         len(results["tracked_universe"]),
         len(results["rankings"]),
         len(results["price_gold"]),
         len(results["reviews_gold"]),
         len(results["ccu_gold"]),
+        len(results["ccu_daily_rollup"]),
     )
 
 
