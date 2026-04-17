@@ -34,6 +34,24 @@ const tableHeadings = [
   'Price',
 ]
 
+const getUniformEvidenceLabel = (
+  rows: SteamExploreTableRow[],
+  selector: (row: SteamExploreTableRow) => string | null,
+  label: string,
+) => {
+  const values = Array.from(new Set(rows.map(selector).filter((value): value is string => value !== null)))
+
+  if (values.length === 0) {
+    return null
+  }
+
+  if (values.length === 1) {
+    return `${label} ${values[0]}`
+  }
+
+  return `${label} mixed snapshots`
+}
+
 export function SteamExploreTable({
   rows,
   totalRowCount,
@@ -41,8 +59,12 @@ export function SteamExploreTable({
   error = null,
   searchQuery = '',
 }: SteamExploreTableProps) {
-  const firstCcuAnchor = rows.find((row) => row.ccuAnchorLabel !== null)?.ccuAnchorLabel ?? null
-  const firstReviewAnchor = rows.find((row) => row.reviewAnchorLabel !== null)?.reviewAnchorLabel ?? null
+  const freshnessLabels = [
+    getUniformEvidenceLabel(rows, (row) => row.currentCcuTitle, 'Current CCU'),
+    getUniformEvidenceLabel(rows, (row) => row.ccuAnchorLabel, 'CCU period anchor'),
+    getUniformEvidenceLabel(rows, (row) => row.reviewAnchorLabel, 'Reviews anchor'),
+    getUniformEvidenceLabel(rows, (row) => row.priceTitle, 'Price snapshot'),
+  ].filter((value): value is string => value !== null)
   const hasSearch = searchQuery.trim().length > 0
 
   return (
@@ -66,11 +88,9 @@ export function SteamExploreTable({
         </div>
       </div>
 
-      {firstCcuAnchor || firstReviewAnchor ? (
+      {freshnessLabels.length > 0 ? (
         <p className="mt-4 text-xs text-[var(--text-muted)]">
-          {firstCcuAnchor ? `CCU anchor ${firstCcuAnchor}` : null}
-          {firstCcuAnchor && firstReviewAnchor ? ' · ' : null}
-          {firstReviewAnchor ? `Reviews anchor ${firstReviewAnchor}` : null}
+          {freshnessLabels.join(' · ')}
         </p>
       ) : null}
 
