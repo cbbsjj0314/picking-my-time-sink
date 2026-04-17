@@ -1,6 +1,6 @@
 문서 목적: probe(샘플 검증) 실행 체크리스트 + 이후 스키마/파서/테스트의 기준점 + repo-grounded provider 확장 진입 기준 기록
-버전: v0.3 (Steam reviews request contract 반영)
-작성일: 2026-04-14 (KST)
+버전: v0.4 (tracked universe lifecycle / fetch cadence semantics lock)
+작성일: 2026-04-17 (KST)
 
 ## 0. 공통 원칙
 
@@ -44,6 +44,9 @@
     - downstream consumer contract는 `response.payload_excerpt_or_json` 아래의 `app_count`, `pagination`, `top_level_keys`, `apps_excerpt` 요약 shape를 재사용한다.
     - `update_tracked_universe.py` 와 `run_tracked_universe_scheduled.py` 의 optional consumer default는 위 latest summary path를 사용하며, 파일이 없거나 읽기 실패여도 non-blocking 으로 건너뛴다.
     - `update_tracked_universe.py` 의 current thin-slice consumer rule은 `pagination.have_more_results = false` 인 completed summary만 신뢰하고, 그 `snapshot_path` JSONL에 없는 ranking seed appid는 `tracked_game.is_active = false` 로 upsert 한다.
+    - App Catalog latest summary는 current runtime에서 optional handoff artifact다. external weekly scheduling 운영화는 아직 current baseline에 포함하지 않는다.
+    - current ranking seed에서 사라진 기존 tracked row와 오래 관측되지 않은 tracked row는 App Catalog consumer가 자동 deactivate/delete 하지 않는다.
+    - `tracked_game.last_seen_at` 은 staleness lifecycle timer가 아니며, current price/reviews/ccu fetch cadence는 `tracked_game.is_active = true` 여부만 따른다.
 
 ### 1.2 CCU (동접)
 

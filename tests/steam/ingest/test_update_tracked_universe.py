@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+from steam.ingest import update_tracked_universe
 from steam.ingest.app_catalog_latest_summary import build_latest_summary, write_latest_summary
 from steam.ingest.update_tracked_universe import (
     DEFAULT_APP_CATALOG_PATH,
@@ -55,6 +56,16 @@ def make_candidate(
         priority=priority,
         sources=sources,
     )
+
+
+class RecordingCursor:
+    def __init__(self) -> None:
+        self.query: str | None = None
+        self.params: object | None = None
+
+    def execute(self, query: str, params: object) -> None:
+        self.query = query
+        self.params = params
 
 
 def test_default_seed_source_table_is_explicit_and_stable() -> None:
@@ -319,6 +330,47 @@ def test_resolve_candidate_is_active_marks_missing_catalog_appid_inactive() -> N
             catalog_active_appids=frozenset({10, 20}),
         )
         is False
+    )
+
+
+def test_resolve_candidate_is_active_keeps_catalog_present_appid_active() -> None:
+    assert (
+        resolve_candidate_is_active(
+            make_candidate(steam_appid=730),
+            catalog_active_appids=frozenset({10, 20, 730}),
+        )
+        is True
+    )
+
+
+def test_upsert_tracked_game_only_touches_current_candidate_without_global_cull() -> None:
+    cursor = RecordingCursor()
+    run_seen_at = dt.datetime(2026, 3, 10, 12, 0, tzinfo=dt.UTC)
+
+    update_tracked_universe._upsert_tracked_game(
+        cursor,
+        canonical_game_id=1,
+        is_active=True,
+        priority=1,
+        sources=["steam_rank_topsellers_kr"],
+        run_seen_at=run_seen_at,
+    )
+
+    assert cursor.query is not None
+    normalized_query = cursor.query.lower()
+    assert "insert into tracked_game" in normalized_query
+    assert "on conflict (canonical_game_id)" in normalized_query
+    assert "do update set" in normalized_query
+    assert "delete from tracked_game" not in normalized_query
+    assert "last_seen_at <" not in normalized_query
+    assert "stale" not in normalized_query
+    assert cursor.params == (
+        1,
+        True,
+        1,
+        ["steam_rank_topsellers_kr"],
+        run_seen_at,
+        run_seen_at,
     )
 
 
