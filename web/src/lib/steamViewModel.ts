@@ -13,7 +13,6 @@ import type {
   SteamDataState,
   SteamDataStateTarget,
   SteamDetailCard,
-  RangeOption,
   SteamDiscoverMode,
   SteamReferenceGame,
 } from '../types'
@@ -28,7 +27,6 @@ export interface SteamOverviewApiData {
 
 interface BuildSteamGamesArgs {
   mode: SteamDiscoverMode
-  rankingWindow: RangeOption
   searchQuery: string
   data: SteamOverviewApiData
   historyByCanonicalGameId: Record<number, GameDaily90dCcu[]>
@@ -425,29 +423,9 @@ const buildDetailCards = (row: SteamBaseRow, historyRows: GameDaily90dCcu[] | un
   ]
 }
 
-const getPlayerHeatContextSuffix = (rankingWindow: RangeOption) => {
-  if (rankingWindow === '1D') {
-    return 'Highest live CCU now'
-  }
-
-  if (rankingWindow === 'Last 7 Days') {
-    return 'Strong 7D player floor'
-  }
-
-  if (rankingWindow === 'Last 30 Days') {
-    return 'Strong 30D player floor'
-  }
-
-  return 'Strong 90D player floor'
-}
-
-const getSurfaceContext = (row: SteamBaseRow, mode: SteamDiscoverMode, rankingWindow: RangeOption) => {
-  if (mode === 'Top Selling') {
-    const snapshotLabel = row.rankingSnapshotDate ? ` · Snapshot ${formatSnapshotDate(row.rankingSnapshotDate)}` : ''
-    return `${getSteamDiscoverModeDisplayLabel(mode)} #${row.rank} · Weekly top sellers snapshot${snapshotLabel}`
-  }
-
-  return `${getSteamDiscoverModeDisplayLabel(mode)} #${row.rank} · ${getPlayerHeatContextSuffix(rankingWindow)}`
+const getSurfaceContext = (row: SteamBaseRow, mode: SteamDiscoverMode) => {
+  const snapshotLabel = row.rankingSnapshotDate ? ` · Snapshot ${formatSnapshotDate(row.rankingSnapshotDate)}` : ''
+  return `${getSteamDiscoverModeDisplayLabel(mode)} #${row.rank} · Weekly top sellers snapshot${snapshotLabel}`
 }
 
 const buildTopSellingRows = (data: SteamOverviewApiData): SteamBaseRow[] => {
@@ -468,26 +446,8 @@ const buildTopSellingRows = (data: SteamOverviewApiData): SteamBaseRow[] => {
   }))
 }
 
-const buildMostPlayedRows = (data: SteamOverviewApiData): SteamBaseRow[] => {
-  const priceByGameId = new Map(data.priceRows.map((row) => [row.canonical_game_id, row] as const))
-  const reviewsByGameId = new Map(data.reviewRows.map((row) => [row.canonical_game_id, row] as const))
-
-  return data.ccuRows.map((row, index) => ({
-    id: `canonical:${row.canonical_game_id}`,
-    canonicalGameId: row.canonical_game_id,
-    steamAppId: null,
-    title: row.canonical_name,
-    rank: index + 1,
-    rankingSnapshotDate: null,
-    ccu: row,
-    price: priceByGameId.get(row.canonical_game_id) ?? null,
-    reviews: reviewsByGameId.get(row.canonical_game_id) ?? null,
-  }))
-}
-
 export function buildSteamGames({
   mode,
-  rankingWindow,
   searchQuery,
   data,
   historyByCanonicalGameId,
@@ -495,12 +455,7 @@ export function buildSteamGames({
   historyErrorCanonicalGameIds,
 }: BuildSteamGamesArgs): SteamReferenceGame[] {
   const normalizedSearch = searchQuery.trim().toLowerCase()
-  const baseRows =
-    mode === 'Explore'
-      ? []
-      : mode === 'Top Selling'
-        ? buildTopSellingRows(data)
-        : buildMostPlayedRows(data)
+  const baseRows = mode === 'Explore' ? [] : buildTopSellingRows(data)
 
   return baseRows
     .filter((row) => (normalizedSearch.length > 0 ? row.title.toLowerCase().includes(normalizedSearch) : true))
@@ -519,7 +474,7 @@ export function buildSteamGames({
         reviewSummary: buildReviewSummary(row.reviews),
         statusBadge: getStatusBadge(cardStates),
         verdictChips: getVerdictChips(row),
-        surfaceContext: getSurfaceContext(row, mode, rankingWindow),
+        surfaceContext: getSurfaceContext(row, mode),
         detailCards: buildDetailCards(row, historyRows),
         timeline: {
           '7D': buildTimelinePoints(historyRows, '7D'),

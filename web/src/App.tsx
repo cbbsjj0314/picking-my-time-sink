@@ -12,31 +12,14 @@ import type { RangeOption, SourceTab, SteamChartRange, SteamDiscoverMode } from 
 
 const DEFAULT_SOURCE_TAB: SourceTab = 'Steam'
 const DEFAULT_STEAM_DISCOVER_MODE: SteamDiscoverMode = 'Explore'
-const DEFAULT_RANGE: RangeOption = 'Last 7 Days'
+const TOP_SELLING_RANGE: RangeOption = 'Last 7 Days'
 const DEFAULT_STEAM_CHART_RANGE: SteamChartRange = '7D'
-const SUPPORTED_RANGES_BY_MODE: Record<SteamDiscoverMode, readonly RangeOption[]> = {
-  Explore: ['Last 7 Days'],
-  'Top Selling': ['Last 7 Days'],
-  'Most Played': ['1D', 'Last 7 Days', 'Last 30 Days', 'Last 3 Months'],
-}
-const RANGE_CONTROL_OPTIONS_BY_MODE: Record<
-  SteamDiscoverMode,
-  ReadonlyArray<{ value: RangeOption; label: string }>
-> = {
-  Explore: [{ value: 'Last 7 Days', label: 'Last 7 Days' }],
-  'Top Selling': [{ value: 'Last 7 Days', label: 'Weekly' }],
-  'Most Played': [
-    { value: '1D', label: '1D' },
-    { value: 'Last 7 Days', label: 'Last 7 Days' },
-    { value: 'Last 30 Days', label: 'Last 30 Days' },
-    { value: 'Last 3 Months', label: 'Last 3 Months' },
-  ],
-}
-const RANGE_STATUS_TEXT_BY_MODE: Record<SteamDiscoverMode, string> = {
-  Explore: 'Explore는 /games/explore/overview의 Last 7 Days evidence table을 그대로 보여준다.',
-  'Top Selling': 'Top Selling은 Steam weekly top sellers snapshot 기준이라 현재 Weekly view로 고정된다.',
-  'Most Played': 'Player Heat는 1D live CCU, 7D/30D/3M full-window daily CCU rollup 기준으로 리스트를 바꾼다.',
-}
+const TOP_SELLING_RANGE_CONTROL_OPTIONS = [{ value: TOP_SELLING_RANGE, label: 'Weekly' }] as const satisfies ReadonlyArray<{
+  value: RangeOption
+  label: string
+}>
+const TOP_SELLING_RANGE_STATUS_TEXT =
+  'Top Selling은 Steam weekly top sellers snapshot 기준이라 현재 Weekly view로 고정된다.'
 
 const getInitialSourceTab = (): SourceTab => {
   return DEFAULT_SOURCE_TAB
@@ -45,7 +28,6 @@ const getInitialSourceTab = (): SourceTab => {
 function App() {
   const [sourceTab, setSourceTab] = useState<SourceTab>(getInitialSourceTab())
   const [steamDiscoverMode, setSteamDiscoverMode] = useState<SteamDiscoverMode>(DEFAULT_STEAM_DISCOVER_MODE)
-  const [steamRankingWindow, setSteamRankingWindow] = useState<RangeOption>(DEFAULT_RANGE)
   const [steamChartRange, setSteamChartRange] = useState<SteamChartRange>(DEFAULT_STEAM_CHART_RANGE)
   const [showExpandedRanking, setShowExpandedRanking] = useState(false)
   const [searchDraft, setSearchDraft] = useState('')
@@ -53,8 +35,6 @@ function App() {
   const [selectedId, setSelectedId] = useState<string | null>(null)
 
   const deferredSearch = useDeferredValue(searchQuery)
-  const supportedSteamRankingRanges = SUPPORTED_RANGES_BY_MODE[steamDiscoverMode]
-  const rankingControlOptions = RANGE_CONTROL_OPTIONS_BY_MODE[steamDiscoverMode]
   const {
     games: steamGames,
     selectedGame: selectedSteamGame,
@@ -63,7 +43,6 @@ function App() {
     error,
   } = useSteamOverview({
     mode: steamDiscoverMode,
-    rankingWindow: steamRankingWindow,
     rankingCardLimit: showExpandedRanking ? null : 4,
     searchQuery: deferredSearch,
     selectedId,
@@ -97,17 +76,10 @@ function App() {
     }
   }, [activeGames, selectedId])
 
-  const handleSteamRankingWindowChange = (nextRange: RangeOption) => {
-    startTransition(() => {
-      setSteamRankingWindow(nextRange)
-    })
-  }
-
   const resetToDefaultView = () => {
     startTransition(() => {
       setSourceTab(DEFAULT_SOURCE_TAB)
       setSteamDiscoverMode(DEFAULT_STEAM_DISCOVER_MODE)
-      setSteamRankingWindow(DEFAULT_RANGE)
       setSteamChartRange(DEFAULT_STEAM_CHART_RANGE)
       setShowExpandedRanking(false)
       setSearchDraft('')
@@ -148,13 +120,9 @@ function App() {
         <SteamDiscoverModeRow
           mode={steamDiscoverMode}
           onChange={(mode) => {
-            const supportedRanges = SUPPORTED_RANGES_BY_MODE[mode]
-            const nextRange = supportedRanges.includes(steamRankingWindow) ? steamRankingWindow : supportedRanges[0]
-
             startTransition(() => {
               setSelectedId(null)
               setSteamDiscoverMode(mode)
-              setSteamRankingWindow(nextRange)
               setShowExpandedRanking(false)
             })
           }}
@@ -179,16 +147,16 @@ function App() {
                 loading={loading}
                 isExpanded={showExpandedRanking}
                 canExpand={steamTotalGameCount > steamGames.length}
-                onRangeChange={handleSteamRankingWindowChange}
+                onRangeChange={() => undefined}
                 onSelect={setSelectedId}
                 onToggleExpanded={() => {
                   startTransition(() => {
                     setShowExpandedRanking((current) => !current)
                   })
                 }}
-                range={steamRankingWindow}
-                rangeControlOptions={rankingControlOptions}
-                rangeStatusText={RANGE_STATUS_TEXT_BY_MODE[steamDiscoverMode]}
+                range={TOP_SELLING_RANGE}
+                rangeControlOptions={TOP_SELLING_RANGE_CONTROL_OPTIONS}
+                rangeStatusText={TOP_SELLING_RANGE_STATUS_TEXT}
                 selectedId={selectedSteamGame?.id ?? null}
               />
 
