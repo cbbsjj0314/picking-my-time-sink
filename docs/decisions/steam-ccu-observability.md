@@ -69,8 +69,10 @@ Strategy:
 
 Path rule:
 
-- Routine per-run execution meta -> `tmp/steam/run-meta/...`
-- Representative samples -> `docs/probe/steam/...`
+- Routine per-run execution meta stays local/private.
+- Raw representative captures stay under ignored local data paths.
+- Parser or ingest regression inputs must be minimal sanitized fixtures under `tests/fixtures/...`.
+- Public docs retain durable contracts only.
 
 ## Minimal Regression Checklist
 
@@ -79,11 +81,7 @@ Path rule:
 - `tests/normalize/test_upsert_idempotent.py`: fact upsert rerun safety for repeated input.
 - `tests/api/test_games_latest_ccu.py`: latest CCU API serving-view semantics and response mapping.
 
-Manual check:
-
-- Run `fetch_ccu_30m` once.
-- Confirm a run-meta file is created under `tmp/steam/run-meta/...`.
-- Confirm these keys exist in the saved meta: `duration_ms`, `success`, `http_status`, `retry_count`, `timeout_count`, `rate_limit_count`.
+Local operator checks belong in `docs/local/` runbooks. At the contract level, CCU execution meta should continue to include `duration_ms`, `success`, `http_status`, `retry_count`, `timeout_count`, and `rate_limit_count`.
 
 Notes:
 

@@ -13,12 +13,7 @@ from steam.probe.probe_rankings import (
 
 FIXTURE_DIR = Path("tests/fixtures/steam/rankings")
 README_PATH = FIXTURE_DIR / "README.md"
-EXCERPT_SNAPSHOT_PATHS = (
-    Path("docs/probe/steam/rankings_topsellers_global/representative.json"),
-    Path("docs/probe/steam/rankings_topsellers_kr/representative.json"),
-    Path("docs/probe/steam/rankings_mostplayed_global/representative.json"),
-    Path("docs/probe/steam/rankings_mostplayed_kr/representative.json"),
-)
+LEGACY_EMPTY_CHART_FIXTURE = FIXTURE_DIR / "legacy_empty_chart.html"
 PAYLOAD_CASES = (
     ("topsellers_global.payload.json", "topsellers", "global", 3764200, "Resident Evil Requiem"),
     ("topsellers_kr.payload.json", "topsellers", "KR", 578080, "PUBG: BATTLEGROUNDS"),
@@ -78,11 +73,8 @@ def test_parse_rankings_html_respects_max_rows() -> None:
     assert rows[-1]["app_id"] == 570
 
 
-@pytest.mark.parametrize("snapshot_path", EXCERPT_SNAPSHOT_PATHS)
-def test_committed_rankings_excerpts_still_parse_to_empty_rows(snapshot_path: Path) -> None:
-    snapshot = _load_json(snapshot_path)
-    payload = snapshot["response"]["payload_excerpt_or_json"]
-    excerpt = payload["raw_html_excerpt"] or ""
+def test_legacy_empty_chart_fixture_still_parses_to_empty_rows() -> None:
+    excerpt = LEGACY_EMPTY_CHART_FIXTURE.read_text(encoding="utf-8")
 
     rows = parse_rankings_html(excerpt, max_rows=100)
 

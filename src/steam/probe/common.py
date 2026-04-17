@@ -31,6 +31,7 @@ SELECTED_RESPONSE_HEADERS = (
     "retry-after",
     "content-length",
 )
+DEFAULT_PROBE_OUT_DIR = Path("data/local/probe/steam")
 
 
 @dataclass(slots=True)
@@ -66,7 +67,7 @@ def configure_logging(level: int = logging.INFO) -> None:
 def add_common_probe_arguments(parser: argparse.ArgumentParser) -> None:
     """Add the shared CLI arguments used by every probe."""
 
-    parser.add_argument("--out-dir", type=Path, default=Path("docs/probe/steam"))
+    parser.add_argument("--out-dir", type=Path, default=DEFAULT_PROBE_OUT_DIR)
     parser.add_argument("--timeout-sec", type=float, default=10.0)
     parser.add_argument("--max-attempts", type=int, default=4)
     parser.add_argument("--backoff-base-sec", type=float, default=0.5)
@@ -412,7 +413,7 @@ def save_snapshot(
     snapshot: Mapping[str, Any],
     fixed_basename: str | None = None,
 ) -> Path:
-    """Save snapshot JSON under docs/probe/steam/<probe_name>/ with stable formatting."""
+    """Save snapshot JSON under the configured probe output directory."""
 
     probe_dir = out_dir / probe_name
     probe_dir.mkdir(parents=True, exist_ok=True)

@@ -1,0 +1,30 @@
+{
+  "response": {
+    "payload_excerpt_or_json": {
+      "app_count": 10000,
+      "apps_excerpt": [
+        {
+          "appid": 10,
+          "last_modified": 1745368572,
+          "name": "Counter-Strike",
+          "price_change_number": 33078735
+        },
+        {
+          "appid": 20,
+          "last_modified": 1745368565,
+          "name": "Team Fortress Classic",
+          "price_change_number": 33078735
+        }
+      ],
+      "pagination": {
+        "have_more_results": true,
+        "last_appid": 507030
+      },
+      "top_level_keys": [
+        "apps",
+        "have_more_results",
+        "last_appid"
+      ]
+    }
+  }
+}

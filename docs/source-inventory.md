@@ -5,7 +5,7 @@
 ## 0. 공통 원칙
 
 - 실패/빈값/429는 “발생할 수 있다”를 전제로 하고, 재시도/백오프/관측 로그를 남긴다.
-- 프로브 산출물(샘플 JSON)은 리포지토리에 고정 저장해 “회귀 테스트” 기준으로 사용한다.
+- public에는 sanitized fixture와 durable contract만 남긴다. raw capture, UGC-heavy payload, 내부 운영 절차, exact local schedule은 local/private first로 둔다.
 - 스트리밍 확장은 첫 provider-specific source probe/ingest 후보를 좁혀 시작한다. Chzzk/Twitch 공통 인터페이스나 generalized provider abstraction은 실제 provider probe가 안정화된 뒤 별도 slice에서 검토한다.
 
 ### 0.1 Provider boundary (current repo-grounded)
@@ -20,8 +20,8 @@
     - 첫 후보는 Chzzk category live-list probe 준비다.
     - source boundary는 Chzzk live/category payload에서 category id/name, live concurrent, channel id/name만 category-level evidence로 읽는 데 한정한다.
     - category-level 30분 fact 방향은 `(chzzk_category_id, bucket_time)` 단위의 concurrent 합계, live_count, top channel evidence다.
-    - sample payload/fixture는 parser, DDL, ingest test보다 먼저 필요하다. sanitized representative payload를 `docs/probe/chzzk/lives/representative.json` 형태로 고정한 뒤 구현에 들어간다.
-    - raw/probe responsibility는 provider 응답과 수집 메타데이터를 보존하는 것이다. ingest responsibility는 한 provider payload를 category 30분 row로 정규화하는 데 그치며 canonical game mapping, serving API, UI wiring을 하지 않는다.
+    - sample payload/fixture는 parser, DDL, ingest test보다 먼저 필요하다. parser가 의존하는 sanitized fixture를 `tests/fixtures/chzzk/lives/` 아래에 고정한 뒤 구현에 들어간다.
+    - raw/probe responsibility는 provider 응답과 수집 메타데이터를 local/private 경계에 보존하는 것이다. ingest responsibility는 한 provider payload를 category 30분 row로 정규화하는 데 그치며 canonical game mapping, serving API, UI wiring을 하지 않는다.
 - real integration 전 필요 조건:
     - Chzzk 호출 방식, 인증/쿼터, 이용 가능 필드, 응답 안정성을 representative payload로 확인
     - secrets는 환경 변수로 주입하고 토큰/쿠키/개인 헤더를 fixture, 로그, 문서에 저장하지 않는 운영 규칙 확정
@@ -47,13 +47,13 @@
     - checkpoint가 `in_progress` 이면 checkpoint의 `snapshot_path`를 resume 대상으로 재사용하며, explicit `--output-path` 보다 우선한다.
     - checkpoint가 `completed` 이거나 checkpoint가 없으면 fresh start 이며, explicit `--output-path` 가 있으면 그 경로에 새 snapshot을 쓰고 없으면 timestamped default path를 사용한다.
     - fresh start에서 explicit `--output-path` 가 기존 completed snapshot과 같은 경로여도 첫 요청 전에 빈 JSONL로 즉시 다시 쓰며, single-page terminal fetch는 그 fresh snapshot을 `completed`로 마감한다.
-- current repo-grounded runtime latest summary handoff:
-    - successful weekly fetch는 resumable JSONL snapshot과 별도로 `tmp/steam/app_catalog/latest.summary.json` 를 갱신한다.
+- current repo-grounded runtime latest summary:
+    - successful weekly fetch는 resumable JSONL snapshot과 별도로 local/private latest summary JSON을 갱신한다.
     - latest summary top-level contract는 `job_name`, `status`, `started_at_utc`, `finished_at_utc`, `snapshot_path` 이다.
     - downstream consumer contract는 `response.payload_excerpt_or_json` 아래의 `app_count`, `pagination`, `top_level_keys`, `apps_excerpt` 요약 shape를 재사용한다.
     - `update_tracked_universe.py` 와 `run_tracked_universe_scheduled.py` 의 optional consumer default는 위 latest summary path를 사용하며, 파일이 없거나 읽기 실패여도 non-blocking 으로 건너뛴다.
     - `update_tracked_universe.py` 의 current thin-slice consumer rule은 `pagination.have_more_results = false` 인 completed summary만 신뢰하고, 그 `snapshot_path` JSONL에 없는 ranking seed appid는 `tracked_game.is_active = false` 로 upsert 한다.
-    - App Catalog latest summary는 current runtime에서 optional handoff artifact다. external weekly scheduling 운영화는 아직 current baseline에 포함하지 않는다.
+    - App Catalog latest summary는 current runtime에서 optional local/private artifact다. external weekly scheduling 운영화는 아직 current baseline에 포함하지 않는다.
     - current ranking seed에서 사라진 기존 tracked row와 오래 관측되지 않은 tracked row는 App Catalog consumer가 자동 deactivate/delete 하지 않는다.
     - `tracked_game.last_seen_at` 은 staleness lifecycle timer가 아니며, current price/reviews/ccu fetch cadence는 `tracked_game.is_active = true` 여부만 따른다.
 
@@ -74,7 +74,7 @@
 - 목적: “살 만한가” 지표(1일 스냅샷)
 - 엔드포인트: Steam Store Reviews (appreviews)
 - 인증: 보통 Key 불필요
-- 주기: 1일 1회(03:20 KST)
+- 주기: daily
 - 입력 키: steam_appid
 - current repo-grounded request params:
     - `json=1`
@@ -111,15 +111,12 @@
     - `IStoreTopSellersService/GetWeeklyTopSellers/v1`
     - `ISteamChartsService/GetGamesByConcurrentPlayers/v1`
 - 범위: KR + global 둘 다 저장
-- 주기: 1일 1회(03:10 KST)
+- 주기: daily
 - runtime artifact:
-    - `tmp/steam/rankings/topsellers_global.payload.json`
-    - `tmp/steam/rankings/topsellers_kr.payload.json`
-    - `tmp/steam/rankings/mostplayed_global.payload.json`
-    - `tmp/steam/rankings/mostplayed_kr.payload.json`
+    - ranking refresh writes four local/private payload files: top sellers global, top sellers KR, most played global, most played KR.
 - 출력 필드(예상): rank_type, rank_position, steam_appid(또는 추출된 appid), snapshot_market(KR/global)
 - 실패/주의:
-    - runtime은 fixture-compatible JSON payload contract를 사용하고, legacy HTML excerpt 회귀 테스트는 별도로 유지
+    - runtime은 fixture-compatible JSON payload contract를 사용하고, legacy HTML behavior는 sanitized fixture로만 회귀 테스트한다.
     - payload fetch 실패/빈 ranks 시: tracked_universe seed 갱신 중단 + 알림/리트라이
 
 ## 2. Chzzk (첫 provider-specific probe/ingest 후보; real integration 미착수)
@@ -135,7 +132,7 @@
     - concurrent 합(또는 평균), 방송 수, top streamer(최대 concurrent)
 - 실패/주의:
     - 인증/쿼터/필드 안정성이 미확정이다.
-    - real integration 전 representative payload와 sanitized fixture를 먼저 고정한다.
+    - real integration 전 raw capture는 local/private에 두고 parser regression은 sanitized fixture로 먼저 고정한다.
     - API 실패 시의 재시도/알림은 Chzzk-specific runtime slice에서 구현한다.
 
 ### 2.2 Category 검색 (매핑 보조)
@@ -154,13 +151,14 @@
 
 ## 4. Probe 산출물(샘플 JSON) 저장 규칙
 
-- 저장 위치(권장):
-    - current Steam representative pattern: `docs/probe/steam/<probe_name>/representative.json`
-    - future Chzzk live-list sample: `docs/probe/chzzk/lives/representative.json`
-    - parser regression fixture가 별도로 필요하면 sanitized excerpt를 `tests/fixtures/chzzk/lives/` 아래에 둔다.
-- 샘플 파일에는 다음 메타를 함께 기록:
-    - 수집 시각(KST), 요청 파라미터, 응답 HTTP 코드, 레이트리밋 관련 헤더(있다면), 실패 시 에러 바디
-    - 인증 토큰, 쿠키, 개인 식별 헤더, 원문 UGC-heavy payload는 저장하지 않는다.
+- 저장 기준:
+    - raw JSON/HTML capture와 provider 응답 원문성 자료는 ignored `data/local/probe/<provider>/...` 아래에 둔다.
+    - 문서, 판단 메모, 스캔 결과, local 실행 기록은 `docs/local/` 아래에 둔다.
+    - parser/ingest regression이 의존하는 입력은 local/ignored 경로가 아니라 `tests/fixtures/<provider>/...` 아래의 최소 sanitized fixture로 둔다.
+    - public docs에는 endpoint shape, field meaning, cadence, null/error semantics 같은 durable contract만 둔다.
+- 샘플 파일 기준:
+    - public fixture에는 인증 토큰, 쿠키, 개인 식별 헤더, UGC 원문, raw HTML excerpt, 내부 운영 detail을 저장하지 않는다.
+    - ambiguous한 probe 산출물은 public에 둘 근거가 명확해질 때까지 local/private first로 둔다.
 
 ## 5. 공통 실패 처리 정책(초안)
 

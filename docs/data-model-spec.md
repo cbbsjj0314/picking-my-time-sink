@@ -116,11 +116,11 @@
     - 컬럼 후보: `chzzk_category_id`, `bucket_time`, `category_name`, `concurrent_sum`, `live_count`, `top_channel_id`, `top_channel_name`, `top_channel_concurrent`, `collected_at`
     - upsert rule 후보: 같은 `(chzzk_category_id, bucket_time)` 재실행은 row를 대체하되, raw/probe payload와 execution metadata는 별도로 보존한다.
 - raw/probe/ingest responsibility boundary:
-    - probe/raw: representative payload와 수집 메타데이터를 보존한다. current slice에서는 real Chzzk API call, auth, token/cookie handling을 구현하지 않는다.
+    - probe/raw: representative payload와 수집 메타데이터를 local/private 경계에 보존한다. current slice에서는 real Chzzk API call, auth, token/cookie handling을 구현하지 않는다.
     - ingest: 한 Chzzk payload를 category 30분 fact row로 정규화한다.
     - ingest가 하지 않는 것: `canonical_game_id` 확정, `game_external_id` 자동 매핑, `gold_stream_game_30m`, serving API, web UI, Combined/relationship metric 생성.
 - real integration 전 필요 조건:
-    - sanitized `docs/probe/chzzk/lives/representative.json` payload 확보
+    - sanitized parser fixture 확보
     - Chzzk auth/quota/runtime contract 확인
     - `fact_chzzk_category_30m` DDL과 parser/upsert regression test 동시 추가
     - category-to-game mapping workflow를 별도 schema/code slice로 고정
@@ -173,7 +173,7 @@
 - 테이블: fact_steam_rank_daily
 - 그레인/PK: (snapshot_date, market, rank_type, rank_position)
 - current repo observations:
-    - current gold path input은 `tmp/steam/rankings/*.payload.json` runtime artifact 4종이다.
+    - current gold path input은 ranking refresh가 쓰는 local/private runtime payload 4종이다.
     - current payload contract는 raw Steam JSON만 저장하므로, `collected_at`은 runtime artifact file mtime(UTC)로 고정한다.
     - `snapshot_date`는 위 artifact write time을 KST로 변환한 날짜로 저장한다.
 - 컬럼:
