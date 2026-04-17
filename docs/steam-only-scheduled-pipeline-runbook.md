@@ -1,5 +1,5 @@
 문서 목적: Steam-only scheduled pipeline minimum handoff를 current repo 기준으로 1개 문서에 고정
-버전: v0.3 (tracked universe active/lifecycle semantics 반영)
+버전: v0.4 (CCU daily rollup scheduled maintenance 반영)
 작성일: 2026-04-17 (KST)
 
 ## 0. 현재 범위
@@ -10,6 +10,7 @@
   - tracked_universe update
   - ranking gold upsert
   - price / reviews / ccu fetch -> silver normalize -> gold upsert
+  - CCU gold -> daily rollup maintenance
 - handoff 단위는 local runtime artifact(`tmp/steam/...`)와 Postgres update 이다.
 - manual handoff baseline은 유지한다.
 - 같은 순서를 실행하는 thin single-command wrapper 1개까지는 current scope에 포함한다.
@@ -46,12 +47,26 @@
   - `sql/postgres/010_fact_steam_ccu_30m.sql`
   - `sql/postgres/011_fact_steam_reviews_daily.sql`
   - `sql/postgres/012_fact_steam_price_1h.sql`
+  - `sql/postgres/013_agg_steam_ccu_daily.sql`
   - `sql/postgres/014_fact_steam_rank_daily.sql`
 - latest serving까지 같이 확인하려면 아래 view도 적용되어 있어야 한다.
   - `sql/postgres/020_srv_game_latest_ccu.sql`
   - `sql/postgres/021_srv_game_latest_reviews.sql`
   - `sql/postgres/022_srv_game_latest_price.sql`
   - `sql/postgres/023_srv_rank_latest_kr_top_selling.sql`
+  - `sql/postgres/024_srv_game_explore_period_metrics.sql`
+- apply order는 아래 순서를 따른다.
+  - base table: `001`, `002`, `003`, `010`, `011`, `012`, `013`, `014`
+  - latest serving view: `020`, `021`, `022`, `023`
+  - Explore serving view: `024`
+- `024_srv_game_explore_period_metrics.sql` 는 `agg_steam_ccu_daily`,
+  `srv_game_latest_ccu`, `srv_game_latest_price` 를 읽으므로 `013`, `020`, `022`
+  적용 뒤에 적용해야 한다. reviews period fields도 `fact_steam_reviews_daily` 를 읽으므로
+  `011` 적용 뒤여야 한다.
+- 이미 적용된 older `srv_game_explore_period_metrics` view가 있고 column order 변경 때문에
+  `CREATE OR REPLACE VIEW` 가 실패하면, persisted fact/rollup table이 아니라 serving view만
+  refresh 하는 것이므로 `DROP VIEW IF EXISTS srv_game_explore_period_metrics;` 후 `024` 를
+  다시 적용한다.
 - 이번 slice는 schema / API / data semantics를 바꾸지 않는다. 필요한 relation이 없으면 여기서 멈추고 별도 DB bootstrap로 해결한다.
 
 ### 1.4 Artifact 선행조건
@@ -73,6 +88,7 @@
   - `tmp/steam/handoff/ccu.bronze.jsonl`
   - `tmp/steam/handoff/ccu.silver.jsonl`
   - `tmp/steam/handoff/ccu.gold-result.jsonl`
+  - `tmp/steam/handoff/ccu.daily-rollup-result.jsonl`
 - 위 scratch file은 rerun 시 덮어쓴다. 어떤 단계가 hard-fail 하면 이전 run의 파일을 재사용하지 말고 그 단계부터 다시 실행한다.
 
 ## 2. 실행 순서
@@ -81,6 +97,7 @@
 2. `payload_to_gold_rankings` 로 같은 payload를 `fact_steam_rank_daily`에 올린다.
 3. `price`, `reviews`, `ccu`는 모두 updated `tracked_game`의 `is_active = true` row를 읽는다.
 4. 3단계 이후 세 branch는 서로 독립이지만, minimum handoff 문서에서는 operator confusion을 줄이기 위해 `price -> reviews -> ccu` 순서로 직렬 실행한다.
+5. CCU gold upsert가 끝나면 같은 DB의 `fact_steam_ccu_30m` 기준으로 `agg_steam_ccu_daily` 를 갱신한다.
 
 - 위 순서를 1개 명령으로 그대로 실행하려면 아래 wrapper를 쓴다.
 
@@ -88,7 +105,7 @@
 PYTHONPATH=src poetry run python -m steam.ingest.run_steam_only_scheduled_pipeline
 ```
 
-- 이 wrapper는 3.1~3.5의 순서와 artifact path를 그대로 사용한다.
+- 이 wrapper는 3.1~3.6의 순서와 artifact path를 그대로 사용한다.
 - 단계별 triage가 필요하면 아래 manual handoff 명령을 그대로 사용한다.
 
 ## 3. 단계별 명령과 handoff
@@ -271,6 +288,33 @@ PYTHONPATH=src poetry run python -m steam.normalize.silver_to_gold_ccu \
   - `fetch_ccu_30m` 는 이런 row가 있으면 execution meta `success=false` 일 수 있지만 bronze file은 쓴다.
   - `silver_to_gold_ccu` 는 `ccu` 가 없는 row를 skip 하고, previous-day same bucket delta는 existing gold row가 있을 때만 계산한다.
 
+### 3.6 CCU daily rollup maintenance
+
+- 목적:
+  - `fact_steam_ccu_30m` 의 current gold fact rows를 KST daily rollup으로 재계산한다.
+  - `Explore` 7일 평균/최고 CCU와 longer-window `Most Played` list context가 읽는
+    `agg_steam_ccu_daily` 를 scheduled baseline 안에서 유지한다.
+- 명령:
+
+```bash
+PYTHONPATH=src poetry run python -m steam.normalize.gold_to_agg_ccu_daily \
+  --result-path tmp/steam/handoff/ccu.daily-rollup-result.jsonl
+```
+
+- 읽는 입력:
+  - Postgres `fact_steam_ccu_30m`
+- 쓰는 산출물:
+  - Postgres `agg_steam_ccu_daily`
+  - `tmp/steam/handoff/ccu.daily-rollup-result.jsonl`
+  - `tmp/steam/run-meta/gold_to_agg_ccu_daily/<timestamp>.meta.json`
+- 실패 시 중단 지점:
+  - DB env 누락 / DB 연결 실패
+  - `fact_steam_ccu_30m` 또는 `agg_steam_ccu_daily` relation 누락
+- 현재 의도된 한계:
+  - current rollup은 existing fact rows 기준 전체 재계산 후 stale rollup row를 삭제한다.
+  - daily row는 `avg_ccu`, `peak_ccu` 만 담고 하루 내부 raw bucket coverage completeness metadata는 담지 않는다.
+  - strict `Estimated Player-Hours` 는 여전히 raw `fact_steam_ccu_30m` 30분 bucket 기준으로 계산한다.
+
 ## 4. 최소 확인
 
 - local artifact 확인:
@@ -279,6 +323,7 @@ PYTHONPATH=src poetry run python -m steam.normalize.silver_to_gold_ccu \
   - `tmp/steam/handoff/price.gold-result.jsonl`
   - `tmp/steam/handoff/reviews.gold-result.jsonl`
   - `tmp/steam/handoff/ccu.gold-result.jsonl`
+  - `tmp/steam/handoff/ccu.daily-rollup-result.jsonl`
 - run-meta 확인:
   - `tmp/steam/run-meta/payload_to_gold_rankings/...`
   - `tmp/steam/run-meta/fetch_price_1h/...`
@@ -287,6 +332,7 @@ PYTHONPATH=src poetry run python -m steam.normalize.silver_to_gold_ccu \
   - `tmp/steam/run-meta/silver_to_gold_reviews/...`
   - `tmp/steam/run-meta/fetch_ccu_30m/...`
   - `tmp/steam/run-meta/silver_to_gold_ccu/...`
+  - `tmp/steam/run-meta/gold_to_agg_ccu_daily/...`
 - DB spot check 예시:
 
 ```bash
@@ -317,7 +363,33 @@ PGPASSWORD="$POSTGRES_PASSWORD" psql \
   -U "$POSTGRES_USER" \
   -d "$POSTGRES_DB" \
   -c "select max(bucket_time) as ccu_bucket_time, count(*) as ccu_rows from fact_steam_ccu_30m;"
+
+PGPASSWORD="$POSTGRES_PASSWORD" psql \
+  -h "$POSTGRES_HOST" \
+  -p "${POSTGRES_PORT:-5432}" \
+  -U "$POSTGRES_USER" \
+  -d "$POSTGRES_DB" \
+  -c "select max(bucket_date) as ccu_rollup_date, count(*) as ccu_rollup_rows from agg_steam_ccu_daily;"
+
+PGPASSWORD="$POSTGRES_PASSWORD" psql \
+  -h "$POSTGRES_HOST" \
+  -p "${POSTGRES_PORT:-5432}" \
+  -U "$POSTGRES_USER" \
+  -d "$POSTGRES_DB" \
+  -c "select column_name from information_schema.columns where table_schema = 'public' and table_name = 'srv_game_explore_period_metrics' order by ordinal_position;"
 ```
+
+- API / web real-data smoke:
+
+```bash
+curl -fsS "http://127.0.0.1:8000/games/explore/overview?limit=5"
+```
+
+- local web app은 `VITE_API_BASE_URL` 또는 Vite proxy가 local API를 가리키는 상태에서
+  Steam `Explore` table이 real API rows를 렌더하는지 확인한다.
+- DB 적용, local API server, local web server, network 같은 runtime 환경 문제로 smoke가
+  끝나지 않으면 code validation failure와 분리해 `runtime smoke incomplete / environment blocker`
+  로 기록한다.
 
 ## 5. 이번 slice에서 명시적으로 defer한 것
 
@@ -326,4 +398,5 @@ PGPASSWORD="$POSTGRES_PASSWORD" psql \
 - Parquet / MinIO handoff
 - price free / unavailable semantics 확장
 - reviews generalized history / parameter 확장
-- CCU daily rollup / 90일 serving verification
+- 90일 generalized serving verification
+- broader CCU history / generalized date-range serving
