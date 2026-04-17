@@ -1,6 +1,6 @@
 export const sourceTabs = ['Combined', 'Steam', 'Chzzk'] as const
 export const discoverModes = ['Trending', 'Co-Moving'] as const
-export const steamDiscoverModes = ['Explore', 'Top Selling', 'Most Played'] as const
+export const steamDiscoverModes = ['Explore', 'Top Selling'] as const
 export const rangeOptions = ['1D', 'Last 7 Days', 'Last 30 Days', 'Last 3 Months'] as const
 export const timelineRanges = ['1D', '7D', '30D', '90D'] as const
 export const steamChartRanges = ['7D', '30D', '90D'] as const
@@ -19,7 +19,6 @@ export type SteamDataStateTarget = (typeof steamDataStateTargets)[number]
 export const steamDiscoverModeDisplayLabels: Record<SteamDiscoverMode, string> = {
   Explore: 'Explore',
   'Top Selling': 'Top Selling',
-  'Most Played': 'Player Heat',
 }
 
 export function getSteamDiscoverModeDisplayLabel(mode: SteamDiscoverMode): string {

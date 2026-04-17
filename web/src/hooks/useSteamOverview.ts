@@ -4,16 +4,13 @@ import {
   type GameDaily90dCcu,
   type GameLatestCcu,
   type GameLatestPrice,
-  type GameLatestRanking,
   type GameLatestReviews,
-  type GameRankingWindow,
 } from '../api/games'
 import { buildSteamGames, getSteamQueryErrorMessage, type SteamOverviewApiData } from '../lib/steamViewModel'
-import type { RangeOption, SteamDiscoverMode, SteamReferenceGame } from '../types'
+import type { SteamDiscoverMode, SteamReferenceGame } from '../types'
 
 interface UseSteamOverviewArgs {
   mode: SteamDiscoverMode
-  rankingWindow: RangeOption
   rankingCardLimit?: number | null
   searchQuery: string
   selectedId: string | null
@@ -28,12 +25,6 @@ interface UseSteamOverviewResult {
 }
 
 const DEFAULT_LIMIT = 12
-const API_WINDOW_BY_RANGE: Record<RangeOption, GameRankingWindow> = {
-  '1D': '1d',
-  'Last 7 Days': '7d',
-  'Last 30 Days': '30d',
-  'Last 3 Months': '90d',
-}
 
 const EMPTY_OVERVIEW_DATA: SteamOverviewApiData = {
   rankings: [],
@@ -63,7 +54,6 @@ const mergeLatestRows = <Row extends LatestRowWithCanonicalGameId>(
 
 export function useSteamOverview({
   mode,
-  rankingWindow,
   rankingCardLimit = 4,
   searchQuery,
   selectedId,
@@ -99,33 +89,16 @@ export function useSteamOverview({
       setError(null)
 
       try {
-        let rankings: GameLatestRanking[] = []
-        let ccuRows: GameLatestCcu[] = []
-        let priceRows: GameLatestPrice[] = []
-        let reviewRows: GameLatestReviews[] = []
-
-        if (mode === 'Top Selling') {
-          ;[rankings, ccuRows, priceRows, reviewRows] = await Promise.all([
-            gamesApi.listLatestRankings({
-              limit: DEFAULT_LIMIT,
-              signal: controller.signal,
-              window: API_WINDOW_BY_RANGE[rankingWindow],
-            }),
-            gamesApi.listLatestCcu({ limit: DEFAULT_LIMIT, signal: controller.signal }),
-            gamesApi.listLatestPrice({ limit: DEFAULT_LIMIT, signal: controller.signal }),
-            gamesApi.listLatestReviews({ limit: DEFAULT_LIMIT, signal: controller.signal }),
-          ])
-        } else {
-          ;[ccuRows, priceRows, reviewRows] = await Promise.all([
-            gamesApi.listLatestCcu({
-              limit: DEFAULT_LIMIT,
-              signal: controller.signal,
-              window: API_WINDOW_BY_RANGE[rankingWindow],
-            }),
-            gamesApi.listLatestPrice({ limit: DEFAULT_LIMIT, signal: controller.signal }),
-            gamesApi.listLatestReviews({ limit: DEFAULT_LIMIT, signal: controller.signal }),
-          ])
-        }
+        const [rankings, ccuRows, priceRows, reviewRows] = await Promise.all([
+          gamesApi.listLatestRankings({
+            limit: DEFAULT_LIMIT,
+            signal: controller.signal,
+            window: '7d',
+          }),
+          gamesApi.listLatestCcu({ limit: DEFAULT_LIMIT, signal: controller.signal }),
+          gamesApi.listLatestPrice({ limit: DEFAULT_LIMIT, signal: controller.signal }),
+          gamesApi.listLatestReviews({ limit: DEFAULT_LIMIT, signal: controller.signal }),
+        ])
 
         if (controller.signal.aborted) {
           return
@@ -156,7 +129,7 @@ export function useSteamOverview({
     return () => {
       controller.abort()
     }
-  }, [mode, rankingWindow])
+  }, [mode])
 
   const mergedOverviewData: SteamOverviewApiData = {
     rankings: overviewData?.rankings ?? EMPTY_OVERVIEW_DATA.rankings,
@@ -167,7 +140,6 @@ export function useSteamOverview({
 
   const allGames = buildSteamGames({
     mode,
-    rankingWindow,
     searchQuery,
     data: mergedOverviewData,
     historyByCanonicalGameId,

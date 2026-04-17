@@ -17,11 +17,6 @@ const items = [
     label: 'Top Selling',
     description: 'Steam weekly top sellers snapshot 기준으로 Top Selling 게임 보기',
   },
-  {
-    value: 'Most Played',
-    label: 'Player Heat',
-    description: 'live / windowed CCU 기준으로 플레이어 강도가 높은 게임 보기',
-  },
 ] as const satisfies ReadonlyArray<{ value: SteamDiscoverMode; label: string; description: string }>
 
 export function SteamDiscoverModeRow({ mode, onChange }: SteamDiscoverModeRowProps) {
