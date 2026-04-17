@@ -1,5 +1,5 @@
 문서 목적: 테이블/파일 목록 + 그레인(1행 키) + 적재 규칙(증분/스냅샷) + 보존 기준 + repo-grounded provider 확장 경계 기록
-버전: v0.10 (tracked universe lifecycle / fetch cadence semantics lock)
+버전: v0.11 (provider-specific streaming probe/ingest preparation)
 작성일: 2026-04-17 (KST)
 
 ## 0. 레이어 개요
@@ -103,19 +103,29 @@
 - durable doc facts:
     - current MVP runtime은 Steam-only 이며, streaming fact/serving object는 아직 repo에 구현되지 않았다.
     - streaming 확장 시작점은 provider-specific probe/ingest 와 category-level 30분 fact다.
+    - 첫 provider-specific 후보는 Chzzk category live-list source다.
+    - 첫 fact 방향은 provider-specific `fact_chzzk_category_30m` 후보이며, generalized streaming fact/table은 만들지 않는다.
     - canonical game 기준 서빙 shape는 provider raw/category 수집 이후의 downstream 단계다.
 - current repo observations:
     - 현재 repo에는 `src/chzzk`, `src/twitch`, streaming probe sample, streaming DDL이 없다.
     - 현재 재사용 가능한 공통 경계는 `game_external_id` 매핑과 `tracked_game.sources` provenance다.
-- still undecided items:
-    - 첫 구현이 `fact_chzzk_category_30m` 같은 provider-specific table로 시작할지, 더 일반화된 이름으로 시작할지는 미정이다.
-    - provider auth/quota/runtime contract와 category-to-game mapping workflow도 미정이다.
-- 첫 provider-specific candidate 예시:
+- first provider-specific fact direction:
     - `fact_chzzk_category_30m`
     - 그레인/PK: `(chzzk_category_id, bucket_time)`
-    - 컬럼(초안): `chzzk_category_id`, `bucket_time`, `concurrent_sum`, `live_count`, `top_channel_id`, `top_channel_name`, `top_channel_concurrent`, `collected_at`
-- 매핑 확정 시(선택):
-    - `gold_stream_game_30m`: `(canonical_game_id, bucket_time)` 형태의 view/materialized view 제공
+    - source boundary: Chzzk live/category payload에서 category id/name, live concurrent, channel id/name을 category-level evidence로 정규화한다.
+    - 컬럼 후보: `chzzk_category_id`, `bucket_time`, `category_name`, `concurrent_sum`, `live_count`, `top_channel_id`, `top_channel_name`, `top_channel_concurrent`, `collected_at`
+    - upsert rule 후보: 같은 `(chzzk_category_id, bucket_time)` 재실행은 row를 대체하되, raw/probe payload와 execution metadata는 별도로 보존한다.
+- raw/probe/ingest responsibility boundary:
+    - probe/raw: representative payload와 수집 메타데이터를 보존한다. current slice에서는 real Chzzk API call, auth, token/cookie handling을 구현하지 않는다.
+    - ingest: 한 Chzzk payload를 category 30분 fact row로 정규화한다.
+    - ingest가 하지 않는 것: `canonical_game_id` 확정, `game_external_id` 자동 매핑, `gold_stream_game_30m`, serving API, web UI, Combined/relationship metric 생성.
+- real integration 전 필요 조건:
+    - sanitized `docs/probe/chzzk/lives/representative.json` payload 확보
+    - Chzzk auth/quota/runtime contract 확인
+    - `fact_chzzk_category_30m` DDL과 parser/upsert regression test 동시 추가
+    - category-to-game mapping workflow를 별도 schema/code slice로 고정
+- explicitly deferred:
+    - Twitch fallback, generalized provider abstraction, `gold_stream_game_30m`, streaming serving API, web dashboard streaming UI wiring, Combined/relationship KPI
 
 ### 4.3 Steam Price (1시간)
 

@@ -1,7 +1,7 @@
 # Metrics & Definitions (요구사항 + 지표 정의서)
 
 문서 목적: 용어/지표/Δ 기준을 고정해 구현 중 재해석을 방지
-버전: v0.15 (tracked universe lifecycle / fetch cadence semantics lock)
+버전: v0.16 (provider-specific streaming probe/ingest preparation)
 작성일: 2026-04-17 (KST)
 
 ## 0. 시간/기간 프리셋
@@ -275,9 +275,17 @@
 - current slice는 fake score, gap fill, synthetic timeline을 추가하지 않는다.
 - 따라서 full-window daily row가 없는 게임은 해당 window list에서 제외되고, longer window는 빈 리스트가 될 수 있다.
 
-## 4. 스트리밍 요약(화제인가) — Chzzk/Twitch 공통 지향
+## 4. 스트리밍 요약(화제인가) — provider-specific 준비 기준
 
-원천은 “동시 시청자(concurrent)”를 30분 단위로 수집한다.
+현재 repo runtime에는 streaming metric 구현, DDL, probe sample, serving API가 없다. 이 section은 첫 provider-specific 후보의 metric 의미를 고정하는 준비 기준이며 public API contract가 아니다.
+
+- 첫 후보: Chzzk category live-list source.
+- metric grain 후보: `(chzzk_category_id, bucket_time)` category-level 30분 bucket.
+- source boundary: Chzzk live/category payload에서 category id/name, live concurrent, channel id/name만 읽는다.
+- sample payload/fixture: parser, DDL, ingest test보다 먼저 sanitized representative payload가 필요하다.
+- 제외: canonical game mapping, Twitch fallback, provider abstraction, streaming serving API, web dashboard streaming UI wiring, Combined/relationship KPI.
+
+원천은 “동시 시청자(concurrent)”를 30분 단위 category bucket으로 수집하는 방향이다. missing bucket은 gap fill이나 synthetic score로 채우지 않는다.
 
 ### 4.1 Avg concurrent (기본 표시)
 

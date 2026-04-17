@@ -1,12 +1,12 @@
 문서 목적: probe(샘플 검증) 실행 체크리스트 + 이후 스키마/파서/테스트의 기준점 + repo-grounded provider 확장 진입 기준 기록
-버전: v0.4 (tracked universe lifecycle / fetch cadence semantics lock)
+버전: v0.5 (provider-specific streaming probe/ingest preparation)
 작성일: 2026-04-17 (KST)
 
 ## 0. 공통 원칙
 
 - 실패/빈값/429는 “발생할 수 있다”를 전제로 하고, 재시도/백오프/관측 로그를 남긴다.
 - 프로브 산출물(샘플 JSON)은 리포지토리에 고정 저장해 “회귀 테스트” 기준으로 사용한다.
-- Chzzk가 인증/호출 안정성 측면에서 막히면 Twitch로 전환 가능하도록, 스트리밍 수집은 Provider 인터페이스를 분리한다.
+- 스트리밍 확장은 첫 provider-specific source probe/ingest 후보를 좁혀 시작한다. Chzzk/Twitch 공통 인터페이스나 generalized provider abstraction은 실제 provider probe가 안정화된 뒤 별도 slice에서 검토한다.
 
 ### 0.1 Provider boundary (current repo-grounded)
 
@@ -16,10 +16,19 @@
 - current repo observations:
     - 현재 repo에는 Chzzk/Twitch probe 산출물, runtime package, DDL이 없다.
     - 외부 ID 연결의 현재 grounded contract는 `game_external_id.source` 이며, tracked provenance는 `tracked_game.sources` 에 기록된다.
-- still undecided items:
-    - Chzzk auth/쿼터/필드 안정성
-    - Chzzk vs Twitch 중 실제 첫 구현 provider
-    - provider-specific raw/category fact 이후의 generalized serving/API shape
+- first provider-specific probe/ingest candidate:
+    - 첫 후보는 Chzzk category live-list probe 준비다.
+    - source boundary는 Chzzk live/category payload에서 category id/name, live concurrent, channel id/name만 category-level evidence로 읽는 데 한정한다.
+    - category-level 30분 fact 방향은 `(chzzk_category_id, bucket_time)` 단위의 concurrent 합계, live_count, top channel evidence다.
+    - sample payload/fixture는 parser, DDL, ingest test보다 먼저 필요하다. sanitized representative payload를 `docs/probe/chzzk/lives/representative.json` 형태로 고정한 뒤 구현에 들어간다.
+    - raw/probe responsibility는 provider 응답과 수집 메타데이터를 보존하는 것이다. ingest responsibility는 한 provider payload를 category 30분 row로 정규화하는 데 그치며 canonical game mapping, serving API, UI wiring을 하지 않는다.
+- real integration 전 필요 조건:
+    - Chzzk 호출 방식, 인증/쿼터, 이용 가능 필드, 응답 안정성을 representative payload로 확인
+    - secrets는 환경 변수로 주입하고 토큰/쿠키/개인 헤더를 fixture, 로그, 문서에 저장하지 않는 운영 규칙 확정
+    - `fact_chzzk_category_30m` 후보 DDL, parser fixture test, idempotent upsert test를 같은 thin slice에서 추가
+    - category-to-game mapping workflow와 Twitch fallback 여부는 별도 slice에서 결정
+- explicitly deferred:
+    - real Chzzk API 호출, Twitch 구현, provider abstraction layer, streaming serving API, web dashboard streaming UI wiring, Combined/relationship KPI
 
 ## 1. Steam (MVP 핵심)
 
@@ -113,45 +122,45 @@
     - runtime은 fixture-compatible JSON payload contract를 사용하고, legacy HTML excerpt 회귀 테스트는 별도로 유지
     - payload fetch 실패/빈 ranks 시: tracked_universe seed 갱신 중단 + 알림/리트라이
 
-## 2. Chzzk (MVP에서는 “가능하면”, 실패 시 Twitch로 대체)
+## 2. Chzzk (첫 provider-specific probe/ingest 후보; real integration 미착수)
 
 ### 2.1 Live 목록
 
-- 목적: 카테고리(게임)별 시청/방송/Top streamer 집계의 원천
-- 엔드포인트: GET /open/v1/lives
-- 인증: (미확정) Client 인증/토큰 필요 가능성 있음 → probe로 확정
-- 주기: 30분(00/30)
-- 주요 필드(예상): concurrentUserCount, liveCategory(카테고리 정보), channelId, channelName
+- 목적: 카테고리(게임)별 시청/방송/Top streamer 집계 후보 원천
+- 엔드포인트 후보: GET /open/v1/lives 또는 동일 live/category payload를 제공하는 Chzzk source. 정확한 endpoint/params는 future probe sample로 확정한다.
+- 인증: 미확정. current repo에는 token/cookie/client credential 처리나 실제 호출 코드가 없다.
+- 주기 방향: real ingest가 생기면 30분(00/30) bucket으로 정규화한다.
+- 주요 필드 후보: concurrentUserCount, liveCategory(카테고리 정보), channelId, channelName
 - 파생 집계(카테고리 단위):
     - concurrent 합(또는 평균), 방송 수, top streamer(최대 concurrent)
 - 실패/주의:
-    - 인증/쿼터/필드 안정성이 미확정 → Provider 전환 가능하도록 설계
-    - API 실패 시: 해당 버킷 누락 처리 + 재시도 + 알림
+    - 인증/쿼터/필드 안정성이 미확정이다.
+    - real integration 전 representative payload와 sanitized fixture를 먼저 고정한다.
+    - API 실패 시의 재시도/알림은 Chzzk-specific runtime slice에서 구현한다.
 
 ### 2.2 Category 검색 (매핑 보조)
 
-- 목적: Chzzk 카테고리 ↔ Steam 게임명 후보 추천에 활용
-- 엔드포인트: GET /open/v1/categories/search
-- 인증: (미확정)
-- 주기: 주 1회 + 수동 보정 작업 시 사용(상시 수집은 불필요)
+- 목적: Chzzk 카테고리 ↔ Steam 게임명 후보 추천에 활용할 수 있는 보조 source
+- 엔드포인트 후보: GET /open/v1/categories/search
+- 인증: 미확정
+- 상태: first probe/ingest slice에는 포함하지 않는다. 수동 매핑 workflow가 필요해질 때 별도 slice에서 검토한다.
 - 실패/주의: 검색 결과 품질/중복/별칭이 많을 수 있어 자동 확정 금지
 
-## 3. Twitch (대체 Provider, 2단계 확장)
+## 3. Twitch (fallback candidate, 미착수)
 
 - 목적: Chzzk가 막히는 경우 동일한 지표(시청/방송/Top) 제공
-- 상태: 미착수(TBD). Provider 인터페이스만 먼저 정의하고, 실제 엔드포인트/인증은 도입 시점에 인벤토리 확장.
+- 상태: 미착수(TBD). Chzzk-specific probe 결과가 막혔을 때 별도 source inventory/probe slice에서 검토한다.
+- current rule: Twitch 때문에 먼저 generalized provider interface를 만들지 않는다.
 
 ## 4. Probe 산출물(샘플 JSON) 저장 규칙
 
 - 저장 위치(권장):
-    - docs/probe/steam/getapplist_YYYYMMDD.json
-    - docs/probe/steam/ccu_30m_sample.json
-    - docs/probe/steam/appreviews_daily_sample.json
-    - docs/probe/steam/appdetails_price_kr_sample.json
-    - docs/probe/steam/charts_rank_kr_global_sample.html(or.json)
-    - docs/probe/chzzk/lives_30m_sample.json
+    - current Steam representative pattern: `docs/probe/steam/<probe_name>/representative.json`
+    - future Chzzk live-list sample: `docs/probe/chzzk/lives/representative.json`
+    - parser regression fixture가 별도로 필요하면 sanitized excerpt를 `tests/fixtures/chzzk/lives/` 아래에 둔다.
 - 샘플 파일에는 다음 메타를 함께 기록:
     - 수집 시각(KST), 요청 파라미터, 응답 HTTP 코드, 레이트리밋 관련 헤더(있다면), 실패 시 에러 바디
+    - 인증 토큰, 쿠키, 개인 식별 헤더, 원문 UGC-heavy payload는 저장하지 않는다.
 
 ## 5. 공통 실패 처리 정책(초안)
 
