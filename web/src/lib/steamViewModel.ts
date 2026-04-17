@@ -42,6 +42,7 @@ interface SteamBaseRow {
   steamAppId: number | null
   title: string
   rank: number
+  rankingSnapshotDate: string | null
   ccu: GameLatestCcu | null
   price: GameLatestPrice | null
   reviews: GameLatestReviews | null
@@ -62,6 +63,12 @@ const KST_DATE_TIME_FORMATTER = new Intl.DateTimeFormat('en-US', {
 
 const KST_DAY_FORMATTER = new Intl.DateTimeFormat('en-US', {
   weekday: 'short',
+  timeZone: 'Asia/Seoul',
+})
+
+const KST_DATE_FORMATTER = new Intl.DateTimeFormat('en-US', {
+  month: 'short',
+  day: 'numeric',
   timeZone: 'Asia/Seoul',
 })
 
@@ -89,6 +96,7 @@ const formatCompactInteger = (value: number) =>
   }).format(value)
 
 const formatSnapshotDateTime = (value: string) => `${KST_DATE_TIME_FORMATTER.format(new Date(value))} KST`
+const formatSnapshotDate = (value: string) => `${KST_DATE_FORMATTER.format(new Date(`${value}T00:00:00+09:00`))} KST`
 
 const formatMinorPrice = (valueMinor: number, currencyCode: string, isFree: boolean | null) => {
   if (isFree) {
@@ -348,6 +356,7 @@ const buildDetailCards = (row: SteamBaseRow, historyRows: GameDaily90dCcu[] | un
       label: 'CCU',
       rows: [
         { label: 'Live CCU', value: row.ccu ? formatCompact(row.ccu.ccu) : 'Pending' },
+        { label: 'CCU snapshot', value: row.ccu ? formatSnapshotDateTime(row.ccu.bucket_time) : 'Pending' },
         {
           label: 'Δ CCU',
           value:
@@ -369,6 +378,10 @@ const buildDetailCards = (row: SteamBaseRow, historyRows: GameDaily90dCcu[] | un
         {
           label: 'Positive share',
           value: row.reviews ? formatPercentRatio(row.reviews.positive_ratio) : 'Pending',
+        },
+        {
+          label: 'Review snapshot',
+          value: row.reviews ? formatSnapshotDate(row.reviews.snapshot_date) : 'Pending',
         },
         {
           label: '1D reviews added',
@@ -430,7 +443,8 @@ const getPlayerHeatContextSuffix = (rankingWindow: RangeOption) => {
 
 const getSurfaceContext = (row: SteamBaseRow, mode: SteamDiscoverMode, rankingWindow: RangeOption) => {
   if (mode === 'Top Selling') {
-    return `${getSteamDiscoverModeDisplayLabel(mode)} #${row.rank} · Weekly top sellers snapshot`
+    const snapshotLabel = row.rankingSnapshotDate ? ` · Snapshot ${formatSnapshotDate(row.rankingSnapshotDate)}` : ''
+    return `${getSteamDiscoverModeDisplayLabel(mode)} #${row.rank} · Weekly top sellers snapshot${snapshotLabel}`
   }
 
   return `${getSteamDiscoverModeDisplayLabel(mode)} #${row.rank} · ${getPlayerHeatContextSuffix(rankingWindow)}`
@@ -447,6 +461,7 @@ const buildTopSellingRows = (data: SteamOverviewApiData): SteamBaseRow[] => {
     steamAppId: row.steam_appid,
     title: row.canonical_name ?? `Steam app ${row.steam_appid}`,
     rank: row.rank_position,
+    rankingSnapshotDate: row.snapshot_date,
     ccu: row.canonical_game_id !== null ? ccuByGameId.get(row.canonical_game_id) ?? null : null,
     price: row.canonical_game_id !== null ? priceByGameId.get(row.canonical_game_id) ?? null : null,
     reviews: row.canonical_game_id !== null ? reviewsByGameId.get(row.canonical_game_id) ?? null : null,
@@ -463,6 +478,7 @@ const buildMostPlayedRows = (data: SteamOverviewApiData): SteamBaseRow[] => {
     steamAppId: null,
     title: row.canonical_name,
     rank: index + 1,
+    rankingSnapshotDate: null,
     ccu: row,
     price: priceByGameId.get(row.canonical_game_id) ?? null,
     reviews: reviewsByGameId.get(row.canonical_game_id) ?? null,

@@ -116,6 +116,7 @@
 - serving boundary에서 `NaN` / `Infinity` 같은 non-finite numeric output은 null로 정규화하고, UI는 이를 합성 delta처럼 표시하지 않는다.
 - strict `Estimated Player-Hours` 는 current `/games/explore/overview` 응답에 7d fields로 포함된다.
 - 현재 CCU와 최신 KR 가격은 최신 근거 필드로 유지하며, 기간 지표로 재해석하지 않는다.
+- current web `Explore` table은 visible rows의 `ccu_bucket_time`, `ccu_period_anchor_date`, `reviews_snapshot_date`, `price_bucket_time` 을 summary support text로 표시한다. 동일하지 않은 visible timestamp 묶음은 synthetic 대표 시각으로 합치지 않고 mixed snapshots로 표시한다.
 - `Top Selling` 순위는 의도적으로 `Explore` 개요 응답에 포함하지 않는다.
 
 ## 2. Steam 리뷰 대시보드(살 만한가)
@@ -176,7 +177,7 @@
 - `missing_flag = true` 는 전일 `snapshot_date` 기준 비교 행이 없어 Δ 필드가 계산되지 않았음을 뜻한다.
 - current latest reviews API는 Steam-authored `review_score_desc`를 서빙하지 않는다.
 - review summary band는 UI local derived label이며, `positive_ratio` 와 `total_reviews` 만으로 아래 순서를 위에서 아래로 적용한다.
-- current UI의 Reviews signal card subtitle은 review summary band만 보여주고 latest `snapshot_date` 는 함께 붙이지 않는다.
+- current UI의 Reviews signal card subtitle은 review summary band만 보여주고, detail card row에서 latest `snapshot_date` 를 `Review snapshot` 으로 표시한다.
 - signal card 자체의 refresh/update cadence 표기는 별도 UI semantics slice에서 다룬다.
 - `total_reviews < 10`: `Not Enough Reviews`
 - `positive_ratio >= 0.95` and `total_reviews >= 500`: `Overwhelmingly Positive`
@@ -212,6 +213,7 @@
 ### 3.1 현재 CCU
 
 - 정의: 가장 최신 bucket_time의 ccu
+- current UI detail card는 latest `bucket_time` 을 `CCU snapshot` 시각으로 표시한다.
 
 ### 3.2 CCU 모멘텀(Δ)
 
