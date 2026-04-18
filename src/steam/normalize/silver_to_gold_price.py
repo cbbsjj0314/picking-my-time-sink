@@ -131,10 +131,10 @@ def upsert_fact_price_row(
     canonical_game_id: int,
     bucket_time: dt.datetime,
     region: str,
-    currency_code: str,
-    initial_price_minor: int,
-    final_price_minor: int,
-    discount_percent: int,
+    currency_code: str | None,
+    initial_price_minor: int | None,
+    final_price_minor: int | None,
+    discount_percent: int | None,
     is_free: bool | None,
     collected_at: dt.datetime,
 ) -> None:
@@ -161,9 +161,10 @@ def build_result_row(
     canonical_game_id: int,
     bucket_time: dt.datetime,
     region: str,
-    currency_code: str,
-    final_price_minor: int,
-    discount_percent: int,
+    currency_code: str | None,
+    initial_price_minor: int | None,
+    final_price_minor: int | None,
+    discount_percent: int | None,
     is_free: bool | None,
 ) -> dict[str, Any]:
     """Build deterministic result row for one price gold-load decision."""
@@ -174,16 +175,83 @@ def build_result_row(
         "currency_code": currency_code,
         "discount_percent": discount_percent,
         "final_price_minor": final_price_minor,
+        "initial_price_minor": initial_price_minor,
         "is_free": is_free,
         "region": region,
     }
+
+
+def parse_optional_int(value: object) -> int | None:
+    """Return int(value) while preserving None."""
+
+    return int(value) if value is not None else None
+
+
+def parse_optional_currency_code(value: object) -> str | None:
+    """Return a non-empty currency code while preserving None."""
+
+    if value is None:
+        return None
+
+    normalized = str(value).strip()
+    if not normalized:
+        raise ValueError("currency_code must be non-empty for paid price rows")
+    return normalized
+
+
+def parse_is_free(value: object) -> bool | None:
+    """Return boolean is_free while preserving null."""
+
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        return value
+    raise ValueError("is_free must be boolean or null")
+
+
+def validate_price_evidence_shape(
+    *,
+    currency_code: str | None,
+    initial_price_minor: int | None,
+    final_price_minor: int | None,
+    discount_percent: int | None,
+    is_free: bool | None,
+) -> None:
+    """Validate the paid/free fact contract before DB upsert."""
+
+    price_fields = (currency_code, initial_price_minor, final_price_minor, discount_percent)
+
+    if is_free is True:
+        if any(value is not None for value in price_fields):
+            raise ValueError("free price rows must keep source-absent price fields null")
+        return
+
+    if any(value is None for value in price_fields):
+        raise ValueError("paid price rows require currency and numeric price fields")
+
+    if initial_price_minor is not None and initial_price_minor < 0:
+        raise ValueError("initial_price_minor must be non-negative")
+    if final_price_minor is not None and final_price_minor < 0:
+        raise ValueError("final_price_minor must be non-negative")
+    if discount_percent is None or discount_percent < 0 or discount_percent > 100:
+        raise ValueError("discount_percent must be between 0 and 100")
 
 
 def process_silver_rows(
     silver_rows: list[Mapping[str, Any]],
     *,
     upsert_row: Callable[
-        [int, dt.datetime, str, str, int, int, int, bool | None, dt.datetime],
+        [
+            int,
+            dt.datetime,
+            str,
+            str | None,
+            int | None,
+            int | None,
+            int | None,
+            bool | None,
+            dt.datetime,
+        ],
         None,
     ],
 ) -> list[dict[str, Any]]:
@@ -194,17 +262,18 @@ def process_silver_rows(
         canonical_game_id = int(row["canonical_game_id"])
         bucket_time = parse_timestamp(str(row["bucket_time"]))
         region = normalize_price_region(row["region"])
-        currency_code = str(row["currency_code"])
-        initial_price_minor = int(row["initial_price_minor"])
-        final_price_minor = int(row["final_price_minor"])
-        discount_percent = int(row["discount_percent"])
-        is_free_raw = row.get("is_free")
-        if is_free_raw is None:
-            is_free = None
-        elif isinstance(is_free_raw, bool):
-            is_free = is_free_raw
-        else:
-            raise ValueError("is_free must be boolean or null")
+        currency_code = parse_optional_currency_code(row.get("currency_code"))
+        initial_price_minor = parse_optional_int(row.get("initial_price_minor"))
+        final_price_minor = parse_optional_int(row.get("final_price_minor"))
+        discount_percent = parse_optional_int(row.get("discount_percent"))
+        is_free = parse_is_free(row.get("is_free"))
+        validate_price_evidence_shape(
+            currency_code=currency_code,
+            initial_price_minor=initial_price_minor,
+            final_price_minor=final_price_minor,
+            discount_percent=discount_percent,
+            is_free=is_free,
+        )
         collected_at = parse_timestamp(str(row["collected_at"]))
 
         upsert_row(
@@ -224,6 +293,7 @@ def process_silver_rows(
                 bucket_time=bucket_time,
                 region=region,
                 currency_code=currency_code,
+                initial_price_minor=initial_price_minor,
                 final_price_minor=final_price_minor,
                 discount_percent=discount_percent,
                 is_free=is_free,
@@ -271,10 +341,10 @@ def run(
                     canonical_game_id: int,
                     bucket_time: dt.datetime,
                     region: str,
-                    currency_code: str,
-                    initial_price_minor: int,
-                    final_price_minor: int,
-                    discount_percent: int,
+                    currency_code: str | None,
+                    initial_price_minor: int | None,
+                    final_price_minor: int | None,
+                    discount_percent: int | None,
                     is_free: bool | None,
                     collected_at: dt.datetime,
                 ) -> None:

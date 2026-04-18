@@ -318,11 +318,12 @@
 
 ### 5.1 price fields
 
-- initial_price_minor: 할인 전 가격(최소 단위)
-- final_price_minor: 현재 가격(최소 단위)
-- discount_percent: 할인율(0~100)
+- initial_price_minor: paid price row의 할인 전 가격(최소 단위). grounded free row에서는 source가 numeric price field를 제공하지 않으므로 null을 유지한다.
+- final_price_minor: paid price row의 현재 가격(최소 단위). grounded free row에서는 source가 numeric price field를 제공하지 않으므로 null을 유지한다.
+- discount_percent: paid price row의 할인율(0~100). grounded free row에서는 source가 discount field를 제공하지 않으므로 null을 유지한다.
 - region: MVP는 KR만. write path와 public API는 `KR` casing으로 고정하며, serving view는 legacy lowercase `kr` fact도 KR price evidence로 읽는다.
-- currency_code: region에 따라 저장(확장 대비)
+- currency_code: paid price row의 currency. grounded free row에서는 source가 currency를 제공하지 않으므로 null을 유지한다.
+- is_free: filtered `price_overview` primary가 성공했지만 `price_overview` 를 제공하지 않고, no-filter full `appdetails` fallback의 `data.is_free is true` 로 확인된 free title evidence만 true로 저장한다. `is_free=false`, missing, invalid fallback payload는 free/unavailable/region-blocked/delisted 의미로 해석하지 않는다.
 
 ### 5.2 할인 이벤트(관계 KPI에 사용)
 
@@ -336,7 +337,9 @@
 - list endpoint는 `/games/price/latest`, single-game endpoint는 `/games/{canonical_game_id}/price/latest` 이다.
 - `region`은 current slice에서 항상 `KR` 이고, generalized region query param은 아직 없다.
 - 기존 fact에 lowercase `kr`이 남아 있어도 latest price serving과 Explore price evidence에서는 누락하지 않고 `KR`로 노출한다.
-- `is_free`는 `fact_steam_price_1h`에 적재된 existing fact semantics를 그대로 노출하며, broader free/unavailable/missing-price semantics는 아직 확장하지 않는다.
+- `is_free=true` row는 nullable price fields를 그대로 노출한다. latest price API와 Explore API는 free title을 fake `KRW` / `0` / `0%` 로 채우지 않는다.
+- paid row는 기존처럼 `currency_code`, `initial_price_minor`, `final_price_minor`, `discount_percent` 를 제공한다.
+- `price_overview` 없음 자체는 free/unavailable/region-blocked/delisted 의미가 아니다. fallback full payload에서 `data.is_free is true` 로 확인된 경우만 free evidence다.
 - current minimum price surface는 전일 대비 Δ 필드를 노출하지 않는다.
 - current minimum UI surface는 latest `bucket_time`을 `Price snapshot` 시각으로만 노출하고, sale-end timing은 API가 없어 표시하지 않는다.
 - price timing/history interpretation은 별도 thin slice에서 필요성이 확인될 때만 확장한다.
@@ -353,6 +356,22 @@
   "final_price_minor": 3360000,
   "discount_percent": 20,
   "is_free": null
+}
+```
+
+Grounded free row example:
+
+```json
+{
+  "canonical_game_id": 2,
+  "canonical_name": "Free Example",
+  "bucket_time": "2026-03-29T14:00:00+09:00",
+  "region": "KR",
+  "currency_code": null,
+  "initial_price_minor": null,
+  "final_price_minor": null,
+  "discount_percent": null,
+  "is_free": true
 }
 ```
 

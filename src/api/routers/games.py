@@ -81,10 +81,10 @@ class GameLatestPriceResponse(BaseModel):
     canonical_name: str
     bucket_time: dt.datetime
     region: str
-    currency_code: str
-    initial_price_minor: int
-    final_price_minor: int
-    discount_percent: int
+    currency_code: str | None
+    initial_price_minor: int | None
+    final_price_minor: int | None
+    discount_percent: int | None
     is_free: bool | None
 
 

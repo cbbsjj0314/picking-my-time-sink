@@ -32,6 +32,20 @@ def sample_response_record(canonical_game_id: int) -> dict[str, object]:
     }
 
 
+def sample_free_response_record(canonical_game_id: int) -> dict[str, object]:
+    return {
+        "canonical_game_id": canonical_game_id,
+        "canonical_name": f"game-{canonical_game_id}",
+        "bucket_time": dt.datetime(2026, 3, 29, 14, 0, tzinfo=KST),
+        "region": "KR",
+        "currency_code": None,
+        "initial_price_minor": None,
+        "final_price_minor": None,
+        "discount_percent": None,
+        "is_free": True,
+    }
+
+
 def test_list_games_latest_price_returns_rows_and_passes_limit(monkeypatch) -> None:
     captured: dict[str, int] = {}
 
@@ -89,6 +103,27 @@ def test_get_game_latest_price_returns_row(monkeypatch) -> None:
     assert body["is_free"] is None
 
 
+def test_get_game_latest_price_returns_free_row_with_nullable_price_fields(monkeypatch) -> None:
+    monkeypatch.setattr(
+        price_service,
+        "get_latest_price_by_game",
+        lambda canonical_game_id: sample_free_response_record(canonical_game_id),
+    )
+
+    client = build_test_client()
+    response = client.get("/games/123/price/latest")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["canonical_game_id"] == 123
+    assert body["region"] == "KR"
+    assert body["currency_code"] is None
+    assert body["initial_price_minor"] is None
+    assert body["final_price_minor"] is None
+    assert body["discount_percent"] is None
+    assert body["is_free"] is True
+
+
 def test_service_sql_uses_price_serving_view_only() -> None:
     single_sql = price_service.GET_LATEST_BY_GAME_SQL.lower()
     list_sql = price_service.LIST_LATEST_SQL.lower()
@@ -136,20 +171,21 @@ def test_to_response_record_normalizes_legacy_lowercase_region() -> None:
     assert mapped["region"] == "KR"
 
 
-def test_to_response_record_preserves_boolean_is_free() -> None:
+def test_to_response_record_preserves_free_evidence_with_nullable_price_fields() -> None:
     row = {
         "canonical_game_id": 77,
         "canonical_name": "example",
         "bucket_time": dt.datetime(2026, 3, 29, 14, 0, tzinfo=KST),
         "region": "KR",
-        "currency_code": "KRW",
-        "initial_price_minor": 0,
-        "final_price_minor": 0,
-        "discount_percent": 0,
-        "is_free": False,
+        "currency_code": None,
+        "initial_price_minor": None,
+        "final_price_minor": None,
+        "discount_percent": None,
+        "is_free": True,
     }
 
     mapped = price_service.to_response_record(row)
 
-    assert mapped["is_free"] is False
-    assert mapped["final_price_minor"] == 0
+    assert mapped["is_free"] is True
+    assert mapped["currency_code"] is None
+    assert mapped["final_price_minor"] is None

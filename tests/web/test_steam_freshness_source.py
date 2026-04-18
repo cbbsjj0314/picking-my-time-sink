@@ -5,6 +5,7 @@ from pathlib import Path
 APP_PATH = Path("web/src/App.tsx")
 STEAM_TYPES_PATH = Path("web/src/types.ts")
 STEAM_VIEW_MODEL_PATH = Path("web/src/lib/steamViewModel.ts")
+GAMES_API_PATH = Path("web/src/api/games.ts")
 STEAM_OVERVIEW_HOOK_PATH = Path("web/src/hooks/useSteamOverview.ts")
 STEAM_DISCOVER_MODE_ROW_PATH = Path("web/src/components/SteamDiscoverModeRow.tsx")
 STEAM_EXPLORE_VIEW_MODEL_PATH = Path("web/src/lib/steamExploreViewModel.ts")
@@ -55,6 +56,38 @@ def test_explore_view_model_keeps_nulls_and_timestamp_fields_grounded() -> None:
     assert "ccuAnchorLabel: formatKstDate(row.ccu_period_anchor_date)" in source
     assert "reviewAnchorLabel: formatKstDate(row.reviews_snapshot_date)" in source
     assert "priceTitle: formatKstDateTime(row.price_bucket_time)" in source
+
+
+def test_web_price_types_allow_free_rows_without_numeric_fields() -> None:
+    source = GAMES_API_PATH.read_text(encoding="utf-8")
+
+    assert "currency_code: string | null" in source
+    assert "initial_price_minor: number | null" in source
+    assert "final_price_minor: number | null" in source
+    assert "discount_percent: number | null" in source
+
+
+def test_explore_price_display_distinguishes_free_and_missing_evidence() -> None:
+    source = STEAM_EXPLORE_VIEW_MODEL_PATH.read_text(encoding="utf-8")
+
+    assert "if (row.is_free === true)" in source
+    assert "return 'Free'" in source
+    assert "row.final_price_minor === null || row.currency_code === null" in source
+    assert "return EMPTY_CELL" in source
+    assert "row.is_free !== true && row.discount_percent !== null" in source
+
+
+def test_detail_price_display_uses_free_without_discount_support() -> None:
+    source = STEAM_VIEW_MODEL_PATH.read_text(encoding="utf-8")
+
+    assert "if (isFree === true)" in source
+    assert "return 'Free'" in source
+    assert "valueMinor === null || currencyCode === null" in source
+    assert "return 'Pending'" in source
+    assert "if (price.is_free === true || currentPrice === 'Pending')" in source
+    assert "if (price.is_free === true)" in source
+    assert "return '-'" in source
+    assert "return `${currentPrice} · Free`" not in source
 
 
 def test_explore_table_summarizes_freshness_without_fake_fallback() -> None:

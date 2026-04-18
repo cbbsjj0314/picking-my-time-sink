@@ -44,10 +44,10 @@ export type GameLatestPrice = {
   canonical_name: string
   bucket_time: string
   region: string
-  currency_code: string
-  initial_price_minor: number
-  final_price_minor: number
-  discount_percent: number
+  currency_code: string | null
+  initial_price_minor: number | null
+  final_price_minor: number | null
+  discount_percent: number | null
   is_free: boolean | null
 }
 
