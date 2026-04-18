@@ -10,7 +10,19 @@
 
 저장소/엔진 결론:
 
-- MinIO: Bronze/Silver/Gold Parquet(원본/중간/장기 보관)
+- Current execution baseline: thin scheduler/CLI path with local/private runtime
+  artifacts and Postgres serving facts/views.
+- Target orchestration direction: Dagster OSS after the current scheduler
+  operations baseline is stable.
+- Target object/artifact storage direction: Garage as an S3-compatible store for
+  future Bronze/Silver/Gold artifacts. MinIO is no longer the default storage
+  direction.
+- Portability rule: artifact/storage access should use an S3-compatible
+  contract and avoid provider-specific features where possible, so later Amazon
+  S3 or GCS XML API/HMAC interoperability remains plausible.
+- Parquet remains a candidate artifact format for future object-backed
+  Bronze/Silver/long-term snapshots, but current runtime data semantics are not
+  changed by this direction.
 - DuckDB: 변환/집계 작업(주로 Silver→Gold 산출)
 - Postgres: 서빙용 Gold(대시보드/API가 직접 조회하는 테이블/뷰)
 
@@ -82,7 +94,8 @@
 
 ### 4.1 Steam CCU (30분)
 
-- 테이블: fact_steam_ccu_30m (Postgres + 필요 시 MinIO Parquet)
+- 테이블: fact_steam_ccu_30m
+  (Postgres + future S3-compatible Parquet artifact path when implemented)
 - 그레인/PK: (canonical_game_id, bucket_time)
 - 컬럼(초안):
     - canonical_game_id
