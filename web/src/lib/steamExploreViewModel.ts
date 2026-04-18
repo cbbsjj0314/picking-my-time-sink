@@ -152,7 +152,7 @@ const formatKstDate = (value: string | null) => {
 }
 
 const formatPrice = (row: GameExploreOverview) => {
-  if (row.is_free) {
+  if (row.is_free === true) {
     return 'Free'
   }
 
@@ -172,7 +172,7 @@ const formatPrice = (row: GameExploreOverview) => {
 }
 
 const formatDiscountSupport = (row: GameExploreOverview) =>
-  !row.is_free && row.discount_percent !== null && row.discount_percent > 0 ? `-${row.discount_percent}%` : null
+  row.is_free !== true && row.discount_percent !== null && row.discount_percent > 0 ? `-${row.discount_percent}%` : null
 
 const formatCurrentCcuSupport = (row: GameExploreOverview) => {
   return formatDelta(row.current_delta_ccu_abs, row.current_delta_ccu_pct)

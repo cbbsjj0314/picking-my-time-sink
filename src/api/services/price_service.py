@@ -51,6 +51,18 @@ def to_public_price_region(value: object) -> str:
     return PRICE_REGION_KR
 
 
+def _optional_int(value: Any) -> int | None:
+    """Return int(value) while preserving None."""
+
+    return int(value) if value is not None else None
+
+
+def _optional_str(value: Any) -> str | None:
+    """Return str(value) while preserving None."""
+
+    return str(value) if value is not None else None
+
+
 def to_response_record(row: Mapping[str, Any]) -> dict[str, Any]:
     """Map one DB row from srv_game_latest_price to API response shape."""
 
@@ -61,10 +73,10 @@ def to_response_record(row: Mapping[str, Any]) -> dict[str, Any]:
         "canonical_name": str(row["canonical_name"]),
         "bucket_time": row["bucket_time"],
         "region": to_public_price_region(row["region"]),
-        "currency_code": str(row["currency_code"]),
-        "initial_price_minor": int(row["initial_price_minor"]),
-        "final_price_minor": int(row["final_price_minor"]),
-        "discount_percent": int(row["discount_percent"]),
+        "currency_code": _optional_str(row.get("currency_code")),
+        "initial_price_minor": _optional_int(row.get("initial_price_minor")),
+        "final_price_minor": _optional_int(row.get("final_price_minor")),
+        "discount_percent": _optional_int(row.get("discount_percent")),
         "is_free": None if is_free_raw is None else bool(is_free_raw),
     }
 

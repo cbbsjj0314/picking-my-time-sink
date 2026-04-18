@@ -96,9 +96,13 @@ const formatCompactInteger = (value: number) =>
 const formatSnapshotDateTime = (value: string) => `${KST_DATE_TIME_FORMATTER.format(new Date(value))} KST`
 const formatSnapshotDate = (value: string) => `${KST_DATE_FORMATTER.format(new Date(`${value}T00:00:00+09:00`))} KST`
 
-const formatMinorPrice = (valueMinor: number, currencyCode: string, isFree: boolean | null) => {
-  if (isFree) {
+const formatMinorPrice = (valueMinor: number | null, currencyCode: string | null, isFree: boolean | null) => {
+  if (isFree === true) {
     return 'Free'
+  }
+
+  if (valueMinor === null || currencyCode === null) {
+    return 'Pending'
   }
 
   if (currencyCode === 'KRW') {
@@ -331,11 +335,27 @@ const buildPriceLine = (price: GameLatestPrice | null) => {
 
   const currentPrice = formatMinorPrice(price.final_price_minor, price.currency_code, price.is_free)
 
-  if (price.is_free) {
-    return `${currentPrice} · Free`
+  if (price.is_free === true || currentPrice === 'Pending') {
+    return currentPrice
   }
 
-  return `${currentPrice} · ${price.discount_percent > 0 ? `-${price.discount_percent}%` : 'No sale'}`
+  return `${currentPrice} · ${price.discount_percent !== null && price.discount_percent > 0 ? `-${price.discount_percent}%` : 'No sale'}`
+}
+
+const formatDiscountValue = (price: GameLatestPrice | null) => {
+  if (!price) {
+    return 'Pending'
+  }
+
+  if (price.is_free === true) {
+    return '-'
+  }
+
+  if (price.discount_percent === null) {
+    return 'Pending'
+  }
+
+  return price.discount_percent > 0 ? `-${price.discount_percent}%` : 'No sale'
 }
 
 const buildReviewSummary = (reviews: GameLatestReviews | null) => {
@@ -405,14 +425,7 @@ const buildDetailCards = (row: SteamBaseRow, historyRows: GameDaily90dCcu[] | un
         },
         {
           label: 'Discount',
-          value:
-            row.price
-              ? row.price.is_free
-                ? 'Free'
-                : row.price.discount_percent > 0
-                  ? `-${row.price.discount_percent}%`
-                  : 'No sale'
-              : 'Pending',
+          value: formatDiscountValue(row.price),
         },
         {
           label: 'Price snapshot',

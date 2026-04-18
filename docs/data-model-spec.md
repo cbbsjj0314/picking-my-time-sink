@@ -135,12 +135,17 @@
     - canonical_game_id
     - bucket_time
     - region (MVP: KR만, write path는 `KR` casing으로 정규화)
-    - currency_code
-    - initial_price_minor
-    - final_price_minor
-    - discount_percent
-    - is_free (nullable)
+    - currency_code (paid price row는 required, grounded free row는 null)
+    - initial_price_minor (paid price row는 required, grounded free row는 null)
+    - final_price_minor (paid price row는 required, grounded free row는 null)
+    - discount_percent (paid price row는 required, grounded free row는 null)
+    - is_free (fallback full `appdetails` 의 `data.is_free is true` 일 때만 true, paid row는 nullable/non-true)
     - collected_at
+- price evidence contract:
+    - Paid row는 Steam `price_overview.currency`, `initial`, `final`, `discount_percent` 가 모두 loadable일 때만 생성한다.
+    - Free row는 filtered primary `appdetails` 가 성공했지만 `price_overview` 를 제공하지 않았고, no-filter fallback full `appdetails` 에서 `data.is_free is true` 로 확인될 때만 생성한다.
+    - Free row에는 source가 제공하지 않은 `currency_code`, `initial_price_minor`, `final_price_minor`, `discount_percent` 를 fake `KRW` / `0` / `0%` 로 채우지 않는다.
+    - `price_overview` 없음, fallback `is_free=false`, missing/invalid fallback, unsuccessful payload는 free/unavailable/region-blocked/delisted 의미로 해석하지 않고 row를 만들지 않는다.
 - current serving compatibility:
     - `srv_game_latest_price` 는 기존 lowercase `kr` fact도 KR fact로 읽고, public serving/API `region`은 `KR`로 고정한다.
 

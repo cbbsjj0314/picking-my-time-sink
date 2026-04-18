@@ -26,6 +26,10 @@ REQUEST_PARAMS_BASE = {
     "filters": "price_overview",
     "l": "koreana",
 }
+FALLBACK_REQUEST_PARAMS_BASE = {
+    "cc": "kr",
+    "l": "koreana",
+}
 
 
 def configure_logging() -> None:
@@ -106,20 +110,21 @@ def load_tracked_steam_games(conn: Any) -> list[dict[str, int]]:
     return targets
 
 
-def fetch_price_for_app(
+def build_appdetails_result(
     *,
     steam_appid: int,
+    request_params_base: dict[str, str],
     timeout_seconds: float,
     max_attempts: int,
     backoff_base_seconds: float,
     jitter_max_seconds: float,
     max_backoff_seconds: float,
 ) -> dict[str, Any]:
-    """Fetch one app's KR price payload using shared retry defaults only."""
+    """Fetch one appdetails payload and preserve request provenance."""
 
     params: dict[str, str | int] = {
         "appids": steam_appid,
-        **REQUEST_PARAMS_BASE,
+        **request_params_base,
     }
     result = request_with_retry(
         url=REQUEST_URL,
@@ -137,7 +142,100 @@ def fetch_price_for_app(
         "attempt_stats": summarize_attempts(result.attempts),
         "error": result.error,
         "payload": decode_json_payload(result.body),
+        "request": {
+            "params": params,
+            "url": REQUEST_URL,
+        },
         "status_code": result.status_code,
+    }
+
+
+def has_successful_appdetails_without_price_overview(
+    payload: Any,
+    *,
+    steam_appid: int,
+) -> bool:
+    """Return true when filtered appdetails succeeded without loadable price_overview."""
+
+    if not isinstance(payload, dict):
+        return False
+
+    app_payload = payload.get(str(steam_appid))
+    if not isinstance(app_payload, dict):
+        return False
+    if app_payload.get("success") is not True:
+        return False
+
+    data = app_payload.get("data")
+    if not isinstance(data, dict):
+        return True
+
+    return not isinstance(data.get("price_overview"), dict)
+
+
+def should_fetch_full_appdetails_fallback(
+    primary_result: dict[str, Any],
+    *,
+    steam_appid: int,
+) -> bool:
+    """Decide whether a no-filter fallback can add grounded free-title evidence."""
+
+    if primary_result.get("error") is not None:
+        return False
+    if primary_result.get("status_code") != 200:
+        return False
+
+    return has_successful_appdetails_without_price_overview(
+        primary_result.get("payload"),
+        steam_appid=steam_appid,
+    )
+
+
+def fetch_price_for_app(
+    *,
+    steam_appid: int,
+    timeout_seconds: float,
+    max_attempts: int,
+    backoff_base_seconds: float,
+    jitter_max_seconds: float,
+    max_backoff_seconds: float,
+) -> dict[str, Any]:
+    """Fetch one app's KR price payload using shared retry defaults only."""
+
+    primary_result = build_appdetails_result(
+        steam_appid=steam_appid,
+        request_params_base=REQUEST_PARAMS_BASE,
+        timeout_seconds=timeout_seconds,
+        max_attempts=max_attempts,
+        backoff_base_seconds=backoff_base_seconds,
+        jitter_max_seconds=jitter_max_seconds,
+        max_backoff_seconds=max_backoff_seconds,
+    )
+
+    fallback_result: dict[str, Any] | None = None
+    if should_fetch_full_appdetails_fallback(primary_result, steam_appid=steam_appid):
+        fallback_result = build_appdetails_result(
+            steam_appid=steam_appid,
+            request_params_base=FALLBACK_REQUEST_PARAMS_BASE,
+            timeout_seconds=timeout_seconds,
+            max_attempts=max_attempts,
+            backoff_base_seconds=backoff_base_seconds,
+            jitter_max_seconds=jitter_max_seconds,
+            max_backoff_seconds=max_backoff_seconds,
+        )
+
+    attempt_stats = [primary_result["attempt_stats"]]
+    if fallback_result is not None:
+        attempt_stats.append(fallback_result["attempt_stats"])
+
+    return {
+        "attempts": primary_result["attempts"],
+        "attempt_stats": sum_attempt_stats(attempt_stats),
+        "error": primary_result["error"],
+        "fallback": fallback_result,
+        "payload": primary_result["payload"],
+        "primary": primary_result,
+        "status_code": primary_result["status_code"],
     }
 
 
@@ -150,13 +248,31 @@ def build_bronze_record(
 ) -> dict[str, Any]:
     """Build one bronze record while preserving the decoded raw payload."""
 
+    primary = fetch_result.get("primary")
+    if primary is None:
+        primary = {
+            "attempts": fetch_result["attempts"],
+            "error": fetch_result["error"],
+            "payload": fetch_result["payload"],
+            "request": {
+                "params": {
+                    "appids": steam_appid,
+                    **REQUEST_PARAMS_BASE,
+                },
+                "url": REQUEST_URL,
+            },
+            "status_code": fetch_result["status_code"],
+        }
+
     return {
         "attempts": fetch_result["attempts"],
         "canonical_game_id": canonical_game_id,
         "collected_at": collected_at,
         "error": fetch_result["error"],
+        "fallback": fetch_result.get("fallback"),
         "http_status": fetch_result["status_code"],
         "payload": fetch_result["payload"],
+        "primary": primary,
         "steam_appid": steam_appid,
     }
 

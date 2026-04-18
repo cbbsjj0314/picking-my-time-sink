@@ -63,6 +63,20 @@ def sample_response_record(canonical_game_id: int) -> dict[str, object]:
     }
 
 
+def sample_free_response_record(canonical_game_id: int) -> dict[str, object]:
+    row = sample_response_record(canonical_game_id)
+    row.update(
+        {
+            "currency_code": None,
+            "discount_percent": None,
+            "final_price_minor": None,
+            "initial_price_minor": None,
+            "is_free": True,
+        }
+    )
+    return row
+
+
 def test_list_games_explore_overview_returns_rows_and_passes_limit(monkeypatch) -> None:
     captured: dict[str, int] = {}
 
@@ -89,6 +103,29 @@ def test_list_games_explore_overview_returns_rows_and_passes_limit(monkeypatch) 
     assert body[0]["delta_period_positive_ratio_7d_pp"] == 5.0
     assert body[0]["period_positive_ratio_30d"] == 0.84
     assert body[0]["region"] == "KR"
+
+
+def test_list_games_explore_overview_returns_free_price_evidence_without_numeric_fallback(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(
+        explore_service,
+        "list_explore_overview",
+        lambda limit=50: [sample_free_response_record(1)],
+    )
+
+    client = build_test_client()
+    response = client.get("/games/explore/overview", params={"limit": 25})
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body[0]["canonical_game_id"] == 1
+    assert body[0]["region"] == "KR"
+    assert body[0]["currency_code"] is None
+    assert body[0]["initial_price_minor"] is None
+    assert body[0]["final_price_minor"] is None
+    assert body[0]["discount_percent"] is None
+    assert body[0]["is_free"] is True
 
 
 def test_service_sql_reads_explore_serving_view_with_default_sort() -> None:
@@ -163,6 +200,20 @@ def test_to_response_record_preserves_null_evidence_fields() -> None:
     assert mapped["delta_period_positive_ratio_30d_pp"] is None
     assert mapped["final_price_minor"] is None
     assert mapped["is_free"] is None
+
+
+def test_to_response_record_preserves_free_price_evidence_without_numeric_fallback() -> None:
+    row = sample_free_response_record(77)
+
+    mapped = explore_service.to_response_record(row)
+
+    assert mapped["canonical_game_id"] == 77
+    assert mapped["region"] == "KR"
+    assert mapped["currency_code"] is None
+    assert mapped["initial_price_minor"] is None
+    assert mapped["final_price_minor"] is None
+    assert mapped["discount_percent"] is None
+    assert mapped["is_free"] is True
 
 
 def test_to_response_record_maps_non_finite_float_evidence_to_null() -> None:

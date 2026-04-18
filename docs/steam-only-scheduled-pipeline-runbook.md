@@ -1,5 +1,5 @@
 문서 목적: Steam-only scheduled pipeline의 durable flow와 데이터 계약을 고정
-버전: v0.6 (public docs / probe boundary cleanup)
+버전: v0.7 (Steam price free-title fallback contract)
 작성일: 2026-04-17 (KST)
 
 ## 0. 현재 범위
@@ -24,6 +24,9 @@
 4. Price branch
    - active Steam target의 KR 가격 snapshot을 1시간 bucket fact로 적재한다.
    - current public API region contract는 `KR` casing이다.
+   - primary request는 `filters=price_overview` 를 유지한다.
+   - primary `appdetails` 가 성공했지만 `price_overview` 가 없을 때만 같은 `cc=kr`, `l=koreana` context의 no-filter full `appdetails` fallback을 호출한다.
+   - fallback full payload의 `data.is_free is true` 만 grounded free title evidence로 적재하며, numeric price fields는 null로 보존한다.
 5. Reviews branch
    - active Steam target의 all-language / all-purchase cumulative review snapshot을 daily fact로 적재한다.
 6. CCU branch
@@ -52,7 +55,9 @@
 - Price facts
   - Current slice is KR only.
   - Latest price serving treats legacy lowercase `kr` rows as KR evidence while public API output remains `KR`.
-  - Free-title fallback semantics remain deferred.
+  - Paid rows require `price_overview.currency`, `initial`, `final`, and `discount_percent`.
+  - Grounded free rows require fallback full `appdetails` `data.is_free is true`; `currency_code`, `initial_price_minor`, `final_price_minor`, and `discount_percent` stay null.
+  - Missing `price_overview`, fallback `is_free=false`, invalid JSON, HTTP failure, and unsuccessful payloads are not converted into free/unavailable/region-blocked/delisted meaning.
 - Reviews facts
   - Current reviews series uses `json=1`, `filter=all`, `language=all`, `purchase_type=all`, and bounded page size.
   - Gold facts preserve cumulative totals; broader review history and alternate filter series need a separate schema/ingest slice.
@@ -77,11 +82,62 @@ Exact local run times are scheduler/config responsibility, not public data seman
 - Local runtime verification may check live DB rows, local API responses, and web rendering, but those commands and endpoint details belong in `docs/local/`.
 - Runtime artifacts, execution meta, raw probe captures, and operator scratch paths are local/private by default.
 
-## 6. Deferred
+## 6. Existing DB Apply Note
+
+Existing local/dev databases created before the free-title fallback contract need an explicit `fact_steam_price_1h` ALTER before free rows can load. Fresh schema creation uses `sql/postgres/012_fact_steam_price_1h.sql`.
+
+Minimum existing-table migration shape:
+
+```sql
+ALTER TABLE fact_steam_price_1h
+    ALTER COLUMN currency_code DROP NOT NULL,
+    ALTER COLUMN initial_price_minor DROP NOT NULL,
+    ALTER COLUMN final_price_minor DROP NOT NULL,
+    ALTER COLUMN discount_percent DROP NOT NULL;
+
+ALTER TABLE fact_steam_price_1h
+    DROP CONSTRAINT IF EXISTS fact_steam_price_1h_currency_code_non_empty,
+    DROP CONSTRAINT IF EXISTS fact_steam_price_1h_initial_price_minor_non_negative,
+    DROP CONSTRAINT IF EXISTS fact_steam_price_1h_final_price_minor_non_negative,
+    DROP CONSTRAINT IF EXISTS fact_steam_price_1h_discount_percent_range,
+    DROP CONSTRAINT IF EXISTS fact_steam_price_1h_price_evidence_shape;
+
+ALTER TABLE fact_steam_price_1h
+    ADD CONSTRAINT fact_steam_price_1h_currency_code_non_empty
+        CHECK (currency_code IS NULL OR BTRIM(currency_code) <> ''),
+    ADD CONSTRAINT fact_steam_price_1h_initial_price_minor_non_negative
+        CHECK (initial_price_minor IS NULL OR initial_price_minor >= 0),
+    ADD CONSTRAINT fact_steam_price_1h_final_price_minor_non_negative
+        CHECK (final_price_minor IS NULL OR final_price_minor >= 0),
+    ADD CONSTRAINT fact_steam_price_1h_discount_percent_range
+        CHECK (
+            discount_percent IS NULL
+            OR (discount_percent >= 0 AND discount_percent <= 100)
+        ),
+    ADD CONSTRAINT fact_steam_price_1h_price_evidence_shape
+        CHECK (
+            (
+                is_free IS TRUE
+                AND currency_code IS NULL
+                AND initial_price_minor IS NULL
+                AND final_price_minor IS NULL
+                AND discount_percent IS NULL
+            )
+            OR (
+                is_free IS DISTINCT FROM TRUE
+                AND currency_code IS NOT NULL
+                AND initial_price_minor IS NOT NULL
+                AND final_price_minor IS NOT NULL
+                AND discount_percent IS NOT NULL
+            )
+        );
+```
+
+## 7. Deferred
 
 - App Catalog external scheduling operationalization.
 - Parquet / MinIO artifact exchange.
-- Price free / unavailable semantics expansion.
+- Price unavailable / delisted / region-blocked / age-gated semantics expansion.
 - Reviews generalized history / parameter expansion.
 - Broader CCU history / generalized date-range serving.
 - Chzzk/Twitch provider expansion and real streaming integration.

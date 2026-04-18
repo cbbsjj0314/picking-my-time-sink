@@ -101,15 +101,83 @@ def extract_price_fields(payload: Any, *, steam_appid: int) -> dict[str, Any] | 
     }
 
 
+def is_successful_payload_without_price_overview(payload: Any, *, steam_appid: int) -> bool:
+    """Return true when primary appdetails succeeded without loadable price_overview."""
+
+    if not isinstance(payload, dict):
+        return False
+
+    app_payload = payload.get(str(steam_appid))
+    if not isinstance(app_payload, dict):
+        return False
+    if app_payload.get("success") is not True:
+        return False
+
+    data = app_payload.get("data")
+    if not isinstance(data, dict):
+        return True
+
+    return not isinstance(data.get("price_overview"), dict)
+
+
+def extract_fallback_payload(row: Mapping[str, Any]) -> Any:
+    """Return the fallback full appdetails payload from a bronze row when present."""
+
+    fallback = row.get("fallback")
+    if isinstance(fallback, Mapping):
+        return fallback.get("payload")
+
+    return row.get("fallback_payload")
+
+
+def extract_free_fields(payload: Any, *, steam_appid: int) -> dict[str, Any] | None:
+    """Extract grounded free-title evidence from full appdetails fallback payload."""
+
+    if not isinstance(payload, dict):
+        return None
+
+    app_payload = payload.get(str(steam_appid))
+    if not isinstance(app_payload, dict):
+        return None
+    if app_payload.get("success") is not True:
+        return None
+
+    data = app_payload.get("data")
+    if not isinstance(data, dict):
+        return None
+    if data.get("is_free") is not True:
+        return None
+
+    return {
+        "currency_code": None,
+        "discount_percent": None,
+        "final_price_minor": None,
+        "initial_price_minor": None,
+    }
+
+
 def normalize_bronze_record(row: Mapping[str, Any]) -> dict[str, Any] | None:
-    """Normalize one bronze row into silver schema for loadable KR paid prices."""
+    """Normalize one bronze row into silver schema for loadable KR price evidence."""
 
     canonical_game_id = int(row["canonical_game_id"])
     steam_appid = int(row["steam_appid"])
     collected_at = parse_timestamp(str(row["collected_at"]))
     price_fields = extract_price_fields(row.get("payload"), steam_appid=steam_appid)
+    is_free = None
     if price_fields is None:
-        return None
+        if not is_successful_payload_without_price_overview(
+            row.get("payload"),
+            steam_appid=steam_appid,
+        ):
+            return None
+
+        price_fields = extract_free_fields(
+            extract_fallback_payload(row),
+            steam_appid=steam_appid,
+        )
+        if price_fields is None:
+            return None
+        is_free = True
 
     return {
         "bucket_time": format_kst_iso(floor_to_kst_hour(collected_at)),
@@ -119,7 +187,7 @@ def normalize_bronze_record(row: Mapping[str, Any]) -> dict[str, Any] | None:
         "discount_percent": price_fields["discount_percent"],
         "final_price_minor": price_fields["final_price_minor"],
         "initial_price_minor": price_fields["initial_price_minor"],
-        "is_free": None,
+        "is_free": is_free,
         "region": PRICE_REGION_KR,
         "steam_appid": steam_appid,
     }
