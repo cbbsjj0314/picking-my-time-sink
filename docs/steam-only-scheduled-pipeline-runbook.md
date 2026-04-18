@@ -8,6 +8,8 @@
 - 이 문서는 public durable reference로서 pipeline 단계, 데이터 흐름, schema/API 의미를 설명한다.
 - local 실행 명령, scratch artifact path, DB 확인 쿼리, local runtime verification 절차는 public contract가 아니며 `docs/local/` runbook에서 관리한다.
 - scheduler automation / external scheduling은 current MVP baseline에 포함하지 않는다.
+- Dagster orchestration and Garage/S3-compatible artifact storage are target
+  directions, not current live requirements for this pipeline contract.
 - Chzzk/Twitch provider 확장, Combined synthesis, generalized provider abstraction은 이 pipeline contract 밖이다.
 
 ## 1. Pipeline 단계
@@ -136,7 +138,8 @@ ALTER TABLE fact_steam_price_1h
 ## 7. Deferred
 
 - App Catalog external scheduling operationalization.
-- Parquet / MinIO artifact exchange.
+- S3-compatible artifact exchange, including Garage target storage and Parquet
+  artifact layout.
 - Price unavailable / delisted / region-blocked / age-gated semantics expansion.
 - Reviews generalized history / parameter expansion.
 - Broader CCU history / generalized date-range serving.
