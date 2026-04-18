@@ -1,13 +1,16 @@
 문서 목적: Steam-only scheduled pipeline의 durable flow와 데이터 계약을 고정
-버전: v0.7 (Steam price free-title fallback contract)
-작성일: 2026-04-17 (KST)
+버전: v0.8 (cadence-aware scheduler ops baseline)
+작성일: 2026-04-18 (KST)
 
 ## 0. 현재 범위
 
 - current runtime scope는 Steam-only 이다.
 - 이 문서는 public durable reference로서 pipeline 단계, 데이터 흐름, schema/API 의미를 설명한다.
 - local 실행 명령, scratch artifact path, DB 확인 쿼리, local runtime verification 절차는 public contract가 아니며 `docs/local/` runbook에서 관리한다.
-- scheduler automation / external scheduling은 current MVP baseline에 포함하지 않는다.
+- current MVP baseline은 external scheduler / cron / systemd 등이 호출할 수 있는
+  thin cadence-aware CLI job boundary를 포함한다.
+- Scheduler service, heavy DAG runtime, Docker deployment, object storage handoff는
+  current live requirement가 아니다.
 - Dagster orchestration and Garage/S3-compatible artifact storage are target
   directions, not current live requirements for this pipeline contract.
 - Chzzk/Twitch provider 확장, Combined synthesis, generalized provider abstraction은 이 pipeline contract 밖이다.
@@ -78,6 +81,19 @@
 
 Exact local run times are scheduler/config responsibility, not public data semantics.
 
+Current cadence-aware operation boundary:
+
+- `ccu-30m`: `fetch_ccu_30m -> bronze_to_silver_ccu -> silver_to_gold_ccu -> gold_to_agg_ccu_daily`.
+- `price-1h`: `fetch_price_1h -> bronze_to_silver_price -> silver_to_gold_price`.
+- `daily`: `run_tracked_universe_scheduled -> payload_to_gold_rankings -> fetch_reviews_daily -> bronze_to_silver_reviews -> silver_to_gold_reviews`.
+- `app-catalog-weekly`: optional weekly/ad hoc App Catalog fetch that maintains the existing latest summary consumer boundary for tracked universe updates.
+
+The single-command Steam wrapper remains a one-shot manual handoff baseline and is not the 30m scheduler path.
+
+Cadence jobs should expose local/private result, log, execution meta, and no-overlap lock evidence. Exact paths, host-specific schedule, and local smoke commands belong in `docs/local/`.
+
+CCU per-app missing evidence is not the same as a hard job failure. A CCU fetch can produce useful bronze/gold rows while recording missing app-level evidence such as 404/empty/invalid payloads. Operators should distinguish full success, partial success, lock-busy skip, and hard failure from job-level result/meta evidence.
+
 ## 5. Public Verification Boundary
 
 - Public validation should focus on schema/API contracts, fact/upsert idempotence, null-preserving serving semantics, and fixture-backed parser behavior.
@@ -137,7 +153,7 @@ ALTER TABLE fact_steam_price_1h
 
 ## 7. Deferred
 
-- App Catalog external scheduling operationalization.
+- Host-specific scheduler/timer files and exact local run schedules.
 - S3-compatible artifact exchange, including Garage target storage and Parquet
   artifact layout.
 - Price unavailable / delisted / region-blocked / age-gated semantics expansion.
