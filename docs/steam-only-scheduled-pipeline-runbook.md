@@ -98,6 +98,14 @@ The single-command Steam wrapper remains a one-shot manual handoff baseline and 
 
 Cadence jobs should expose local/private result, log, execution meta, and no-overlap lock evidence. Exact paths, host-specific schedule, and local smoke commands belong in `docs/local/`.
 
+Windows desktop hosts may use Windows Task Scheduler to invoke `wsl.exe`, with
+the actual cadence command still running inside the WSL2 Linux runtime. That
+keeps `.env` loading, Poetry execution, local artifacts, and the current Linux
+no-overlap lock boundary on the existing WSL path instead of introducing a
+native Windows Python/Poetry scheduler path. Host-specific task names, schedules,
+repo paths, and scheduler-triggered evidence remain local/private operations
+details.
+
 CCU per-app missing evidence is not the same as a hard job failure. A CCU fetch can produce useful bronze/gold rows while recording missing app-level evidence such as 404/empty/invalid payloads. Operators should distinguish full success, partial success, lock-busy skip, and hard failure from job-level result/meta evidence.
 
 ## 5. Public Verification Boundary

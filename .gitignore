@@ -29,5 +29,8 @@ logs/
 tmp/
 data/
 
+# Local operator scripts
+scripts/local/
+
 # local working docs
 docs/local/
