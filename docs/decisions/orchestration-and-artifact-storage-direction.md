@@ -1,7 +1,7 @@
 # Orchestration and Artifact Storage Direction
 
 Status: accepted target direction, docs-only
-Date: 2026-04-18 (KST)
+Date: 2026-04-19 (KST)
 
 This decision documents the intended tool direction. It does not introduce a live
 Dagster runtime, a Garage deployment, a Docker Compose stack, or any schema/API
@@ -75,12 +75,31 @@ both desktop and laptop environments. Garage can be operated as a single-node
 service with or without Docker; this public decision intentionally leaves that
 host-specific detail to local operations notes.
 
+## Adjacent Tool Boundaries
+
+The orchestration/storage decision should stay narrow. Adjacent tools have
+separate roles and adoption triggers:
+
+- Prometheus/Grafana is the nearest metrics observability candidate after the
+  current WSL2 scheduler activation closes. It does not replace orchestration or
+  storage.
+- DuckDB is the first batch transform / rollup / recompute / backfill engine
+  candidate. It does not replace Postgres serving/metadata state.
+- dbt Core should wait until fact/dim/mart SQL shapes stabilize enough to make
+  mart models, tests, and docs useful.
+- Loki is a centralized logs observability candidate after metrics
+  observability; it is not a data governance layer.
+- ClickHouse remains deferred until historical OLAP query volume proves that
+  Postgres is the bottleneck.
+
 ## Current Baseline Caveat
 
 The current runtime artifact flow remains local/private artifact oriented, with
 Postgres serving facts/views for the Steam-only dashboard path. This decision
 does not claim that Dagster, Garage, Docker Compose, S3-backed artifacts, or
-Parquet artifact exchange are already live.
+Parquet artifact exchange are already live. It also does not claim that
+Prometheus/Grafana, DuckDB, dbt Core, Loki, or ClickHouse are live runtime
+dependencies.
 
 ## Explicitly Deferred
 
@@ -90,4 +109,5 @@ Parquet artifact exchange are already live.
 - Garage installation and host-specific operating configuration.
 - Migration from local/private runtime artifacts to object storage.
 - Cloud object storage adoption.
+- Prometheus/Grafana, DuckDB, dbt Core, Loki, and ClickHouse runtime wiring.
 - Any schema, API, or runtime behavior change.

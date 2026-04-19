@@ -1,6 +1,6 @@
 문서 목적: Steam-only scheduled pipeline의 durable flow와 데이터 계약을 고정
-버전: v0.8 (cadence-aware scheduler ops baseline)
-작성일: 2026-04-18 (KST)
+버전: v0.9 (tooling direction boundary)
+작성일: 2026-04-19 (KST)
 
 ## 0. 현재 범위
 
@@ -13,6 +13,12 @@
   current live requirement가 아니다.
 - Dagster orchestration and Garage/S3-compatible artifact storage are target
   directions, not current live requirements for this pipeline contract.
+- Prometheus/Grafana metrics, DuckDB batch recompute, dbt Core modeling, Loki
+  logs, and ClickHouse historical OLAP are not current live requirements for
+  this Steam-only scheduler contract.
+- If adopted later, these tools must preserve this boundary: Postgres remains
+  the current serving/metadata baseline until a separate schema/API/runtime
+  slice changes that contract.
 - Chzzk/Twitch provider 확장, Combined synthesis, generalized provider abstraction은 이 pipeline contract 밖이다.
 
 ## 1. Pipeline 단계
@@ -154,8 +160,15 @@ ALTER TABLE fact_steam_price_1h
 ## 7. Deferred
 
 - Host-specific scheduler/timer files and exact local run schedules.
+- Prometheus/Grafana metrics deployment and alerting.
+- DuckDB runtime wiring for rollup/recompute/backfill.
 - S3-compatible artifact exchange, including Garage target storage and Parquet
   artifact layout.
+- dbt Core mart/test/docs wiring.
+- Dagster orchestration runtime, jobs/assets, schedules, sensors, checks, and
+  backfills.
+- Loki centralized logs.
+- ClickHouse historical OLAP engine before a proven bottleneck.
 - Price unavailable / delisted / region-blocked / age-gated semantics expansion.
 - Reviews generalized history / parameter expansion.
 - Broader CCU history / generalized date-range serving.
