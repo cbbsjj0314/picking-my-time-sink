@@ -1,5 +1,5 @@
 문서 목적: 테이블/파일 목록 + 그레인(1행 키) + 적재 규칙(증분/스냅샷) + 보존 기준 + repo-grounded provider 확장 경계 기록
-버전: v0.12 (data governance documentation baseline)
+버전: v0.13 (tooling direction boundary)
 작성일: 2026-04-19 (KST)
 
 ## 0. 레이어 개요
@@ -12,19 +12,31 @@
 
 - Current execution baseline: thin scheduler/CLI path with local/private runtime
   artifacts and Postgres serving facts/views.
+- Postgres is the current serving/metadata DB baseline for API-facing latest
+  state and serving read models.
+- Prometheus/Grafana is the nearest metrics observability candidate after the
+  current WSL2 scheduler activation closes; it is not a current data runtime.
+- DuckDB remains a data-engine direction, but its first live use should be batch
+  transform / rollup / recompute / backfill work, not replacement of Postgres
+  serving or metadata state.
 - Target orchestration direction: Dagster OSS after the current scheduler
-  operations baseline is stable.
+  operations baseline is stable and thin scheduler dependency management becomes
+  awkward. It is not current live runtime.
 - Target object/artifact storage direction: Garage as an S3-compatible store for
-  future Bronze/Silver/Gold artifacts. MinIO is no longer the default storage
-  direction.
+  future Bronze/Silver/Gold artifacts. Garage is not current live artifact
+  storage, and MinIO is no longer the default storage direction.
 - Portability rule: artifact/storage access should use an S3-compatible
   contract and avoid provider-specific features where possible, so later Amazon
   S3 or GCS XML API/HMAC interoperability remains plausible.
 - Parquet remains a candidate artifact format for future object-backed
   Bronze/Silver/long-term snapshots, but current runtime data semantics are not
   changed by this direction.
-- DuckDB: 변환/집계 작업(주로 Silver→Gold 산출)
-- Postgres: 서빙용 Gold(대시보드/API가 직접 조회하는 테이블/뷰)
+- dbt Core is deferred until fact/dim/mart SQL shapes are stable enough to make
+  mart models, tests, and docs useful.
+- Loki is a centralized logs observability candidate after metrics
+  observability; it is not a data governance tool.
+- ClickHouse is deferred until a proven large-scale historical OLAP bottleneck
+  appears; it is not the current warehouse or serving DB.
 
 ### 0.1 데이터 거버넌스 / naming 규칙
 
