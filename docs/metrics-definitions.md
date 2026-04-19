@@ -1,8 +1,8 @@
 # Metrics & Definitions (요구사항 + 지표 정의서)
 
 문서 목적: 용어/지표/Δ 기준을 고정해 구현 중 재해석을 방지
-버전: v0.16 (provider-specific streaming probe/ingest preparation)
-작성일: 2026-04-17 (KST)
+버전: v0.17 (data governance documentation baseline)
+작성일: 2026-04-19 (KST)
 
 ## 0. 시간/기간 프리셋
 
@@ -12,6 +12,15 @@
     - 최근 7일
     - 최근 30일
     - 최근 90일(3개월) — 기본적으로 일 단위 rollup을 사용
+
+### 0.1 지표 정의 governance
+
+- 지표 정의는 구현 전 또는 구현과 같은 slice에서 고정한다.
+- 각 지표는 name, grain, anchor, formula, comparison baseline, unit, null rule을 포함한다.
+- Δ 지표는 비교 기준을 반드시 명시한다. 예: current CCU Δ는 직전 30분 버킷 대비가 아니라 전일 동일 KST 30분 버킷 대비다.
+- percent change는 `_pct`, percentage point 차이는 `_pp` suffix를 사용한다.
+- field-level missing evidence는 synthetic fallback으로 채우지 않는다. null, skipped evidence, missing flag 중 해당 table/API contract에 맞는 형태로 보존한다.
+- 지표가 schema/API/data semantics를 바꾸면 `docs/data-governance.md`, `docs/data-model-spec.md`, 관련 tests를 함께 갱신한다.
 
 ## 1. 공통 정의
 

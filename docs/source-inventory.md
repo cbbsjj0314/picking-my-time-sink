@@ -1,12 +1,13 @@
 문서 목적: probe(샘플 검증) 실행 체크리스트 + 이후 스키마/파서/테스트의 기준점 + repo-grounded provider 확장 진입 기준 기록
-버전: v0.5 (provider-specific streaming probe/ingest preparation)
-작성일: 2026-04-17 (KST)
+버전: v0.6 (data governance documentation baseline)
+작성일: 2026-04-19 (KST)
 
 ## 0. 공통 원칙
 
 - 실패/빈값/429는 “발생할 수 있다”를 전제로 하고, 재시도/백오프/관측 로그를 남긴다.
 - public에는 sanitized fixture와 durable contract만 남긴다. raw capture, UGC-heavy payload, 내부 운영 절차, exact local schedule은 local/private first로 둔다.
 - 스트리밍 확장은 첫 provider-specific source probe/ingest 후보를 좁혀 시작한다. Chzzk/Twitch 공통 인터페이스나 generalized provider abstraction은 실제 provider probe가 안정화된 뒤 별도 slice에서 검토한다.
+- Source-level data governance boundary는 `docs/data-governance.md` 를 따른다. Public source docs에는 endpoint shape, field meaning, cadence, null/error semantics를 남기고, raw provider response와 live runtime evidence는 local/private로 둔다.
 
 ### 0.1 Provider boundary (current repo-grounded)
 
