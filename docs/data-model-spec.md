@@ -1,6 +1,6 @@
 문서 목적: 테이블/파일 목록 + 그레인(1행 키) + 적재 규칙(증분/스냅샷) + 보존 기준 + repo-grounded provider 확장 경계 기록
-버전: v0.11 (provider-specific streaming probe/ingest preparation)
-작성일: 2026-04-17 (KST)
+버전: v0.12 (data governance documentation baseline)
+작성일: 2026-04-19 (KST)
 
 ## 0. 레이어 개요
 
@@ -25,6 +25,21 @@
   changed by this direction.
 - DuckDB: 변환/집계 작업(주로 Silver→Gold 산출)
 - Postgres: 서빙용 Gold(대시보드/API가 직접 조회하는 테이블/뷰)
+
+### 0.1 데이터 거버넌스 / naming 규칙
+
+- Public governance baseline은 `docs/data-governance.md` 를 따른다.
+- SQL object와 column은 lower snake case를 사용한다.
+- Provider-specific fact는 provider name을 table name에 포함한다. 예: `fact_steam_ccu_30m`.
+- 실제 두 번째 provider가 durable fact/serving surface를 요구하기 전까지 generalized provider table을 만들지 않는다.
+- `dim_`: canonical dimension.
+- `fact_`: declared grain을 가진 bucket/snapshot fact.
+- `agg_`: fact에서 파생된 rollup.
+- `srv_`: API/UI가 직접 읽는 serving read model.
+- window field는 `_7d`, `_30d`, `_90d` 같은 suffix로 기간을 드러낸다.
+- absolute delta는 `_abs`, percent delta는 `_pct`, percentage point delta는 `_pp` suffix를 사용한다.
+- nullable column은 source가 실제로 제공하지 않는 값, missing evidence, current contract상 아직 정의되지 않은 의미를 구분할 수 있어야 한다. fake zero/default로 의미를 만들지 않는다.
+- schema, grain, nullable policy, source series meaning이 바뀌면 이 문서와 관련 regression tests를 같은 slice에서 갱신한다.
 
 ## 1. 공통 시간/키 규칙
 
