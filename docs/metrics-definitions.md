@@ -87,7 +87,7 @@
 - anchor는 per-game anchor가 아니라 metric-wide anchor를 우선한다. 같은 테이블의 row들이 같은 기준일로 비교되도록, 특정 게임의 더 오래된 최신일로 fallback하지 않는다.
 - metric-wide anchor 예시:
     - CCU daily rollup family: `agg_steam_ccu_daily.bucket_date` 의 latest available KST date
-    - strict Estimated Player-Hours raw CCU family: `fact_steam_ccu_30m.bucket_time` 의 KST date 기준 latest available data date
+    - strict Estimated Player-Hours raw CCU family: `fact_steam_ccu_30m.bucket_time` 의 KST date 기준 latest complete raw data date. Complete raw KST date의 current minimum 기준은 해당 KST date에 distinct half-hour bucket timestamp 48개가 있는 것이다.
     - review daily snapshot family: `fact_steam_reviews_daily.snapshot_date` 의 latest available KST date
 - selected period window가 N일이면 selected window는 `[anchor - (N - 1), anchor]`, previous same-length window는 `[anchor - (2N - 1), anchor - N]` 로 둔다.
 - selected period의 full coverage 조건을 만족하지 못하면 selected period value 자체가 null이다.
@@ -116,7 +116,7 @@
     - 리뷰 기간 파생 지표: `reviews_added_7d`, `reviews_added_30d`, `period_positive_ratio_7d`, `period_positive_ratio_30d`, `delta_reviews_added_7d_abs`, `delta_reviews_added_7d_pct`, `delta_period_positive_ratio_7d_pp`, `delta_reviews_added_30d_abs`, `delta_reviews_added_30d_pct`, `delta_period_positive_ratio_30d_pp`
     - 최신 KR 가격 근거: `price_bucket_time`, `region`, `currency_code`, `initial_price_minor`, `final_price_minor`, `discount_percent`, `is_free`
 - 7일 CCU 기간 지표는 `agg_steam_ccu_daily` 의 최신 가용 `bucket_date` 를 metric-wide anchor로 사용한다.
-- 7일 raw CCU activity 지표는 `fact_steam_ccu_30m.bucket_time` 의 KST date 기준 최신 가용 raw CCU date를 metric-wide anchor로 사용한다.
+- 7일 raw CCU activity 지표는 `fact_steam_ccu_30m.bucket_time` 의 KST date 기준 최신 complete raw CCU date를 metric-wide anchor로 사용한다. Complete raw KST date의 current minimum 기준은 해당 KST date에 distinct half-hour bucket timestamp 48개가 있는 것이다.
 - `estimated_player_hours_7d` 는 selected window `[anchor - 6, anchor]` 에 raw 30분 bucket 336개가 모두 있을 때만 `SUM(ccu * 0.5)` 로 계산한다.
 - `delta_estimated_player_hours_7d_abs` / `delta_estimated_player_hours_7d_pct` 는 previous same-length window `[anchor - 13, anchor - 7]` 도 raw 30분 bucket 336개를 모두 가질 때만 계산한다.
 - 리뷰 기간 파생 지표는 `fact_steam_reviews_daily` 의 최신 가용 `snapshot_date` 를 metric-wide anchor로 사용한다.
@@ -258,6 +258,7 @@
     - `estimated_player_hours_Nd = SUM(ccu * bucket_duration_hours for each raw CCU bucket in selected window)`
     - 현재 Steam CCU bucket duration은 30분이므로 `bucket_duration_hours = 0.5` 이다.
 - strict metric의 source of truth는 `fact_steam_ccu_30m` 같은 raw half-hour bucket series다.
+- serving anchor는 metric-wide latest complete raw KST date다. Complete raw KST date의 current minimum 기준은 해당 KST date에 distinct half-hour bucket timestamp 48개가 있는 것이다.
 - selected N-day window의 expected KST half-hour bucket `48 * N` 개가 모두 있어야 `estimated_player_hours_Nd` 를 계산한다.
 - selected window에 missing bucket이 하나라도 있으면 `estimated_player_hours_Nd` 는 null이다.
 - previous same-length comparison도 previous window의 expected bucket `48 * N` 개가 모두 있어야 한다.

@@ -13,7 +13,13 @@ def test_explore_view_pins_active_universe_and_metric_anchors() -> None:
     assert "where tg.is_active = true" in sql
     assert "select max(bucket_date) as anchor_date" in sql
     assert "from agg_steam_ccu_daily" in sql
-    assert "select max((bucket_time at time zone 'asia/seoul')::date) as anchor_date" in sql
+    assert "raw_ccu_complete_dates as" in sql
+    assert "select (bucket_time at time zone 'asia/seoul')::date as bucket_date" in sql
+    assert "group by (bucket_time at time zone 'asia/seoul')::date" in sql
+    assert "having count(distinct bucket_time) = 48" in sql
+    assert "select max(bucket_date) as anchor_date" in sql
+    assert "from raw_ccu_complete_dates" in sql
+    assert "select max((bucket_time at time zone 'asia/seoul')::date) as anchor_date" not in sql
     assert "from fact_steam_ccu_30m" in sql
     assert "select max(snapshot_date) as anchor_date" in sql
     assert "from fact_steam_reviews_daily" in sql
@@ -38,6 +44,8 @@ def test_explore_view_uses_strict_raw_30m_player_hours_windows() -> None:
     sql = VIEW_PATH.read_text(encoding="utf-8").lower()
 
     assert "raw_ccu_anchor" in sql
+    assert "raw_ccu_complete_dates" in sql
+    assert "having count(distinct bucket_time) = 48" in sql
     assert "left join fact_steam_ccu_30m as raw_ccu" in sql
     assert "raw_ccu.ccu::double precision * 0.5" in sql
     assert "between rca.anchor_date - 6 and rca.anchor_date" in sql
