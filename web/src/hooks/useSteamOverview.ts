@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   gamesApi,
   type GameDaily90dCcu,
@@ -131,12 +131,26 @@ export function useSteamOverview({
     }
   }, [mode])
 
-  const mergedOverviewData: SteamOverviewApiData = {
-    rankings: overviewData?.rankings ?? EMPTY_OVERVIEW_DATA.rankings,
-    ccuRows: mergeLatestRows(overviewData?.ccuRows ?? EMPTY_OVERVIEW_DATA.ccuRows, supplementalCcuByCanonicalGameId),
-    priceRows: mergeLatestRows(overviewData?.priceRows ?? EMPTY_OVERVIEW_DATA.priceRows, supplementalPriceByCanonicalGameId),
-    reviewRows: mergeLatestRows(overviewData?.reviewRows ?? EMPTY_OVERVIEW_DATA.reviewRows, supplementalReviewsByCanonicalGameId),
-  }
+  const mergedOverviewData = useMemo<SteamOverviewApiData>(
+    () => ({
+      rankings: overviewData?.rankings ?? EMPTY_OVERVIEW_DATA.rankings,
+      ccuRows: mergeLatestRows(overviewData?.ccuRows ?? EMPTY_OVERVIEW_DATA.ccuRows, supplementalCcuByCanonicalGameId),
+      priceRows: mergeLatestRows(
+        overviewData?.priceRows ?? EMPTY_OVERVIEW_DATA.priceRows,
+        supplementalPriceByCanonicalGameId,
+      ),
+      reviewRows: mergeLatestRows(
+        overviewData?.reviewRows ?? EMPTY_OVERVIEW_DATA.reviewRows,
+        supplementalReviewsByCanonicalGameId,
+      ),
+    }),
+    [
+      overviewData,
+      supplementalCcuByCanonicalGameId,
+      supplementalPriceByCanonicalGameId,
+      supplementalReviewsByCanonicalGameId,
+    ],
+  )
 
   const allGames = buildSteamGames({
     mode,
