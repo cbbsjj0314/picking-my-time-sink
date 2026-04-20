@@ -8,7 +8,8 @@
 PR 범위는 분명히 적는다.
 인접하지만 이번 PR에 넣지 않은 내용만 별도로 적는다.
 의도적으로 제외한 범위를 적을 필요가 없으면 해당 section은 지운다.
-한국어 설명은 간결하게 쓰고, 객체명 / endpoint / route / loader / table / view / CLI 명령은 실제 코드 표기를 유지한다.
+PR 본문은 한국어로 작성한다.
+설명 문장은 간결한 한국어로 쓰고, 객체명 / endpoint / route / loader / table / view / CLI 명령은 번역하지 않고 실제 코드 표기를 유지한다.
 docs-only PR이면 Validation section은 남기고 `- Not run (docs-only change)`라고 적는다.
 
 PR title guidance:
@@ -33,9 +34,9 @@ Avoid:
 내부 개발 용어만으로 설명하지 않는다.
 -->
 
-- What changed
-- Why this change exists
-- Scope boundary if relevant
+- 변경 사항
+- 변경 이유
+- 필요하면 범위 경계
 
 ---
 
@@ -46,9 +47,9 @@ Avoid:
 view, table, endpoint, file path 같은 실제 객체명을 우선 쓴다.
 -->
 
-- Change 1
-- Change 2
-- Change 3
+- 변경 1
+- 변경 2
+- 변경 3
 
 ---
 
@@ -60,8 +61,8 @@ view, table, endpoint, file path 같은 실제 객체명을 우선 쓴다.
 
 ## Out of scope / Deferred
 
-- Intentionally excluded adjacent item
-- Follow-up item kept for a separate PR
+- 의도적으로 제외한 인접 작업
+- 별도 PR로 남긴 후속 작업
 
 ---
 
@@ -88,5 +89,5 @@ Summary, Changes, Out of scope / Deferred, Validation에 이미 적은 내용을
 
 ## Notes
 
-- Reviewer context
-- Caveats, rollout notes, or assumptions
+- 리뷰어가 알아야 할 맥락
+- caveat, rollout note, assumption
