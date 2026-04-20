@@ -1,0 +1,76 @@
+{
+  "code": 200,
+  "content": {
+    "data": [
+      {
+        "adult": false,
+        "categoryType": "GAME",
+        "channelId": "channel-alpha",
+        "channelImageUrl": "https://example.invalid/chzzk/channel-alpha.png",
+        "channelName": "Streamer Alpha",
+        "concurrentUserCount": 1200,
+        "liveCategory": "game-category-alpha",
+        "liveCategoryValue": "Representative Game Alpha",
+        "liveId": 100001,
+        "liveThumbnailImageUrl": "https://example.invalid/chzzk/live-alpha.jpg",
+        "liveTitle": "Sanitized live title alpha",
+        "openDate": "2026-04-20T10:00:00+09:00",
+        "tags": [
+          "sanitized"
+        ]
+      },
+      {
+        "adult": false,
+        "categoryType": "GAME",
+        "channelId": "channel-beta",
+        "channelImageUrl": "https://example.invalid/chzzk/channel-beta.png",
+        "channelName": "Streamer Beta",
+        "concurrentUserCount": 800,
+        "liveCategory": "game-category-alpha",
+        "liveCategoryValue": "Representative Game Alpha",
+        "liveId": 100002,
+        "liveThumbnailImageUrl": "https://example.invalid/chzzk/live-beta.jpg",
+        "liveTitle": "Sanitized live title beta",
+        "openDate": "2026-04-20T10:05:00+09:00",
+        "tags": []
+      },
+      {
+        "adult": false,
+        "categoryType": "GAME",
+        "channelId": "channel-gamma",
+        "channelImageUrl": "https://example.invalid/chzzk/channel-gamma.png",
+        "channelName": "Streamer Gamma",
+        "concurrentUserCount": 300,
+        "liveCategory": "game-category-gamma",
+        "liveCategoryValue": "Representative Game Gamma",
+        "liveId": 100003,
+        "liveThumbnailImageUrl": "https://example.invalid/chzzk/live-gamma.jpg",
+        "liveTitle": "Sanitized live title gamma",
+        "openDate": "2026-04-20T10:10:00+09:00",
+        "tags": [
+          "sanitized",
+          "fixture"
+        ]
+      },
+      {
+        "adult": false,
+        "categoryType": "ETC",
+        "channelId": "channel-delta",
+        "channelImageUrl": "https://example.invalid/chzzk/channel-delta.png",
+        "channelName": "Streamer Delta",
+        "concurrentUserCount": 100,
+        "liveCategory": "etc-category-delta",
+        "liveCategoryValue": "Representative Etc Category Delta",
+        "liveId": 100004,
+        "liveThumbnailImageUrl": "https://example.invalid/chzzk/live-delta.jpg",
+        "liveTitle": "Sanitized live title delta",
+        "openDate": "2026-04-20T10:15:00+09:00",
+        "tags": []
+      }
+    ],
+    "page": {
+      "next": "SANITIZED_NEXT_CURSOR"
+    }
+  },
+  "message": null
+}
