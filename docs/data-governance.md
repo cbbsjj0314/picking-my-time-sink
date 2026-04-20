@@ -1,12 +1,13 @@
 # Data Governance
 
 문서 목적: Steam-only MVP 데이터 의미, 품질, freshness, lineage, public/local 경계를 최소 거버넌스 기준으로 고정
-버전: v0.1 (MVP data governance baseline)
-작성일: 2026-04-19 (KST)
+버전: v0.2 (Chzzk fixture boundary clarification)
+작성일: 2026-04-20 (KST)
 
 ## 0. 현재 범위
 
 - current MVP governance scope는 Steam-only runtime baseline이다.
+- Chzzk live-list fixture/parser/DDL 후보는 provider-specific 준비 산출물이며, current runtime scope를 Steam-only 밖으로 확장하지 않는다.
 - 이 문서는 데이터 거버넌스의 durable public 기준을 설명한다.
 - 상세 metric formula는 `docs/metrics-definitions.md` 를 따른다.
 - 테이블 grain, column meaning, layer contract는 `docs/data-model-spec.md` 를 따른다.
@@ -122,6 +123,10 @@ This is the current public lineage map for the Steam-only MVP.
 | Latest KR top selling API / UI | `srv_rank_latest_kr_top_selling` | `fact_steam_rank_daily` | `daily`: ranking payload refresh and payload to gold |
 | Explore overview table | `srv_game_explore_period_metrics` | active `tracked_game`, latest CCU, price, reviews, period facts/rollups | `ccu-30m`, `price-1h`, `daily` |
 | Tracked universe | `tracked_game`, `game_external_id`, `dim_game` | Steam ranking payloads, optional completed App Catalog evidence | `daily`, optional `app-catalog-weekly` |
+
+Chzzk `fact_chzzk_category_30m` is currently only a provider-specific DDL/parser
+candidate. It has no live job boundary, serving object, API, UI, or canonical game
+mapping lineage yet.
 
 If a new chart or API surface is added, add at least one lineage row before or with implementation.
 
