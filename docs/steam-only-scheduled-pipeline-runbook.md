@@ -1,6 +1,6 @@
 문서 목적: Steam-only scheduled pipeline의 durable flow와 데이터 계약을 고정
-버전: v0.9 (tooling direction boundary)
-작성일: 2026-04-19 (KST)
+버전: v0.10 (observability metric boundary)
+작성일: 2026-04-20 (KST)
 
 ## 0. 현재 범위
 
@@ -13,9 +13,12 @@
   current live requirement가 아니다.
 - Dagster orchestration and Garage/S3-compatible artifact storage are target
   directions, not current live requirements for this pipeline contract.
-- Prometheus/Grafana metrics, DuckDB batch recompute, dbt Core modeling, Loki
-  logs, and ClickHouse historical OLAP are not current live requirements for
-  this Steam-only scheduler contract.
+- Prometheus/Grafana metrics are a local observability companion for scheduler
+  and DB freshness evidence. They do not change this Steam-only scheduler
+  contract and do not move Steam ingest/API/Postgres runtime into Docker.
+- DuckDB batch recompute, dbt Core modeling, Loki logs, and ClickHouse
+  historical OLAP are not current live requirements for this Steam-only
+  scheduler contract.
 - If adopted later, these tools must preserve this boundary: Postgres remains
   the current serving/metadata baseline until a separate schema/API/runtime
   slice changes that contract.
@@ -108,6 +111,11 @@ details.
 
 CCU per-app missing evidence is not the same as a hard job failure. A CCU fetch can produce useful bronze/gold rows while recording missing app-level evidence such as 404/empty/invalid payloads. Operators should distinguish full success, partial success, lock-busy skip, and hard failure from job-level result/meta evidence.
 
+Prometheus-facing scheduler metrics should preserve that same distinction:
+`success`, `partial_success`, `lock_busy`, and `hard_failure` are separate
+status values. Per-app CCU missing evidence and daily reviews skipped evidence
+are partial-success triage signals, not automatic hard-failure semantics.
+
 ## 5. Public Verification Boundary
 
 - Public validation should focus on schema/API contracts, fact/upsert idempotence, null-preserving serving semantics, and fixture-backed parser behavior.
@@ -168,7 +176,7 @@ ALTER TABLE fact_steam_price_1h
 ## 7. Deferred
 
 - Host-specific scheduler/timer files and exact local run schedules.
-- Prometheus/Grafana metrics deployment and alerting.
+- Prometheus/Grafana alerting and on-call operations.
 - DuckDB runtime wiring for rollup/recompute/backfill.
 - S3-compatible artifact exchange, including Garage target storage and Parquet
   artifact layout.

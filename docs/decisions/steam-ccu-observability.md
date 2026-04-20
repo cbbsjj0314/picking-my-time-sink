@@ -1,6 +1,6 @@
 # Steam CCU Observability
 
-This document fixes the current Steam CCU Now 1 observability rules as implemented today. It documents current behavior only and does not change runtime behavior.
+This document fixes the current Steam CCU observability rules as implemented today. It documents current behavior only and does not change runtime behavior.
 
 ## Execution Meta Contract
 
@@ -87,3 +87,21 @@ Notes:
 
 - Ratio is a documented formula, not an emitted field.
 - Latest CCU API reads serving-view semantics, not raw fact directly.
+
+## Prometheus Exporter Baseline
+
+The current local observability baseline adds a small Python `/metrics` exporter.
+It reads scheduler result evidence and Postgres freshness directly; it does not
+move the Steam scheduler, ingest runtime, API, or Postgres into Docker.
+
+Current durable metric semantics live in `docs/metrics-definitions.md`:
+
+- latest scheduler run presence, status, finish timestamp, duration, and partial-success flag
+- latest `ccu-30m` missing evidence count
+- latest `daily` reviews skipped count
+- Postgres dataset latest timestamp and freshness age
+- optional App Catalog latest summary existence and status
+
+Prometheus and Grafana are local observability consumers for these metrics. Host
+paths, ports, dashboard URLs, Compose commands, and DB credentials remain
+local/private operator details under `docs/local/`.
