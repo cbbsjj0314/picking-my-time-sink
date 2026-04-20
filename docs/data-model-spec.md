@@ -133,6 +133,7 @@
 - strict `Estimated Player-Hours` semantics:
     - 이 raw 30분 bucket series가 strict `estimated_player_hours_Nd` 의 source of truth다.
     - canonical formula는 `SUM(ccu * bucket_duration_hours)` 이며, 현재 30분 bucket은 `bucket_duration_hours = 0.5` 로 계산한다.
+    - serving anchor는 metric-wide latest complete raw KST date다. Complete raw KST date의 current minimum 기준은 해당 KST date에 distinct half-hour bucket timestamp 48개가 있는 것이다.
     - selected/previous N-day window는 각각 expected KST half-hour bucket `48 * N` 개가 모두 있어야 full coverage다.
     - missing bucket, partial history, per-game older anchor fallback, gap fill, synthetic score는 허용하지 않는다.
     - 이 metric은 Steam public CCU 기반 근사 activity metric이며 unique players, sales, ownership, playtime telemetry가 아니다.
@@ -270,7 +271,8 @@
     - strict `Estimated Player-Hours` 는 raw 30분 bucket coverage가 필요한 metric이므로, current `agg_steam_ccu_daily` 만으로는 충분하지 않다.
     - `SUM(avg_ccu * 24)` 또는 `AVG(avg_ccu) * 24 * N` 은 strict `estimated_player_hours_Nd` 의 current source of truth로 사용하지 않는다.
     - daily `avg_ccu * 24` path는 future approximation으로 별도 caveat/name을 붙이거나, daily rollup에 raw bucket count / expected bucket count / completeness flag 같은 coverage metadata가 추가되어 strict coverage를 증명할 수 있을 때만 derived path로 검토한다.
-    - current `srv_game_explore_period_metrics` 는 `fact_steam_ccu_30m` 에서 KST date 기준 latest available raw CCU date를 anchor로 잡고, selected `[anchor - 6, anchor]` 와 previous `[anchor - 13, anchor - 7]` 가 각각 raw 30분 bucket 336개를 모두 가질 때만 7d strict fields를 계산한다.
+    - current `srv_game_explore_period_metrics` 는 `fact_steam_ccu_30m` 에서 KST date 기준 latest complete raw CCU date를 metric-wide anchor로 잡는다. Complete raw KST date의 current minimum 기준은 해당 KST date에 distinct half-hour bucket timestamp 48개가 있는 것이다.
+    - selected `[anchor - 6, anchor]` 와 previous `[anchor - 13, anchor - 7]` 가 각각 raw 30분 bucket 336개를 모두 가질 때만 7d strict fields를 계산한다.
     - 노출 필드는 `estimated_player_hours_7d`, `delta_estimated_player_hours_7d_abs`, `delta_estimated_player_hours_7d_pct` 이다.
 - 리뷰 기간 파생 지표:
     - `fact_steam_reviews_daily` 는 current all/all/all cumulative daily snapshot 기준 `reviews_added_7d`, `reviews_added_30d`, `period_positive_ratio_7d`, `period_positive_ratio_30d` 계산에 충분한 boundary totals를 담고 있다.

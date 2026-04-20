@@ -103,9 +103,15 @@ ccu_period_metrics AS (
         END AS delta_period_peak_ccu_7d_pct
     FROM ccu_window_rollups
 ),
-raw_ccu_anchor AS (
-    SELECT MAX((bucket_time AT TIME ZONE 'Asia/Seoul')::DATE) AS anchor_date
+raw_ccu_complete_dates AS (
+    SELECT (bucket_time AT TIME ZONE 'Asia/Seoul')::DATE AS bucket_date
     FROM fact_steam_ccu_30m
+    GROUP BY (bucket_time AT TIME ZONE 'Asia/Seoul')::DATE
+    HAVING COUNT(DISTINCT bucket_time) = 48
+),
+raw_ccu_anchor AS (
+    SELECT MAX(bucket_date) AS anchor_date
+    FROM raw_ccu_complete_dates
 ),
 raw_ccu_window_rollups AS (
     SELECT
