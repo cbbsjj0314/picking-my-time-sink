@@ -13,6 +13,7 @@ from chzzk.normalize.category_lives import (
     format_kst_iso,
     process_live_payload,
 )
+from chzzk.normalize.live_list_to_category_result import main as category_result_main
 
 FIXTURE_PATH = Path("tests/fixtures/chzzk/lives/representative.json")
 
@@ -95,6 +96,78 @@ def test_process_live_payload_is_idempotent_for_same_payload() -> None:
     assert store.rows[("game-category-alpha", "2026-04-20T12:30:00+09:00")][
         "concurrent_sum"
     ] == 2000
+
+
+def test_category_result_cli_writes_deterministic_jsonl(tmp_path: Path) -> None:
+    output_path = tmp_path / "category-result.jsonl"
+    second_output_path = tmp_path / "category-result-second.jsonl"
+    args = [
+        "--input",
+        str(FIXTURE_PATH),
+        "--output",
+        str(output_path),
+        "--bucket-time",
+        "2026-04-20T12:42:10+09:00",
+        "--collected-at",
+        "2026-04-20T03:42:10Z",
+    ]
+
+    category_result_main(args)
+    category_result_main([*args[:3], str(second_output_path), *args[4:]])
+
+    assert output_path.read_text(encoding="utf-8") == second_output_path.read_text(
+        encoding="utf-8"
+    )
+    assert output_path.read_text(encoding="utf-8").splitlines() == [
+        json.dumps(
+            {
+                "bucket_time": "2026-04-20T12:30:00+09:00",
+                "category_name": "Representative Etc Category Delta",
+                "category_type": "ETC",
+                "chzzk_category_id": "etc-category-delta",
+                "collected_at": "2026-04-20T12:42:10+09:00",
+                "concurrent_sum": 100,
+                "live_count": 1,
+                "top_channel_concurrent": 100,
+                "top_channel_id": "channel-delta",
+                "top_channel_name": "Streamer Delta",
+            },
+            ensure_ascii=False,
+            sort_keys=True,
+        ),
+        json.dumps(
+            {
+                "bucket_time": "2026-04-20T12:30:00+09:00",
+                "category_name": "Representative Game Alpha",
+                "category_type": "GAME",
+                "chzzk_category_id": "game-category-alpha",
+                "collected_at": "2026-04-20T12:42:10+09:00",
+                "concurrent_sum": 2000,
+                "live_count": 2,
+                "top_channel_concurrent": 1200,
+                "top_channel_id": "channel-alpha",
+                "top_channel_name": "Streamer Alpha",
+            },
+            ensure_ascii=False,
+            sort_keys=True,
+        ),
+        json.dumps(
+            {
+                "bucket_time": "2026-04-20T12:30:00+09:00",
+                "category_name": "Representative Game Gamma",
+                "category_type": "GAME",
+                "chzzk_category_id": "game-category-gamma",
+                "collected_at": "2026-04-20T12:42:10+09:00",
+                "concurrent_sum": 300,
+                "live_count": 1,
+                "top_channel_concurrent": 300,
+                "top_channel_id": "channel-gamma",
+                "top_channel_name": "Streamer Gamma",
+            },
+            ensure_ascii=False,
+            sort_keys=True,
+        ),
+    ]
 
 
 def test_aggregate_category_lives_rejects_failed_common_response() -> None:
