@@ -19,6 +19,8 @@ export interface SteamExploreTableRow {
   reviewsAddedSupportLabel: string | null
   positiveShareLabel: string
   positiveShareSupportLabel: string | null
+  periodHistoryCollectingLabel: string | null
+  periodMetricsCollecting: boolean
   priceLabel: string
   priceSupportLabel: string | null
   priceTitle: string | null
@@ -27,6 +29,10 @@ export interface SteamExploreTableRow {
 }
 
 const EMPTY_CELL = '-'
+const EXPLORE_PERIOD = {
+  periodLabel: '7 days',
+  periodDays: 7,
+} as const
 
 const KST_DATE_TIME_FORMATTER = new Intl.DateTimeFormat('en-US', {
   month: 'short',
@@ -45,6 +51,21 @@ const KST_DATE_FORMATTER = new Intl.DateTimeFormat('en-US', {
 
 const finiteNumberOrNull = (value: number | null) =>
   typeof value === 'number' && Number.isFinite(value) ? value : null
+
+export const buildPeriodHistoryCollectingLabel = ({
+  periodLabel,
+  periodDays,
+}: {
+  periodLabel: string
+  periodDays: number
+}) => {
+  const normalizedLabel = periodLabel.trim()
+  const fallbackLabel = `${periodDays} ${periodDays === 1 ? 'day' : 'days'}`
+
+  return `Collecting ${normalizedLabel.length > 0 ? normalizedLabel : fallbackLabel} of history`
+}
+
+const PERIOD_HISTORY_COLLECTING_LABEL = buildPeriodHistoryCollectingLabel(EXPLORE_PERIOD)
 
 const formatInteger = (value: number) => Math.round(value).toLocaleString('en-US')
 
@@ -178,33 +199,63 @@ const formatCurrentCcuSupport = (row: GameExploreOverview) => {
   return formatDelta(row.current_delta_ccu_abs, row.current_delta_ccu_pct)
 }
 
-const buildSteamExploreTableRow = (row: GameExploreOverview): SteamExploreTableRow => ({
-  id: `canonical:${row.canonical_game_id}`,
-  canonicalGameId: row.canonical_game_id,
-  steamAppId: row.steam_appid,
-  gameTitle: row.canonical_name,
-  currentCcuLabel: formatOptionalInteger(row.current_ccu),
-  currentCcuSupportLabel: formatCurrentCcuSupport(row),
-  currentCcuTitle: formatKstDateTime(row.ccu_bucket_time),
-  avgCcuLabel: formatOptionalInteger(row.period_avg_ccu_7d),
-  avgCcuSupportLabel: formatDelta(row.delta_period_avg_ccu_7d_abs, row.delta_period_avg_ccu_7d_pct),
-  peakCcuLabel: formatOptionalInteger(row.period_peak_ccu_7d),
-  peakCcuSupportLabel: formatDelta(row.delta_period_peak_ccu_7d_abs, row.delta_period_peak_ccu_7d_pct),
-  estimatedPlayerHoursLabel: formatOptionalInteger(row.estimated_player_hours_7d),
-  estimatedPlayerHoursSupportLabel: formatDelta(
-    row.delta_estimated_player_hours_7d_abs,
-    row.delta_estimated_player_hours_7d_pct,
-  ),
-  reviewsAddedLabel: formatOptionalInteger(row.reviews_added_7d),
-  reviewsAddedSupportLabel: formatDelta(row.delta_reviews_added_7d_abs, row.delta_reviews_added_7d_pct),
-  positiveShareLabel: formatRatio(row.period_positive_ratio_7d),
-  positiveShareSupportLabel: formatPointDelta(row.delta_period_positive_ratio_7d_pp),
-  priceLabel: formatPrice(row),
-  priceSupportLabel: formatDiscountSupport(row),
-  priceTitle: formatKstDateTime(row.price_bucket_time),
-  ccuAnchorLabel: formatKstDate(row.ccu_period_anchor_date),
-  reviewAnchorLabel: formatKstDate(row.reviews_snapshot_date),
-})
+const formatPeriodMetricSupport = (value: number | null, support: string | null) =>
+  finiteNumberOrNull(value) === null ? PERIOD_HISTORY_COLLECTING_LABEL : support
+
+const arePeriodMetricsCollecting = (row: GameExploreOverview) =>
+  [
+    row.period_avg_ccu_7d,
+    row.period_peak_ccu_7d,
+    row.estimated_player_hours_7d,
+    row.reviews_added_7d,
+    row.period_positive_ratio_7d,
+  ].every((value) => finiteNumberOrNull(value) === null)
+
+const buildSteamExploreTableRow = (row: GameExploreOverview): SteamExploreTableRow => {
+  const periodMetricsCollecting = arePeriodMetricsCollecting(row)
+
+  return {
+    id: `canonical:${row.canonical_game_id}`,
+    canonicalGameId: row.canonical_game_id,
+    steamAppId: row.steam_appid,
+    gameTitle: row.canonical_name,
+    currentCcuLabel: formatOptionalInteger(row.current_ccu),
+    currentCcuSupportLabel: formatCurrentCcuSupport(row),
+    currentCcuTitle: formatKstDateTime(row.ccu_bucket_time),
+    avgCcuLabel: formatOptionalInteger(row.period_avg_ccu_7d),
+    avgCcuSupportLabel: formatPeriodMetricSupport(
+      row.period_avg_ccu_7d,
+      formatDelta(row.delta_period_avg_ccu_7d_abs, row.delta_period_avg_ccu_7d_pct),
+    ),
+    peakCcuLabel: formatOptionalInteger(row.period_peak_ccu_7d),
+    peakCcuSupportLabel: formatPeriodMetricSupport(
+      row.period_peak_ccu_7d,
+      formatDelta(row.delta_period_peak_ccu_7d_abs, row.delta_period_peak_ccu_7d_pct),
+    ),
+    estimatedPlayerHoursLabel: formatOptionalInteger(row.estimated_player_hours_7d),
+    estimatedPlayerHoursSupportLabel: formatPeriodMetricSupport(
+      row.estimated_player_hours_7d,
+      formatDelta(row.delta_estimated_player_hours_7d_abs, row.delta_estimated_player_hours_7d_pct),
+    ),
+    reviewsAddedLabel: formatOptionalInteger(row.reviews_added_7d),
+    reviewsAddedSupportLabel: formatPeriodMetricSupport(
+      row.reviews_added_7d,
+      formatDelta(row.delta_reviews_added_7d_abs, row.delta_reviews_added_7d_pct),
+    ),
+    positiveShareLabel: formatRatio(row.period_positive_ratio_7d),
+    positiveShareSupportLabel: formatPeriodMetricSupport(
+      row.period_positive_ratio_7d,
+      formatPointDelta(row.delta_period_positive_ratio_7d_pp),
+    ),
+    periodHistoryCollectingLabel: periodMetricsCollecting ? PERIOD_HISTORY_COLLECTING_LABEL : null,
+    periodMetricsCollecting,
+    priceLabel: formatPrice(row),
+    priceSupportLabel: formatDiscountSupport(row),
+    priceTitle: formatKstDateTime(row.price_bucket_time),
+    ccuAnchorLabel: formatKstDate(row.ccu_period_anchor_date),
+    reviewAnchorLabel: formatKstDate(row.reviews_snapshot_date),
+  }
+}
 
 export function buildSteamExploreTableRows(rows: GameExploreOverview[], searchQuery: string): SteamExploreTableRow[] {
   const normalizedSearch = searchQuery.trim().toLowerCase()

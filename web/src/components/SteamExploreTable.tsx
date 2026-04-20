@@ -52,6 +52,22 @@ const getUniformEvidenceLabel = (
   return `${label} mixed snapshots`
 }
 
+const getPeriodHistoryCollectingNotice = (rows: SteamExploreTableRow[]) => {
+  if (rows.length === 0 || rows.some((row) => !row.periodMetricsCollecting)) {
+    return null
+  }
+
+  const labels = Array.from(
+    new Set(rows.map((row) => row.periodHistoryCollectingLabel).filter((value): value is string => value !== null)),
+  )
+
+  if (labels.length !== 1) {
+    return null
+  }
+
+  return `${labels[0]}. Period metrics appear after the full window is available.`
+}
+
 export function SteamExploreTable({
   rows,
   totalRowCount,
@@ -65,6 +81,7 @@ export function SteamExploreTable({
     getUniformEvidenceLabel(rows, (row) => row.reviewAnchorLabel, 'Reviews anchor'),
     getUniformEvidenceLabel(rows, (row) => row.priceTitle, 'Price snapshot'),
   ].filter((value): value is string => value !== null)
+  const periodHistoryCollectingNotice = getPeriodHistoryCollectingNotice(rows)
   const hasSearch = searchQuery.trim().length > 0
 
   return (
@@ -92,6 +109,9 @@ export function SteamExploreTable({
         <p className="mt-4 text-xs text-[var(--text-muted)]">
           {freshnessLabels.join(' · ')}
         </p>
+      ) : null}
+      {periodHistoryCollectingNotice ? (
+        <p className="mt-2 text-xs text-[var(--text-muted)]">{periodHistoryCollectingNotice}</p>
       ) : null}
 
       <div className="mt-4 overflow-x-auto rounded-[18px] outline outline-1 outline-[var(--ghost-border)]">
