@@ -1,6 +1,6 @@
 문서 목적: probe(샘플 검증) 실행 체크리스트 + 이후 스키마/파서/테스트의 기준점 + repo-grounded provider 확장 진입 기준 기록
-버전: v0.6 (data governance documentation baseline)
-작성일: 2026-04-19 (KST)
+버전: v0.9 (Chzzk broader live-list shape probe baseline)
+작성일: 2026-04-20 (KST)
 
 ## 0. 공통 원칙
 
@@ -15,21 +15,28 @@
     - current runtime scope는 Steam-only 이다.
     - streaming 확장은 provider-specific source probe/ingest에서 시작하고, Steam service/API 범위를 먼저 일반화하지 않는다.
 - current repo observations:
-    - 현재 repo에는 Chzzk/Twitch probe 산출물, runtime package, DDL이 없다.
+    - 현재 repo에는 Chzzk live-list parser fixture
+      `tests/fixtures/chzzk/lives/representative.json`, parser/upsert 후보
+      `src/chzzk/normalize/category_lives.py`, DDL 후보
+      `sql/postgres/015_fact_chzzk_category_30m.sql` 이 있다.
+    - Chzzk real runtime package, scheduler job, API serving, UI wiring은 없다.
+    - Twitch probe 산출물, runtime package, DDL은 없다.
     - 외부 ID 연결의 현재 grounded contract는 `game_external_id.source` 이며, tracked provenance는 `tracked_game.sources` 에 기록된다.
 - first provider-specific probe/ingest candidate:
     - 첫 후보는 Chzzk category live-list probe 준비다.
-    - source boundary는 Chzzk live/category payload에서 category id/name, live concurrent, channel id/name만 category-level evidence로 읽는 데 한정한다.
-    - category-level 30분 fact 방향은 `(chzzk_category_id, bucket_time)` 단위의 concurrent 합계, live_count, top channel evidence다.
-    - sample payload/fixture는 parser, DDL, ingest test보다 먼저 필요하다. parser가 의존하는 sanitized fixture를 `tests/fixtures/chzzk/lives/` 아래에 고정한 뒤 구현에 들어간다.
+    - source boundary는 Chzzk live/category payload에서 category type/id/name, live concurrent, channel id/name만 category-level evidence로 읽는 데 한정한다.
+    - category-level 30분 fact 방향은 `(chzzk_category_id, bucket_time)` 단위의 category type/name, concurrent 합계, live_count, top channel evidence다.
+    - sanitized parser fixture는 `tests/fixtures/chzzk/lives/` 아래에 고정한다.
+    - current fixture는 official live-list response shape를 대표하는 synthetic/sanitized payload이며, live raw capture가 아니다.
     - raw/probe responsibility는 provider 응답과 수집 메타데이터를 local/private 경계에 보존하는 것이다. ingest responsibility는 한 provider payload를 category 30분 row로 정규화하는 데 그치며 canonical game mapping, serving API, UI wiring을 하지 않는다.
 - real integration 전 필요 조건:
-    - Chzzk 호출 방식, 인증/쿼터, 이용 가능 필드, 응답 안정성을 representative payload로 확인
+    - Chzzk live-list pagination follow-up behavior 확인
+    - local-only raw-to-category result artifact contract 확정
     - secrets는 환경 변수로 주입하고 토큰/쿠키/개인 헤더를 fixture, 로그, 문서에 저장하지 않는 운영 규칙 확정
     - `fact_chzzk_category_30m` 후보 DDL, parser fixture test, idempotent upsert test를 같은 thin slice에서 추가
     - category-to-game mapping workflow와 Twitch fallback 여부는 별도 slice에서 결정
 - explicitly deferred:
-    - real Chzzk API 호출, Twitch 구현, provider abstraction layer, streaming serving API, web dashboard streaming UI wiring, Combined/relationship KPI
+    - scheduled real Chzzk API 호출, Twitch 구현, provider abstraction layer, streaming serving API, web dashboard streaming UI wiring, Combined/relationship KPI
 
 ## 1. Steam (MVP 핵심)
 
@@ -125,16 +132,36 @@
 ### 2.1 Live 목록
 
 - 목적: 카테고리(게임)별 시청/방송/Top streamer 집계 후보 원천
-- 엔드포인트 후보: GET /open/v1/lives 또는 동일 live/category payload를 제공하는 Chzzk source. 정확한 endpoint/params는 future probe sample로 확정한다.
-- 인증: 미확정. current repo에는 token/cookie/client credential 처리나 실제 호출 코드가 없다.
+- 엔드포인트: `GET https://openapi.chzzk.naver.com/open/v1/lives`
+- 요청 파라미터:
+    - `size`: optional, 1-20, default 20
+    - `next`: optional pagination cursor from `page.next`
+- 인증:
+    - 공식 문서는 애플리케이션 등록 후 `Client-Id` / `Client-Secret` 기반 Client 인증이 필요하다고 설명한다.
+    - 2026-04-20 KST dev workstation unauthenticated probe는 `401` 과 client auth required 응답을 반환했다.
+    - 2026-04-20 KST `CHZZK_CLIENT_ID` / `CHZZK_CLIENT_SECRET` 을 local `.env` 에 주입한 read-only `size=1` probe는 `200` 을 반환했다.
+    - 실제 quota limit은 one-shot read-only probe만으로는 확인하지 못했다. 공식 공통 에러 문서는 `429 TOO_MANY_REQUESTS` 를 quota 제한 초과로 둔다.
+- verified response shape:
+    - `size=1` and `size=20` read-only probes returned top-level `code=200`, `message=null`, `content.data`, `content.page.next`
+    - first live item keys observed: `adult`, `categoryType`, `channelId`, `channelImageUrl`, `channelName`, `concurrentUserCount`, `liveCategory`, `liveCategoryValue`, `liveId`, `liveThumbnailImageUrl`, `liveTitle`, `openDate`, `tags`
+    - `size=20` sample had 20 live rows, parser-required fields were present and non-null for all rows
+    - `size=20` sample observed `categoryType` values `GAME` and `ETC`
+    - current parser fixture uses only `categoryType`, `liveCategory`, `liveCategoryValue`, `concurrentUserCount`, `channelId`, `channelName`
 - 주기 방향: real ingest가 생기면 30분(00/30) bucket으로 정규화한다.
-- 주요 필드 후보: concurrentUserCount, liveCategory(카테고리 정보), channelId, channelName
+- 주요 필드 후보:
+    - `categoryType`: `GAME`, `SPORTS`, `ETC`
+    - `liveCategory`: 카테고리 식별자
+    - `liveCategoryValue`: 카테고리 이름
+    - `concurrentUserCount`: 라이브 현재 시청자 수
+    - `channelId`: 채널 식별자
+    - `channelName`: 채널명
 - 파생 집계(카테고리 단위):
     - concurrent 합(또는 평균), 방송 수, top streamer(최대 concurrent)
 - 실패/주의:
     - 인증/쿼터/필드 안정성이 미확정이다.
     - real integration 전 raw capture는 local/private에 두고 parser regression은 sanitized fixture로 먼저 고정한다.
     - API 실패 시의 재시도/알림은 Chzzk-specific runtime slice에서 구현한다.
+    - public fixture는 synthetic/sanitized payload만 둔다. live title, channel name, thumbnail URL 같은 raw UGC/provider response는 public에 그대로 남기지 않는다.
 
 ### 2.2 Category 검색 (매핑 보조)
 

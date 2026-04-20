@@ -1,6 +1,6 @@
 문서 목적: 테이블/파일 목록 + 그레인(1행 키) + 적재 규칙(증분/스냅샷) + 보존 기준 + repo-grounded provider 확장 경계 기록
-버전: v0.13 (tooling direction boundary)
-작성일: 2026-04-19 (KST)
+버전: v0.16 (Chzzk broader payload shape verified)
+작성일: 2026-04-20 (KST)
 
 ## 0. 레이어 개요
 
@@ -147,22 +147,32 @@
     - 첫 fact 방향은 provider-specific `fact_chzzk_category_30m` 후보이며, generalized streaming fact/table은 만들지 않는다.
     - canonical game 기준 서빙 shape는 provider raw/category 수집 이후의 downstream 단계다.
 - current repo observations:
-    - 현재 repo에는 `src/chzzk`, `src/twitch`, streaming probe sample, streaming DDL이 없다.
+    - 현재 repo에는 Chzzk live-list sanitized parser fixture,
+      provider-specific parser/upsert 후보, Postgres DDL 후보가 있다.
+    - Chzzk scheduler job, authenticated fetch runtime, API serving, UI wiring은 없다.
+    - 현재 repo에는 `src/twitch`, Twitch probe sample, Twitch DDL이 없다.
     - 현재 재사용 가능한 공통 경계는 `game_external_id` 매핑과 `tracked_game.sources` provenance다.
 - first provider-specific fact direction:
     - `fact_chzzk_category_30m`
     - 그레인/PK: `(chzzk_category_id, bucket_time)`
     - source boundary: Chzzk live/category payload에서 category id/name, live concurrent, channel id/name을 category-level evidence로 정규화한다.
-    - 컬럼 후보: `chzzk_category_id`, `bucket_time`, `category_name`, `concurrent_sum`, `live_count`, `top_channel_id`, `top_channel_name`, `top_channel_concurrent`, `collected_at`
+    - DDL 후보: `sql/postgres/015_fact_chzzk_category_30m.sql`
+    - 컬럼 후보: `chzzk_category_id`, `bucket_time`, `category_type`, `category_name`, `concurrent_sum`, `live_count`, `top_channel_id`, `top_channel_name`, `top_channel_concurrent`, `collected_at`
+    - `category_type` 은 official live-list `categoryType` enum인 `GAME`, `SPORTS`, `ETC` 로 제한한다.
     - upsert rule 후보: 같은 `(chzzk_category_id, bucket_time)` 재실행은 row를 대체하되, raw/probe payload와 execution metadata는 별도로 보존한다.
 - raw/probe/ingest responsibility boundary:
-    - probe/raw: representative payload와 수집 메타데이터를 local/private 경계에 보존한다. current slice에서는 real Chzzk API call, auth, token/cookie handling을 구현하지 않는다.
+    - probe/raw: representative payload와 수집 메타데이터를 local/private 경계에 보존한다.
+    - authenticated `size=1` and `size=20` live payload probes returned `200`; current parser fixture and parser candidate are compatible with the observed wrapper/field shape.
+    - `size=20` sample observed `GAME` and `ETC` category types, repeated category aggregation, and no missing/null parser-required fields.
+    - unauthenticated probe는 client auth required `401` 을 확인했다.
+    - public fixture는 official response shape 기반 synthetic/sanitized payload로만 둔다.
     - ingest: 한 Chzzk payload를 category 30분 fact row로 정규화한다.
     - ingest가 하지 않는 것: `canonical_game_id` 확정, `game_external_id` 자동 매핑, `gold_stream_game_30m`, serving API, web UI, Combined/relationship metric 생성.
 - real integration 전 필요 조건:
-    - sanitized parser fixture 확보
-    - Chzzk auth/quota/runtime contract 확인
-    - `fact_chzzk_category_30m` DDL과 parser/upsert regression test 동시 추가
+    - pagination follow-up and runtime error behavior 확인
+    - local-only raw-to-category result artifact contract 확정
+    - quota behavior 확인
+    - `fact_chzzk_category_30m` DDL 후보를 live schema로 승격할지 결정
     - category-to-game mapping workflow를 별도 schema/code slice로 고정
 - explicitly deferred:
     - Twitch fallback, generalized provider abstraction, `gold_stream_game_30m`, streaming serving API, web dashboard streaming UI wiring, Combined/relationship KPI
