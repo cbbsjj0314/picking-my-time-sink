@@ -8,6 +8,7 @@ declare module 'react' {
   export function useState<S>(initialState: S): [S, Dispatch<SetStateAction<S>>]
   export function useEffect(effect: () => void | (() => void), deps?: readonly unknown[]): void
   export function useDeferredValue<T>(value: T): T
+  export function useMemo<T>(factory: () => T, deps: readonly unknown[]): T
   export function startTransition(scope: () => void): void
 }
 
