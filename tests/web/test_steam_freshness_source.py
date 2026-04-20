@@ -58,6 +58,36 @@ def test_explore_view_model_keeps_nulls_and_timestamp_fields_grounded() -> None:
     assert "priceTitle: formatKstDateTime(row.price_bucket_time)" in source
 
 
+def test_explore_period_null_state_uses_history_collection_copy() -> None:
+    view_model_source = STEAM_EXPLORE_VIEW_MODEL_PATH.read_text(encoding="utf-8")
+    table_source = STEAM_EXPLORE_TABLE_PATH.read_text(encoding="utf-8")
+
+    assert "export const buildPeriodHistoryCollectingLabel" in view_model_source
+    assert "periodLabel: '7 days'" in view_model_source
+    assert "periodDays: 7" in view_model_source
+    assert (
+        "Collecting ${normalizedLabel.length > 0 ? normalizedLabel : fallbackLabel} of history"
+        in view_model_source
+    )
+    assert "const formatPeriodMetricSupport" in view_model_source
+    assert "avgCcuSupportLabel: formatPeriodMetricSupport(" in view_model_source
+    assert "peakCcuSupportLabel: formatPeriodMetricSupport(" in view_model_source
+    assert "estimatedPlayerHoursSupportLabel: formatPeriodMetricSupport(" in view_model_source
+    assert "reviewsAddedSupportLabel: formatPeriodMetricSupport(" in view_model_source
+    assert "positiveShareSupportLabel: formatPeriodMetricSupport(" in view_model_source
+    assert "currentCcuSupportLabel: formatCurrentCcuSupport(row)" in view_model_source
+    assert "priceSupportLabel: formatDiscountSupport(row)" in view_model_source
+    assert (
+        "periodHistoryCollectingLabel: periodMetricsCollecting "
+        "? PERIOD_HISTORY_COLLECTING_LABEL : null"
+        in view_model_source
+    )
+
+    assert "getPeriodHistoryCollectingNotice" in table_source
+    assert "rows.some((row) => !row.periodMetricsCollecting)" in table_source
+    assert "Period metrics appear after the full window is available." in table_source
+
+
 def test_web_price_types_allow_free_rows_without_numeric_fields() -> None:
     source = GAMES_API_PATH.read_text(encoding="utf-8")
 
