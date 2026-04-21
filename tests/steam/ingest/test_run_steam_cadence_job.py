@@ -236,6 +236,64 @@ def test_daily_job_runs_tracked_rankings_and_reviews_with_scoped_paths(
     assert calls[4][1]["result_path"] == run_dir / "reviews.gold-result.jsonl"
 
 
+def test_daily_job_marks_skipped_review_evidence_as_partial_success(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setattr(
+        run_steam_cadence_job.run_tracked_universe_scheduled,
+        "run",
+        lambda **kwargs: [{"canonical_game_id": 13, "is_active": True}],
+    )
+    monkeypatch.setattr(
+        run_steam_cadence_job.payload_to_gold_rankings,
+        "run",
+        lambda **kwargs: [{"rank_position": 1}],
+    )
+    monkeypatch.setattr(
+        run_steam_cadence_job.fetch_reviews_daily,
+        "run",
+        lambda **kwargs: [
+            {"canonical_game_id": 13, "steam_appid": 2483190, "http_status": 200},
+            {"canonical_game_id": 72, "steam_appid": 1422450, "http_status": 200},
+        ],
+    )
+    monkeypatch.setattr(
+        run_steam_cadence_job.bronze_to_silver_reviews,
+        "run",
+        lambda **kwargs: [
+            {"canonical_game_id": 13, "steam_appid": 2483190, "total_reviews": 0},
+            {"canonical_game_id": 72, "steam_appid": 1422450, "total_reviews": 0},
+        ],
+    )
+    monkeypatch.setattr(
+        run_steam_cadence_job.silver_to_gold_reviews,
+        "run",
+        lambda **kwargs: [
+            {"canonical_game_id": 13, "skipped": True},
+            {"canonical_game_id": 72, "skipped": True},
+        ],
+    )
+
+    base_dir = tmp_path / "jobs"
+    result = run_steam_cadence_job.run_job_with_evidence(
+        run_steam_cadence_job.JOB_DAILY,
+        base_dir=base_dir,
+        run_id="daily-partial",
+    )
+
+    run_dir = base_dir / "daily" / "daily-partial"
+    meta = json.loads((run_dir / "meta" / "job.meta.json").read_text(encoding="utf-8"))
+    assert result["status"] == "partial_success"
+    assert result["success"] is True
+    assert result["partial_success"] is True
+    assert result["triage"]["reviews_skipped_records"] == 2
+    assert result["triage"]["partial_reason"] == "reviews_skipped_evidence"
+    assert meta["success"] is True
+    assert meta["partial_success"] is True
+    assert run_steam_cadence_job.exit_code_for_status(str(result["status"])) == 0
+
+
 def test_job_lock_busy_writes_evidence_and_does_not_run_steps(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
