@@ -270,6 +270,34 @@ def test_request_with_retry_logs_empty_response(monkeypatch, caplog) -> None:
     assert any("Empty response body" in record.message for record in caplog.records)
 
 
+def test_request_with_retry_redacts_secret_query_params_in_logs(monkeypatch, caplog) -> None:
+    def fake_urlopen(request, timeout):
+        del request, timeout
+        return DummyResponse(
+            status_code=200,
+            headers={"Content-Type": "application/json"},
+            body=b'{"response": {"apps": [], "have_more_results": "nope"}}',
+        )
+
+    monkeypatch.setattr(common.urllib.request, "urlopen", fake_urlopen)
+
+    caplog.set_level(logging.WARNING)
+    common.request_with_retry(
+        url="https://example.com/catalog",
+        params={"key": "real-secret-key", "last_appid": 10},
+        timeout_seconds=1.0,
+        max_attempts=1,
+        backoff_base_seconds=0.5,
+        jitter_max_seconds=0.1,
+        max_backoff_seconds=2.0,
+        response_retry_reason=lambda _status_code, _body: "invalid_pagination_flag",
+    )
+
+    assert "real-secret-key" not in caplog.text
+    assert "last_appid=10" in caplog.text
+    assert "key=%2A%2A%2Aredacted%2A%2A%2A" in caplog.text
+
+
 def test_build_snapshot_keeps_collected_at_kst_opt_in_only() -> None:
     result = common.RequestResult(
         final_url="https://example.com",

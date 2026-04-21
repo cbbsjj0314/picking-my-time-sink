@@ -155,6 +155,27 @@ def _build_final_url(url: str, params: Mapping[str, str]) -> str:
     return f"{url}{separator}{query}"
 
 
+def _redact_url_for_logging(url: str) -> str:
+    """Return a log-safe URL with secret-like query values redacted."""
+
+    parsed = urllib.parse.urlsplit(url)
+    if not parsed.query:
+        return url
+
+    safe_pairs: list[tuple[str, str]] = []
+    for key, value in urllib.parse.parse_qsl(parsed.query, keep_blank_values=True):
+        normalized_key = key.lower()
+        if normalized_key in {"key", "api_key", "token", "access_token"}:
+            safe_pairs.append((key, "***redacted***"))
+        else:
+            safe_pairs.append((key, value))
+
+    safe_query = urllib.parse.urlencode(safe_pairs)
+    return urllib.parse.urlunsplit(
+        (parsed.scheme, parsed.netloc, parsed.path, safe_query, parsed.fragment)
+    )
+
+
 def request_with_retry(
     *,
     url: str,
@@ -177,6 +198,7 @@ def request_with_retry(
     log = logger or LOGGER
     normalized_params = _normalized_params(params)
     final_url = _build_final_url(url, normalized_params)
+    log_url = _redact_url_for_logging(final_url)
 
     headers = {
         "Accept": "*/*",
@@ -210,7 +232,7 @@ def request_with_retry(
             attempt_log["status_code"] = status_code
 
             if not body:
-                log.warning("Empty response body from %s (status=%s)", final_url, status_code)
+                log.warning("Empty response body from %s (status=%s)", log_url, status_code)
 
             retry_reason = (
                 response_retry_reason(status_code, body)
@@ -239,7 +261,7 @@ def request_with_retry(
             retryable = True
             log.warning(
                 "Retryable response anomaly from %s (attempt=%s, reason=%s)",
-                final_url,
+                log_url,
                 attempt,
                 retry_reason,
             )
@@ -256,9 +278,9 @@ def request_with_retry(
                 retryable = status_code in retryable_status_codes
 
             if status_code == 429:
-                log.warning("Received HTTP 429 from %s (attempt=%s)", final_url, attempt)
+                log.warning("Received HTTP 429 from %s (attempt=%s)", log_url, attempt)
             if not body:
-                log.warning("Empty response body from %s (status=%s)", final_url, status_code)
+                log.warning("Empty response body from %s (status=%s)", log_url, status_code)
 
             last_status_code = status_code
             last_headers = response_headers
@@ -277,7 +299,7 @@ def request_with_retry(
 
             reason_text = message.lower()
             if isinstance(reason, TimeoutError) or "timed out" in reason_text:
-                log.warning("Request timeout for %s (attempt=%s)", final_url, attempt)
+                log.warning("Request timeout for %s (attempt=%s)", log_url, attempt)
                 error_type = "timeout"
             else:
                 error_type = "url_error"
@@ -291,7 +313,7 @@ def request_with_retry(
             message = str(exc) or "timeout"
             attempt_log["error"] = message
             retryable = True
-            log.warning("Request timeout for %s (attempt=%s)", final_url, attempt)
+            log.warning("Request timeout for %s (attempt=%s)", log_url, attempt)
 
             last_error = {
                 "type": "timeout",
