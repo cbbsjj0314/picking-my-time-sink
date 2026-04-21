@@ -9,6 +9,7 @@ dependencies = [
     "httpx>=0.28,<0.29",
     "psycopg[binary]>=3.2,<4.0",
     "uvicorn>=0.35,<0.36",
+    "duckdb (==1.5.2)",
 ]
 
 [tool.poetry]
