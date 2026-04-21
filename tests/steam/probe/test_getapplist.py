@@ -49,6 +49,39 @@ def test_parse_getapplist_page_terminal_page_sets_last_appid_none() -> None:
     }
 
 
+def test_parse_getapplist_page_terminal_page_without_flag_uses_missing_cursor_boundary() -> None:
+    page = parse_getapplist_page(
+        {
+            "response": {
+                "apps": [{"appid": 10, "name": "App 10"}],
+            }
+        }
+    )
+
+    assert page == {
+        "apps": [{"appid": 10, "name": "App 10"}],
+        "have_more_results": False,
+        "last_appid": None,
+    }
+
+
+def test_parse_getapplist_page_accepts_string_false_flag() -> None:
+    page = parse_getapplist_page(
+        {
+            "response": {
+                "apps": [{"appid": 10, "name": "App 10"}],
+                "have_more_results": "false",
+            }
+        }
+    )
+
+    assert page == {
+        "apps": [{"appid": 10, "name": "App 10"}],
+        "have_more_results": False,
+        "last_appid": None,
+    }
+
+
 def test_summarize_getapplist_payload_is_deterministic_and_bounded() -> None:
     apps = [{"appid": index, "name": f"app-{index}"} for index in range(1, 9)]
     payload = {

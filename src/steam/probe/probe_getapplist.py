@@ -79,6 +79,22 @@ def redact_request_params(params: dict[str, str]) -> dict[str, str]:
     }
 
 
+def _coerce_have_more_results(value: Any) -> bool | None:
+    """Normalize live pagination flags while keeping invalid values explicit."""
+
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, int) and value in {0, 1}:
+        return bool(value)
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"false", "0"}:
+            return False
+        if normalized in {"true", "1"}:
+            return True
+    return None
+
+
 def parse_getapplist_page(payload: Any) -> dict[str, Any]:
     """Parse one GetAppList page for the weekly runner's pagination contract."""
 
@@ -93,9 +109,13 @@ def parse_getapplist_page(payload: Any) -> dict[str, Any]:
     if not isinstance(apps, list):
         raise ValueError("invalid_apps")
 
-    have_more_results = response.get("have_more_results")
-    if not isinstance(have_more_results, bool):
-        raise ValueError("invalid_pagination_flag")
+    raw_have_more_results = response.get("have_more_results")
+    have_more_results = _coerce_have_more_results(raw_have_more_results)
+    if have_more_results is None:
+        if "have_more_results" not in response and "last_appid" not in response:
+            have_more_results = False
+        else:
+            raise ValueError("invalid_pagination_flag")
 
     if not have_more_results:
         return {
