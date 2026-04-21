@@ -219,7 +219,7 @@ const getCardStates = (
     states.CCU = buildCardState('CCU', 'Pending', PENDING_TOOLTIP)
   } else if (row.ccu.missing_flag) {
     states.CCU = buildCardState('CCU', 'Partial', PARTIAL_TOOLTIP)
-  } else if (!historyRows || historyRows.length === 0) {
+  } else if (!historyRows || historyRows.length < HISTORY_POINT_LIMITS['7D']) {
     states.CCU = buildCardState('CCU', 'Partial', PARTIAL_TOOLTIP)
   }
 
@@ -303,11 +303,11 @@ const getChartState = (
 }
 
 const getSevenDayAverage = (historyRows: GameDaily90dCcu[] | undefined) => {
-  if (!historyRows || historyRows.length === 0) {
+  if (!historyRows || historyRows.length < HISTORY_POINT_LIMITS['7D']) {
     return null
   }
 
-  const recentRows = historyRows.slice(-7)
+  const recentRows = historyRows.slice(-HISTORY_POINT_LIMITS['7D'])
   const avg = recentRows.reduce((sum, row) => sum + row.avg_ccu, 0) / recentRows.length
   return Math.round(avg)
 }

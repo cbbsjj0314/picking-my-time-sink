@@ -130,3 +130,15 @@ def test_explore_table_summarizes_freshness_without_fake_fallback() -> None:
     assert "Reviews anchor" in source
     assert "Price snapshot" in source
     assert "freshnessLabels.join(' · ')" in source
+
+
+def test_top_selling_detail_7d_average_waits_for_full_history_window() -> None:
+    source = STEAM_VIEW_MODEL_PATH.read_text(encoding="utf-8")
+    average_row = (
+        "{ label: '7D avg', value: sevenDayAverage !== null ? "
+        "formatCompact(sevenDayAverage) : 'Pending' }"
+    )
+
+    assert "historyRows.length < HISTORY_POINT_LIMITS['7D']" in source
+    assert "const recentRows = historyRows.slice(-HISTORY_POINT_LIMITS['7D'])" in source
+    assert average_row in source
