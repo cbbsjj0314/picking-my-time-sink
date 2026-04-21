@@ -111,6 +111,7 @@
     - summary가 없거나 incomplete/unreadable 이면 기존처럼 non-blocking 으로 건너뛴다.
     - current ranking seed에 더 이상 나타나지 않는 기존 tracked row는 이 updater가 자동 deactivate/delete 하지 않는다.
     - 오래 관측되지 않은 row에 대한 staleness cull rule은 없다. `tracked_game.last_seen_at` 은 updater가 처리한 current ranking candidate의 관측 시각 기록이며, 현재 fetch cadence나 serving lifecycle을 결정하지 않는다.
+    - cadence job의 `partial_success` triage는 current `tracked_game.is_active` 를 직접 바꾸지 않으며, chronic missing/skipped evidence만으로 stale cull이나 hard-failure semantics를 만들지 않는다.
     - warm 7일 rule은 current serving active rule 이 아니며, current `tracked_game.is_active` 를 직접 바꾸는 rule로 구현하지 않는다.
     - warm 7일이 필요해지면 `is_active` 와 분리된 lifecycle/fetch-cadence 상태(예: lifecycle state 또는 warm-until/fetch eligibility)를 먼저 정의한 뒤 별도 schema/code/test slice에서 구현한다.
     - 그 전까지 warm 7일은 fetch-only grace proposal/deferred 항목으로만 취급한다.

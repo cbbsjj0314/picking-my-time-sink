@@ -62,6 +62,7 @@
   - Current Steam-only MVP uses this flag for both active serving and downstream Steam fetch eligibility.
   - Existing tracked rows that disappear from a ranking seed are not automatically deleted by the ranking updater.
   - Completed App Catalog evidence can deactivate ranking seed appids that are absent from the completed catalog snapshot.
+  - Cadence-job `partial_success` triage does not by itself flip `is_active`, imply stale culling, or reclassify the job as a hard failure.
   - Warm grace, stale culling, and fetch-only lifecycle states are not current rules.
 - Ranking facts
   - KR and global rankings are stored separately.
@@ -115,6 +116,9 @@ Prometheus-facing scheduler metrics should preserve that same distinction:
 `success`, `partial_success`, `lock_busy`, and `hard_failure` are separate
 status values. Per-app CCU missing evidence and daily reviews skipped evidence
 are partial-success triage signals, not automatic hard-failure semantics.
+Current chronic partial-success rows are therefore operator-trust signals inside
+the tracked evidence eligibility boundary, not automatic serving blockers or
+lifecycle-state changes.
 
 ## 5. Public Verification Boundary
 
