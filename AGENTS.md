@@ -21,6 +21,10 @@
 - After code changes, run:
   - `poetry run ruff check .`
   - `poetry run pytest`
+- If the current Codex exec environment cannot run plain `poetry run pytest`
+  due to PATH or pytest capture issues, use the available Poetry path and/or
+  `pytest --capture=no`, and report the exact command used.
+- For docs-only changes, validation may be skipped if no runtime/code path changed.
 - Fix validation failures before finishing when they are caused by your changes.
 
 ## Project structure
