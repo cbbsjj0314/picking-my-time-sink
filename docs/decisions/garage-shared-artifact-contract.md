@@ -1,75 +1,78 @@
 # Garage-backed Shared Artifact Contract
 
-Status: accepted target direction, narrow contract slice  
-Date: 2026-04-22 (KST)
+상태: accepted target direction, narrow contract slice  
+날짜: 2026-04-22 (KST)
 
-This decision fixes the minimum shared retained-artifact contract for the
-current dual-host workflow. It does not migrate the live runtime to Garage, does
-not open a shared Postgres boundary, and does not change the current scheduler
-or serving path.
+이 결정은 현재 dual-host workflow에서 필요한 최소 shared retained-artifact
+contract를 고정한다. live runtime을 Garage로 옮기지 않고, shared Postgres
+boundary를 열지 않으며, 현재 scheduler나 serving path도 바꾸지 않는다.
 
-## Goal
+현재 local/operator 메모:
 
-Allow the desktop authority host to publish a small retained-artifact subset to
-an S3-compatible object boundary so that a Macbook checkout can reuse the same
-evidence in read-only mode.
+- 이번 slice의 current backing-store choice는 Cloudflare R2 Free다.
+- 그래도 durable contract는 계속 S3-compatible이고, 이후 self-hosted
+  fallback/migration 방향은 Garage로 유지한다.
 
-## Role Boundary
+## 목표
+
+desktop authority host가 작은 retained-artifact subset을 S3-compatible object
+boundary로 publish하고, Macbook checkout이 같은 evidence를 read-only로
+재사용할 수 있게 한다.
+
+## 역할 경계
 
 - Desktop authority host:
-  - current writer of retained local artifacts under `tmp/steam/jobs/**`
-  - only host allowed to publish/update the shared object view
+  - `tmp/steam/jobs/**` 아래 current retained local artifacts의 writer
+  - shared object view를 publish/update할 수 있는 유일한 host
 - Macbook checkout:
-  - read-only consumer of published objects
-  - may reuse retained evidence for review, triage, and optional catalog-driven
-    filtering
-  - does not write scheduler/job artifacts back to the shared boundary
+  - published objects의 read-only consumer
+  - review, triage, optional catalog-driven filtering 용도로 evidence 재사용 가능
+  - scheduler/job artifacts를 shared boundary에 다시 쓰지 않음
 
 ## Shared Artifact Inventory
 
-The shared subset stays narrower than the full local run directory.
+shared subset은 full local run directory보다 더 좁게 유지한다.
 
 - `ccu-30m`
   - required:
     - `result.json`
     - `ccu.silver.jsonl`
-  - why:
-    - `result.json` is the latest run/observability anchor
-    - `ccu.silver.jsonl` is the current retained partial-success probe input
+  - 이유:
+    - `result.json` 은 latest run/observability anchor다.
+    - `ccu.silver.jsonl` 은 current retained partial-success probe input이다.
 - `daily`
   - required:
     - `result.json`
     - `reviews.silver.jsonl`
-  - why:
-    - `result.json` is the latest run/observability anchor
-    - `reviews.silver.jsonl` is the current retained partial-success probe input
+  - 이유:
+    - `result.json` 은 latest run/observability anchor다.
+    - `reviews.silver.jsonl` 은 current retained partial-success probe input이다.
 - `price-1h`
   - required:
     - `result.json`
-  - why:
-    - current shared read-only consumers do not require price bronze/silver/gold
-      JSONL
+  - 이유:
+    - current shared read-only consumers는 price bronze/silver/gold JSONL이 필요 없다.
 - `app-catalog-weekly`
   - required:
     - run-scoped `result.json`
     - run-scoped `app_catalog.snapshot.jsonl`
     - global `latest.summary.json`
-  - why:
-    - `latest.summary.json` is the current optional consumer entrypoint
-    - `app_catalog.snapshot.jsonl` is required only when the summary is
-      `completed` and `pagination.have_more_results = false`
+  - 이유:
+    - `latest.summary.json` 이 current optional consumer entrypoint다.
+    - `app_catalog.snapshot.jsonl` 은 summary가 `completed` 이고
+      `pagination.have_more_results = false` 일 때만 필요하다.
 
-Explicitly not part of this slice:
+이번 slice에 명시적으로 포함하지 않는 것:
 
-- Postgres facts/views or shared DB access
+- Postgres facts/views 또는 shared DB access
 - scheduler logs, step meta, lock files
 - ranking payload JSON files
-- bronze/gold artifacts that current read-only consumers do not need
+- current read-only consumers가 쓰지 않는 bronze/gold artifacts
 
 ## Object Key Rules
 
-Bucket naming stays deployment-local. The portable contract starts at the object
-key prefix.
+bucket naming은 deployment-local이다. portable contract는 object key prefix부터
+시작한다.
 
 - run-scoped retained artifact:
   - `steam/authority/jobs/{job_name}/runs/{run_id}/{filename}`
@@ -78,17 +81,18 @@ key prefix.
 - App Catalog latest summary:
   - `steam/authority/app_catalog/latest.summary.json`
 
-Rules:
+규칙:
 
-- `job_name`, `run_id`, and `filename` are literal path segments and must not
-  contain `/`.
-- consumers should read latest state through the documented latest manifest or
-  latest summary key first, then follow referenced run-scoped keys.
-- object keys are S3-compatible and avoid provider-specific metadata features.
+- `job_name`, `run_id`, `filename` 은 literal path segment이며 `/` 를 포함하면 안 된다.
+- consumer는 문서화된 latest manifest 또는 latest summary key를 먼저 읽고,
+  그 다음 referenced run-scoped key를 따라간다.
+- object key는 S3-compatible이어야 하며 provider-specific metadata 기능에 의존하지 않는다.
+- bucket-local operator prefix는 portable `object_key` 바깥에 둘 수 있지만,
+  published manifest/summary payload 안의 key shape는 위 규칙을 유지한다.
 
 ## Latest Manifest Shape
 
-Cadence jobs expose one latest manifest with stable pointer fields:
+cadence job은 stable pointer field를 가진 latest manifest 1개를 노출한다:
 
 ```json
 {
@@ -114,7 +118,7 @@ Cadence jobs expose one latest manifest with stable pointer fields:
 }
 ```
 
-Current required artifact sets are intentionally fixed by cadence:
+현재 required artifact set은 cadence별로 의도적으로 고정한다:
 
 - `ccu-30m`: `result.json`, `ccu.silver.jsonl`
 - `daily`: `result.json`, `reviews.silver.jsonl`
@@ -123,26 +127,28 @@ Current required artifact sets are intentionally fixed by cadence:
 
 ## Latest Summary Shape
 
-App Catalog already has a current runtime summary contract in
-`src/steam/ingest/app_catalog_latest_summary.py`. This slice keeps that payload
-shape unchanged and reuses it as the read-only entrypoint.
+App Catalog는 이미 `src/steam/ingest/app_catalog_latest_summary.py` 에 current
+runtime summary contract가 있다. 이번 slice는 그 payload shape를 바꾸지 않고
+read-only entrypoint로 그대로 재사용한다.
 
-Shared summary rule:
+shared summary 규칙:
 
-- publish the existing summary payload to
-  `steam/authority/app_catalog/latest.summary.json`
-- when the summary points to a cadence-run snapshot path such as
-  `tmp/steam/jobs/app-catalog-weekly/{run_id}/app_catalog.snapshot.jsonl`,
-  the shared snapshot key is
+- existing summary payload를
+  `steam/authority/app_catalog/latest.summary.json` 에 publish한다.
+- summary가
+  `tmp/steam/jobs/app-catalog-weekly/{run_id}/app_catalog.snapshot.jsonl`
+  같은 cadence-run snapshot path를 가리키면, shared snapshot key는
   `steam/authority/jobs/app-catalog-weekly/runs/{run_id}/app_catalog.snapshot.jsonl`
-- current consumer trust rule stays the same:
-  - only `status = completed` and `pagination.have_more_results = false`
-    summaries may drive read-only catalog filtering
+  이다.
+- current consumer trust rule은 그대로 유지한다:
+  - `status = completed` 이고 `pagination.have_more_results = false` 인 summary만
+    read-only catalog filtering에 쓸 수 있다.
 
 ## Explicitly Deferred
 
-- Live Garage deployment and host operating procedures
-- Upload/sync job wiring from local paths to shared objects
-- Macbook live DB access, write paths, or local scheduler writes
+- Live Garage deployment와 host operating procedures
+- local run completion 이후 scheduler-driven 또는 automatic publish wiring
+- "latest few snapshots" 용 remote retention/pruning automation
+- Macbook live DB access, write path, local scheduler write
 - Scheduler/orchestrator replacement
-- Serving replacement or broader artifact inventory expansion
+- Serving replacement 또는 broader artifact inventory expansion
