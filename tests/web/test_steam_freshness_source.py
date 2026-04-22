@@ -142,3 +142,16 @@ def test_top_selling_detail_7d_average_waits_for_full_history_window() -> None:
     assert "historyRows.length < HISTORY_POINT_LIMITS['7D']" in source
     assert "const recentRows = historyRows.slice(-HISTORY_POINT_LIMITS['7D'])" in source
     assert average_row in source
+
+
+def test_top_selling_detail_history_keeps_fixed_daily_90d_read() -> None:
+    api_source = GAMES_API_PATH.read_text(encoding="utf-8")
+    overview_hook_source = STEAM_OVERVIEW_HOOK_PATH.read_text(encoding="utf-8")
+    view_model_source = STEAM_VIEW_MODEL_PATH.read_text(encoding="utf-8")
+
+    assert "function getGameCcuDaily90d" in api_source
+    assert "`/games/${canonicalGameId}/ccu/daily-90d`" in api_source
+    assert "withQuery(`/games/${canonicalGameId}/ccu/daily-90d`" not in api_source
+    assert "gamesApi.getGameCcuDaily90d(canonicalGameId, controller.signal)" in overview_hook_source
+    assert "'30D': buildTimelinePoints(historyRows, '30D')" in view_model_source
+    assert "'90D': buildTimelinePoints(historyRows, '90D')" in view_model_source

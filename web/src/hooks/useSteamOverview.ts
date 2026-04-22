@@ -366,6 +366,7 @@ export function useSteamOverview({
 
     async function loadHistory() {
       try {
+        // Current detail charts reuse one fixed 90-day history payload and slice 7D/30D/90D locally.
         const rows = await gamesApi.getGameCcuDaily90d(canonicalGameId, controller.signal)
 
         if (controller.signal.aborted) {

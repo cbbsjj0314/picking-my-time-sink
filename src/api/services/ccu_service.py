@@ -63,7 +63,10 @@ ORDER BY ranked.window_avg_ccu DESC, latest.latest_ccu DESC, latest.canonical_ga
 LIMIT %s
 """
 
-GET_RECENT_90D_CCU_DAILY_BY_GAME_SQL = """
+FIXED_DAILY_CCU_HISTORY_WINDOW_DAYS = 90
+FIXED_DAILY_CCU_HISTORY_WINDOW_OFFSET_DAYS = FIXED_DAILY_CCU_HISTORY_WINDOW_DAYS - 1
+
+GET_RECENT_FIXED_DAILY_CCU_HISTORY_BY_GAME_SQL = f"""
 SELECT
     canonical_game_id,
     bucket_date,
@@ -71,7 +74,9 @@ SELECT
     peak_ccu
 FROM agg_steam_ccu_daily
 WHERE canonical_game_id = %s
-  AND bucket_date >= ((NOW() AT TIME ZONE 'Asia/Seoul')::date - 89)
+  AND bucket_date >= (
+      (NOW() AT TIME ZONE 'Asia/Seoul')::date - {FIXED_DAILY_CCU_HISTORY_WINDOW_OFFSET_DAYS}
+  )
   AND bucket_date <= (NOW() AT TIME ZONE 'Asia/Seoul')::date
 ORDER BY bucket_date ASC
 """
@@ -184,14 +189,14 @@ def list_latest_ccu(limit: int = 50, window: str = "1d") -> list[dict[str, Any]]
 
 
 def get_recent_90d_ccu_daily_by_game(canonical_game_id: int) -> list[dict[str, Any]]:
-    """Return recent 90-day daily CCU rows for one game from the daily rollup table."""
+    """Return the fixed 90-day daily CCU history payload used by the current web consumer."""
 
     psycopg, dict_row = require_psycopg()
     conninfo = build_pg_conninfo_from_env()
 
     with psycopg.connect(conninfo=conninfo) as conn:
         with conn.cursor(row_factory=dict_row) as cursor:
-            cursor.execute(GET_RECENT_90D_CCU_DAILY_BY_GAME_SQL, (canonical_game_id,))
+            cursor.execute(GET_RECENT_FIXED_DAILY_CCU_HISTORY_BY_GAME_SQL, (canonical_game_id,))
             rows = cursor.fetchall()
 
     return [

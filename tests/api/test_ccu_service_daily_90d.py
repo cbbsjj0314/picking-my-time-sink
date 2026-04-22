@@ -6,8 +6,9 @@ from api.services import ccu_service
 
 
 def test_recent_90d_sql_reads_daily_agg_with_fixed_kst_window_and_ordering() -> None:
-    sql = ccu_service.GET_RECENT_90D_CCU_DAILY_BY_GAME_SQL.lower()
+    sql = ccu_service.GET_RECENT_FIXED_DAILY_CCU_HISTORY_BY_GAME_SQL.lower()
 
+    assert ccu_service.FIXED_DAILY_CCU_HISTORY_WINDOW_DAYS == 90
     assert "from agg_steam_ccu_daily" in sql
     assert "srv_game_latest_ccu" not in sql
     assert "at time zone 'asia/seoul'" in sql
@@ -76,7 +77,7 @@ def test_get_recent_90d_ccu_daily_by_game_returns_raw_rows_in_order(
 
     assert captured["conninfo"] == "fake-conninfo"
     assert captured["row_factory"] is dict_row_sentinel
-    assert captured["sql"] == ccu_service.GET_RECENT_90D_CCU_DAILY_BY_GAME_SQL
+    assert captured["sql"] == ccu_service.GET_RECENT_FIXED_DAILY_CCU_HISTORY_BY_GAME_SQL
     assert captured["params"] == (77,)
     assert result == [
         {
