@@ -150,6 +150,7 @@ def test_service_sql_uses_serving_view_only() -> None:
     single_sql = ccu_service.GET_LATEST_BY_GAME_SQL.lower()
     list_sql = ccu_service.LIST_LATEST_SQL.lower()
     window_sql = ccu_service.LIST_LATEST_WINDOW_SQL.lower()
+    history_sql = ccu_service.GET_RECENT_FIXED_DAILY_CCU_HISTORY_BY_GAME_SQL.lower()
 
     assert "from srv_game_latest_ccu" in single_sql
     assert "from srv_game_latest_ccu" in list_sql
@@ -161,6 +162,8 @@ def test_service_sql_uses_serving_view_only() -> None:
     assert "fact_steam_ccu_30m" not in window_sql
     assert "max(bucket_date)" in window_sql
     assert "count(*) = %s" in window_sql
+    assert "from agg_steam_ccu_daily" in history_sql
+    assert "fact_steam_ccu_30m" not in history_sql
 
 
 def test_to_response_record_missing_prev_sets_flag_and_pct_none() -> None:
