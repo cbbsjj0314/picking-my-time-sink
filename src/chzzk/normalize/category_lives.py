@@ -55,6 +55,20 @@ class ChzzkCategoryFactRow:
     collected_at: dt.datetime
 
 
+@dataclass(frozen=True, slots=True)
+class ChzzkChannelResultRow:
+    """Local/private channel evidence row for one category bucket."""
+
+    chzzk_category_id: str
+    bucket_time: dt.datetime
+    category_type: str
+    category_name: str
+    channel_id: str
+    channel_name: str
+    concurrent_user_count: int
+    collected_at: dt.datetime
+
+
 @dataclass(slots=True)
 class _CategoryAggregate:
     category_type: str
@@ -260,6 +274,61 @@ def build_result_row(row: ChzzkCategoryFactRow) -> dict[str, Any]:
     }
 
 
+def build_channel_result_rows(
+    payload: object,
+    *,
+    bucket_time: str | dt.datetime,
+    collected_at: str | dt.datetime,
+) -> list[dict[str, Any]]:
+    """Build local/private channel rows from category-fact-eligible live rows."""
+
+    normalized_bucket_time = floor_to_kst_half_hour(parse_timestamp(bucket_time))
+    normalized_collected_at = parse_timestamp(collected_at)
+    rows: list[ChzzkChannelResultRow] = []
+
+    for item in extract_live_items(payload):
+        rows.append(
+            ChzzkChannelResultRow(
+                chzzk_category_id=_required_string(item.get("liveCategory"), "liveCategory"),
+                bucket_time=normalized_bucket_time,
+                category_type=normalize_category_type(item.get("categoryType")),
+                category_name=_required_string(
+                    item.get("liveCategoryValue"),
+                    "liveCategoryValue",
+                ),
+                channel_id=_required_string(item.get("channelId"), "channelId"),
+                channel_name=_required_string(item.get("channelName"), "channelName"),
+                concurrent_user_count=_required_non_negative_int(
+                    item.get("concurrentUserCount"),
+                    "concurrentUserCount",
+                ),
+                collected_at=normalized_collected_at,
+            )
+        )
+
+    return [
+        {
+            "bucket_time": format_kst_iso(row.bucket_time),
+            "category_name": row.category_name,
+            "category_type": row.category_type,
+            "channel_id": row.channel_id,
+            "channel_name": row.channel_name,
+            "chzzk_category_id": row.chzzk_category_id,
+            "collected_at": format_kst_iso(row.collected_at),
+            "concurrent_user_count": row.concurrent_user_count,
+        }
+        for row in sorted(
+            rows,
+            key=lambda row: (
+                row.chzzk_category_id,
+                row.channel_id,
+                row.concurrent_user_count,
+                row.channel_name,
+            ),
+        )
+    ]
+
+
 def upsert_fact_chzzk_category_row(
     cursor: Any,
     *,
@@ -301,4 +370,3 @@ def process_live_payload(
     for row in rows:
         upsert_row(row)
     return [build_result_row(row) for row in rows]
-

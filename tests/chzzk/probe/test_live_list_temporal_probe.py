@@ -111,8 +111,35 @@ def test_write_probe_run_merges_pages_before_category_aggregation(tmp_path: Path
     result_lines = (tmp_path / "run-a" / "category-result.jsonl").read_text(
         encoding="utf-8"
     ).splitlines()
+    channel_lines = (tmp_path / "run-a" / "channel-result.jsonl").read_text(
+        encoding="utf-8"
+    ).splitlines()
     assert len(result_lines) == 1
     assert json.loads(result_lines[0])["concurrent_sum"] == 25
+    assert [json.loads(line) for line in channel_lines] == [
+        {
+            "bucket_time": "2026-04-23T10:30:00+09:00",
+            "category_name": "Game Alpha",
+            "category_type": "GAME",
+            "channel_id": "channel-a",
+            "channel_name": "Channel channel-a",
+            "chzzk_category_id": "game-alpha",
+            "collected_at": "2026-04-23T10:42:00+09:00",
+            "concurrent_user_count": 10,
+        },
+        {
+            "bucket_time": "2026-04-23T10:30:00+09:00",
+            "category_name": "Game Alpha",
+            "category_type": "GAME",
+            "channel_id": "channel-b",
+            "channel_name": "Channel channel-b",
+            "chzzk_category_id": "game-alpha",
+            "collected_at": "2026-04-23T10:42:00+09:00",
+            "concurrent_user_count": 15,
+        },
+    ]
+    assert summary["channel_result_path"] == str(tmp_path / "run-a" / "channel-result.jsonl")
+    assert summary["channel_result_rows"] == 2
     assert summary["pages_fetched"] == 2
     assert summary["pagination_followed"] is True
     assert summary["run_status"] == "success"
@@ -166,8 +193,14 @@ def test_write_probe_run_skips_category_fact_ineligible_live_rows(tmp_path: Path
     result_lines = (tmp_path / "run-a" / "category-result.jsonl").read_text(
         encoding="utf-8"
     ).splitlines()
+    channel_lines = (tmp_path / "run-a" / "channel-result.jsonl").read_text(
+        encoding="utf-8"
+    ).splitlines()
     assert len(result_lines) == 1
+    assert len(channel_lines) == 1
+    assert json.loads(channel_lines[0])["channel_id"] == "channel-a"
     assert summary["total_live_items"] == 2
+    assert summary["channel_result_rows"] == 1
     assert summary["fact_ready_live_items"] == 1
     assert summary["skipped_live_items"] == 1
     assert summary["skipped_required_counts"] == {
@@ -205,6 +238,7 @@ def test_write_probe_run_marks_empty_success_without_category_rows(tmp_path: Pat
     assert summary["run_status"] == "empty_success"
     assert summary["result_status"] == "empty_data"
     assert summary["category_result_rows"] == 0
+    assert summary["channel_result_rows"] == 0
     assert summary["coverage"] == {
         "full_1d_candidate_available": False,
         "full_7d_candidate_available": False,
@@ -252,6 +286,8 @@ def test_write_probe_run_records_partial_quota_failure_without_result_rows(
     assert summary["result_status"] == "not_generated_due_to_fetch_failure"
     assert summary["category_result_path"] is None
     assert summary["category_result_rows"] == 0
+    assert summary["channel_result_path"] is None
+    assert summary["channel_result_rows"] == 0
     assert summary["failure"] == {
         "http_status_code": 429,
         "kind": "quota_http_error",
@@ -498,6 +534,8 @@ def test_build_temporal_summary_marks_1d_7d_candidates_incomplete(tmp_path: Path
     assert summary["runs"] == 2
     assert summary["runs_with_results"] == 2
     assert summary["runs_excluded_from_comparison"] == 0
+    assert summary["runs_with_channel_results"] == 0
+    assert summary["runs_missing_channel_results"] == 2
     assert summary["total_pages"] == 4
     assert summary["complete_1d_category_count"] == 0
     assert summary["complete_7d_category_count"] == 0
@@ -534,3 +572,92 @@ def test_build_temporal_summary_marks_1d_7d_candidates_incomplete(tmp_path: Path
             "viewer_hours_observed": 17.0,
         }
     ]
+
+
+def test_build_temporal_summary_computes_unique_channels_from_channel_results(
+    tmp_path: Path,
+) -> None:
+    result_path = tmp_path / "run-a" / "category-result.jsonl"
+    channel_path = tmp_path / "run-a" / "channel-result.jsonl"
+    result_path.parent.mkdir(parents=True)
+    result_path.write_text(
+        json.dumps(
+            {
+                "bucket_time": "2026-04-23T10:30:00+09:00",
+                "category_name": "Game Alpha",
+                "category_type": "GAME",
+                "chzzk_category_id": "game-alpha",
+                "collected_at": "2026-04-23T10:42:00+09:00",
+                "concurrent_sum": 30,
+                "live_count": 2,
+                "top_channel_concurrent": 20,
+                "top_channel_id": "channel-a",
+                "top_channel_name": "Channel A",
+            },
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    channel_path.write_text(
+        "\n".join(
+            [
+                json.dumps(
+                    {
+                        "bucket_time": "2026-04-23T10:30:00+09:00",
+                        "category_name": "Game Alpha",
+                        "category_type": "GAME",
+                        "channel_id": "channel-a",
+                        "channel_name": "Channel A",
+                        "chzzk_category_id": "game-alpha",
+                        "collected_at": "2026-04-23T10:42:00+09:00",
+                        "concurrent_user_count": 20,
+                    },
+                    sort_keys=True,
+                ),
+                json.dumps(
+                    {
+                        "bucket_time": "2026-04-23T10:30:00+09:00",
+                        "category_name": "Game Alpha",
+                        "category_type": "GAME",
+                        "channel_id": "channel-b",
+                        "channel_name": "Channel B",
+                        "chzzk_category_id": "game-alpha",
+                        "collected_at": "2026-04-23T10:42:00+09:00",
+                        "concurrent_user_count": 10,
+                    },
+                    sort_keys=True,
+                ),
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    summary = build_temporal_summary(
+        [
+            {
+                "bucket_time": "2026-04-23T10:30:00+09:00",
+                "category_result_path": str(result_path),
+                "channel_result_path": str(channel_path),
+                "collected_at": "2026-04-23T10:42:00+09:00",
+                "coverage": {"status": "observed_bucket_only"},
+                "pages_fetched": 1,
+                "pagination": {
+                    "bounded_page_cutoff": False,
+                    "last_page_next_present": False,
+                },
+                "result_status": "category_results_available",
+                "run_status": "success",
+                "skip_counts": {
+                    "blank_category_live_items": 0,
+                    "category_fact_ineligible_live_items": 0,
+                },
+                "total_live_items": 2,
+            }
+        ]
+    )
+
+    assert summary["runs_with_channel_results"] == 1
+    assert summary["runs_missing_channel_results"] == 0
+    assert summary["categories"][0]["unique_channels_observed"] == 2
