@@ -1,7 +1,7 @@
 # Metrics & Definitions (요구사항 + 지표 정의서)
 
 문서 목적: 용어/지표/Δ 기준을 고정해 구현 중 재해석을 방지
-버전: v0.21 (Chzzk broader payload shape verified)
+버전: v0.22 (Chzzk bounded pagination temporal probe caveat)
 작성일: 2026-04-20 (KST)
 
 ## 0. 시간/기간 프리셋
@@ -295,9 +295,11 @@
 - source boundary: Chzzk live/category payload에서 category type/id/name, live concurrent, channel id/name만 읽는다.
 - sample payload/fixture: parser, DDL, ingest test보다 먼저 sanitized representative payload가 필요하다.
 - 제외: canonical game mapping, Twitch fallback, provider abstraction, streaming serving API, web dashboard streaming UI wiring, Combined/relationship KPI.
-- access status: official docs 기준 `/open/v1/lives` 는 Client 인증이 필요하다. 2026-04-20 KST unauthenticated probe는 `401` 로 client auth requirement를 확인했고, local credential을 주입한 read-only `size=1` and `size=20` probes는 `200` 과 current parser-compatible wrapper/field shape를 확인했다. `size=20` sample에서는 `GAME` and `ETC` category types가 관측되었다. Quota behavior는 one-shot/broader sample probe만으로는 확인하지 않았다.
+- access status: official docs 기준 `/open/v1/lives` 는 Client 인증이 필요하다. 2026-04-20 KST unauthenticated probe는 `401` 로 client auth requirement를 확인했고, local credential을 주입한 read-only `size=1` and `size=20` probes는 `200` 과 current parser-compatible wrapper/field shape를 확인했다. `size=20` sample에서는 `GAME` and `ETC` category types가 관측되었다. 2026-04-23 KST bounded local/private temporal probe는 `page.next` 를 3 pages x 2 runs 범위에서 따라갔고, 각 run의 page 3에서 blank `categoryType` / `liveCategory` / `liveCategoryValue` row 1개를 확인했다. Quota behavior는 one-shot/bounded sample probe만으로는 확인하지 않았다.
 
 원천은 “동시 시청자(concurrent)”를 30분 단위 category bucket으로 수집하는 방향이다. missing bucket은 gap fill이나 synthetic score로 채우지 않는다.
+
+Bounded temporal probe 결과는 local observed candidate일 뿐 public/API/UI contract가 아니다. 2개 run은 같은 KST half-hour bucket에 속해 1d/7d full coverage를 만들지 못했고, 1d/7d streaming metric은 category별 distinct 30분 bucket이 각각 48/336개 있을 때만 후보로 해석한다. Blank category row는 viewer-hours, avg viewers, peak viewers, live count 후보에서 제외하고 skip evidence로만 남긴다.
 
 ### 4.1 Avg concurrent (기본 표시)
 

@@ -1,5 +1,5 @@
 문서 목적: 테이블/파일 목록 + 그레인(1행 키) + 적재 규칙(증분/스냅샷) + 보존 기준 + repo-grounded provider 확장 경계 기록
-버전: v0.16 (Chzzk broader payload shape verified)
+버전: v0.17 (Chzzk bounded pagination temporal probe caveat)
 작성일: 2026-04-20 (KST)
 
 ## 0. 레이어 개요
@@ -166,13 +166,21 @@
     - probe/raw: representative payload와 수집 메타데이터를 local/private 경계에 보존한다.
     - authenticated `size=1` and `size=20` live payload probes returned `200`; current parser fixture and parser candidate are compatible with the observed wrapper/field shape.
     - `size=20` sample observed `GAME` and `ETC` category types, repeated category aggregation, and no missing/null parser-required fields.
+    - 2026-04-23 KST bounded local/private temporal probe followed `page.next`
+      for 3 pages across 2 runs. It found 1 live row per run with blank
+      `categoryType`, `liveCategory`, and `liveCategoryValue`; those rows are
+      category-fact ineligible and must not be coerced into a synthetic unknown
+      category.
+    - The bounded temporal probe produced 15 then 13 category rows from 60 live
+      rows per run. Category union was 15 and intersection was 13, but only one
+      KST half-hour bucket was observed.
     - unauthenticated probe는 client auth required `401` 을 확인했다.
     - public fixture는 official response shape 기반 synthetic/sanitized payload로만 둔다.
     - ingest: 한 Chzzk payload를 category 30분 fact row로 정규화한다.
     - ingest가 하지 않는 것: `canonical_game_id` 확정, `game_external_id` 자동 매핑, `gold_stream_game_30m`, serving API, web UI, Combined/relationship metric 생성.
 - real integration 전 필요 조건:
-    - pagination follow-up and runtime error behavior 확인
-    - local-only raw-to-category result artifact contract 확정
+    - longer temporal coverage and runtime error behavior 확인
+    - category-fact ineligible live row skip/reporting contract 확정
     - quota behavior 확인
     - `fact_chzzk_category_30m` DDL 후보를 live schema로 승격할지 결정
     - category-to-game mapping workflow를 별도 schema/code slice로 고정
