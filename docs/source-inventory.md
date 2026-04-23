@@ -1,20 +1,20 @@
-문서 목적: probe(샘플 검증) 실행 체크리스트 + 이후 스키마/파서/테스트의 기준점 + repo-grounded provider 확장 진입 기준 기록
-버전: v0.12 (Chzzk probe result contract hardening)
-작성일: 2026-04-20 (KST)
+문서 목적: source별 probe 체크리스트, schema/parser/test 기준점, provider 확장 진입 기준 기록
+버전: v0.13 (public 한국어 톤 정리)
+최종 수정일: 2026-04-24 (KST)
 
 ## 0. 공통 원칙
 
 - 실패/빈값/429는 “발생할 수 있다”를 전제로 하고, 재시도/백오프/관측 로그를 남긴다.
-- public에는 sanitized fixture와 durable contract만 남긴다. raw capture, UGC-heavy payload, 내부 운영 절차, exact local schedule은 local/private first로 둔다.
+- public에는 sanitized fixture와 durable contract만 남긴다. raw capture, UGC-heavy payload, credential, 내부 운영 절차, exact local schedule은 local/private에 둔다.
 - 스트리밍 확장은 첫 provider-specific source probe/ingest 후보를 좁혀 시작한다. Chzzk/Twitch 공통 인터페이스나 generalized provider abstraction은 실제 provider probe가 안정화된 뒤 별도 slice에서 검토한다.
 - Source-level data governance boundary는 `docs/data-governance.md` 를 따른다. Public source docs에는 endpoint shape, field meaning, cadence, null/error semantics를 남기고, raw provider response와 live runtime evidence는 local/private로 둔다.
 
-### 0.1 Provider boundary (current repo-grounded)
+### 0.1 Provider boundary (현재 repo 기준)
 
-- durable doc facts:
-    - current runtime scope는 Steam-only 이다.
-    - streaming 확장은 provider-specific source probe/ingest에서 시작하고, Steam service/API 범위를 먼저 일반화하지 않는다.
-- current repo observations:
+- 문서 기준:
+    - 현재 runtime scope는 Steam-only 이다.
+    - streaming 확장은 provider-specific source probe/ingest에서 시작한다. Steam service/API 범위를 먼저 일반화하지 않는다.
+- 현재 repo 관찰:
     - 현재 repo에는 Chzzk live-list parser fixture
       `tests/fixtures/chzzk/lives/representative.json`, parser/upsert 후보
       `src/chzzk/normalize/category_lives.py`, DDL 후보
@@ -22,21 +22,22 @@
     - Chzzk real runtime package, scheduler job, API serving, UI wiring은 없다.
     - Twitch probe 산출물, runtime package, DDL은 없다.
     - 외부 ID 연결의 현재 grounded contract는 `game_external_id.source` 이며, tracked provenance는 `tracked_game.sources` 에 기록된다.
-- first provider-specific probe/ingest candidate:
+- 첫 provider-specific probe/ingest 후보:
     - 첫 후보는 Chzzk category live-list probe 준비다.
     - source boundary는 Chzzk live/category payload에서 category type/id/name, live concurrent, channel id/name만 category-level evidence로 읽는 데 한정한다.
     - category evidence는 browser 후보로만 해석한다. `categoryType=GAME` 이 있어도 canonical game semantics, Steam mapping, API/UI column, Combined semantics로 확장하지 않는다.
     - category-level 30분 fact 방향은 `(chzzk_category_id, bucket_time)` 단위의 category type/name, concurrent 합계, live_count, top channel evidence다.
     - sanitized parser fixture는 `tests/fixtures/chzzk/lives/` 아래에 고정한다.
-    - current fixture는 official live-list response shape를 대표하는 synthetic/sanitized payload이며, live raw capture가 아니다.
-    - raw/probe responsibility는 provider 응답과 수집 메타데이터를 local/private 경계에 보존하는 것이다. ingest responsibility는 한 provider payload를 category 30분 row로 정규화하는 데 그치며 canonical game mapping, serving API, UI wiring, Combined semantics를 만들지 않는다.
+    - 현재 fixture는 official live-list response shape를 대표하는 synthetic/sanitized payload이며, live raw capture가 아니다.
+    - raw/probe 책임은 provider 응답과 수집 메타데이터를 local/private 경계에 보존하는 것이다.
+    - ingest 책임은 한 provider payload를 category 30분 row로 정규화하는 데 그친다. canonical game mapping, serving API, UI wiring, Combined semantics는 만들지 않는다.
 - real integration 전 필요 조건:
-    - Chzzk live-list temporal coverage and category-missing behavior 추가 확인
+    - Chzzk live-list temporal coverage와 category-missing behavior 추가 확인
     - local-only raw-to-category result artifact contract 확정
     - secrets는 환경 변수로 주입하고 토큰/쿠키/개인 헤더를 fixture, 로그, 문서에 저장하지 않는 운영 규칙 확정
     - `fact_chzzk_category_30m` 후보 DDL, parser fixture test, idempotent upsert test를 같은 thin slice에서 추가
     - category-to-game mapping workflow와 Twitch fallback 여부는 별도 slice에서 결정
-- explicitly deferred:
+- 명시적 비범위:
     - scheduled real Chzzk API 호출, Twitch 구현, provider abstraction layer, streaming serving API, web dashboard streaming UI wiring, Combined/relationship KPI
 
 ## 1. Steam (MVP 핵심)
@@ -52,25 +53,25 @@
     - 페이지네이션(대량 결과) 처리 필요
     - 결과 필드/형식은 실제 probe로 확정
     - 네트워크/일시 오류 시 재시도, 중간 체크포인트(last_appid 등) 필요
-- current repo-grounded resume/output precedence:
+- 현재 repo 기준 resume/output 우선순위:
     - checkpoint가 `in_progress` 이면 checkpoint의 `snapshot_path`를 resume 대상으로 재사용하며, explicit `--output-path` 보다 우선한다.
     - checkpoint가 `completed` 이거나 checkpoint가 없으면 fresh start 이며, explicit `--output-path` 가 있으면 그 경로에 새 snapshot을 쓰고 없으면 timestamped default path를 사용한다.
     - fresh start에서 explicit `--output-path` 가 기존 completed snapshot과 같은 경로여도 첫 요청 전에 빈 JSONL로 즉시 다시 쓰며, single-page terminal fetch는 그 fresh snapshot을 `completed`로 마감한다.
-- current repo-grounded runtime latest summary:
+- 현재 repo 기준 runtime latest summary:
     - successful weekly fetch는 resumable JSONL snapshot과 별도로 local/private latest summary JSON을 갱신한다.
     - latest summary top-level contract는 `job_name`, `status`, `started_at_utc`, `finished_at_utc`, `snapshot_path` 이다.
     - downstream consumer contract는 `response.payload_excerpt_or_json` 아래의 `app_count`, `pagination`, `top_level_keys`, `apps_excerpt` 요약 shape를 재사용한다.
     - `update_tracked_universe.py` 와 `run_tracked_universe_scheduled.py` 의 optional consumer default는 위 latest summary path를 사용하며, 파일이 없거나 읽기 실패여도 non-blocking 으로 건너뛴다.
-    - `update_tracked_universe.py` 의 current thin-slice consumer rule은 `pagination.have_more_results = false` 인 completed summary만 신뢰하고, 그 `snapshot_path` JSONL에 없는 ranking seed appid는 `tracked_game.is_active = false` 로 upsert 한다.
-    - shared object boundary가 필요할 때도 current consumer entrypoint는 위 latest summary를 그대로 유지한다. Shared key/object inventory rule은 `docs/decisions/garage-shared-artifact-contract.md` 를 따른다.
+    - `update_tracked_universe.py` 의 현재 thin-slice consumer rule은 `pagination.have_more_results = false` 인 completed summary만 신뢰하고, 그 `snapshot_path` JSONL에 없는 ranking seed appid는 `tracked_game.is_active = false` 로 upsert 한다.
+    - shared object boundary가 필요할 때도 현재 consumer entrypoint는 위 latest summary를 그대로 유지한다. Shared key/object inventory rule은 `docs/decisions/garage-shared-artifact-contract.md` 를 따른다.
     - shared read-only reuse에서 summary가 가리키는 run-scoped snapshot object는 `tmp/steam/jobs/app-catalog-weekly/{run_id}/app_catalog.snapshot.jsonl` 에 대응하는 S3-compatible key로만 노출한다.
-    - local/mock shared replay smoke는 `src/steam/ingest/shared_artifact_replay.py` 에서 desktop writer가 latest manifest/summary entrypoint를 publish하고 Macbook read-only consumer가 같은 entrypoint를 reread하는 one-path seam으로 고정한다.
-    - current remote portable-cache path는 `src/steam/ingest/shared_artifact_store.py` 에서 같은 latest manifest/latest summary entrypoint를 S3-compatible object storage로 publish/download 한다.
-    - current object-store config parsing and signing seam은 `src/steam/ingest/s3_compat.py` 이며, bucket-local prefix가 있더라도 published manifest/summary의 portable `object_key` shape는 유지한다.
-    - Macbook downloaded cache는 same object-key layout under one local cache root를 유지하므로 existing replay readers가 별도 adapter 없이 그대로 reread 한다.
-    - App Catalog latest summary는 current runtime에서 optional local/private artifact다. external weekly scheduling 운영화는 아직 current baseline에 포함하지 않는다.
-    - current ranking seed에서 사라진 기존 tracked row와 오래 관측되지 않은 tracked row는 App Catalog consumer가 자동 deactivate/delete 하지 않는다.
-    - `tracked_game.last_seen_at` 은 staleness lifecycle timer가 아니며, current price/reviews/ccu fetch cadence는 `tracked_game.is_active = true` 여부만 따른다.
+    - local/mock shared replay smoke는 `src/steam/ingest/shared_artifact_replay.py` 에서 writer가 latest manifest/summary entrypoint를 publish하고 read-only consumer가 같은 entrypoint를 reread하는 단일 경로로 고정한다.
+    - 현재 remote portable-cache path는 `src/steam/ingest/shared_artifact_store.py` 에서 같은 latest manifest/latest summary entrypoint를 S3-compatible object storage로 publish/download 한다.
+    - 현재 object-store config parsing and signing boundary는 `src/steam/ingest/s3_compat.py` 이며, bucket-local prefix가 있더라도 published manifest/summary의 portable `object_key` shape는 유지한다.
+    - downloaded cache는 same object-key layout under one local cache root를 유지하므로 existing replay readers가 별도 adapter 없이 그대로 reread 한다.
+    - App Catalog latest summary는 현재 runtime에서 optional local/private artifact다. external weekly scheduling 운영화는 아직 현재 baseline에 포함하지 않는다.
+    - 현재 ranking seed에서 사라진 기존 tracked row와 오래 관측되지 않은 tracked row는 App Catalog consumer가 자동 deactivate/delete 하지 않는다.
+    - `tracked_game.last_seen_at` 은 staleness lifecycle timer가 아니며, 현재 price/reviews/ccu fetch cadence는 `tracked_game.is_active = true` 여부만 따른다.
 
 ### 1.2 CCU (동접)
 
@@ -91,7 +92,7 @@
 - 인증: 보통 Key 불필요
 - 주기: daily
 - 입력 키: steam_appid
-- current repo-grounded request params:
+- 현재 repo 기준 request params:
     - `json=1`
     - `filter=all`
     - `language=all`
@@ -100,12 +101,12 @@
 - 주요 필드(예상):
     - query_summary: total_reviews, total_positive, total_negative 등
     - (선택) 리뷰 텍스트/태그 분류는 MVP 이후 단계로 둔다(비용/용량 이슈)
-- current metric contract:
+- 현재 metric contract:
     - `query_summary` cumulative totals를 all languages / all purchases / all reviews canonical daily snapshot으로 적재한다.
-    - current gold fact에는 위 request-param provenance 컬럼이 없으므로, 여러 review series를 병렬 보존해야 하면 schema/ingest 확장이 필요하다.
+    - 현재 gold fact에는 위 request-param provenance 컬럼이 없으므로, 여러 review series를 병렬 보존해야 하면 schema/ingest 확장이 필요하다.
 - 실패/주의:
     - 대량 호출 시 차단/429 가능 → tracked 대상만, 백오프 필수
-    - 언어/필터 조건은 위 current request params로 고정한다.
+    - 언어/필터 조건은 위 현재 request params로 고정한다.
 
 ### 1.4 Price (가격/할인)
 
@@ -128,7 +129,7 @@
 - 범위: KR + global 둘 다 저장
 - 주기: daily
 - runtime artifact:
-    - ranking refresh writes four local/private payload files: top sellers global, top sellers KR, most played global, most played KR.
+    - ranking refresh는 top sellers global, top sellers KR, most played global, most played KR 4종 local/private payload를 쓴다.
 - 출력 필드(예상): rank_type, rank_position, steam_appid(또는 추출된 appid), snapshot_market(KR/global)
 - 실패/주의:
     - runtime은 fixture-compatible JSON payload contract를 사용하고, legacy HTML behavior는 sanitized fixture로만 회귀 테스트한다.
@@ -145,31 +146,13 @@
     - `next`: optional pagination cursor from `page.next`
 - 인증:
     - 공식 문서는 애플리케이션 등록 후 `Client-Id` / `Client-Secret` 기반 Client 인증이 필요하다고 설명한다.
-    - 2026-04-20 KST dev workstation unauthenticated probe는 `401` 과 client auth required 응답을 반환했다.
-    - 2026-04-20 KST `CHZZK_CLIENT_ID` / `CHZZK_CLIENT_SECRET` 을 local `.env` 에 주입한 read-only `size=1` probe는 `200` 을 반환했다.
-    - 실제 quota limit은 one-shot read-only probe만으로는 확인하지 못했다. 공식 공통 에러 문서는 `429 TOO_MANY_REQUESTS` 를 quota 제한 초과로 둔다.
-- verified response shape:
-    - `size=1` and `size=20` read-only probes returned top-level `code=200`, `message=null`, `content.data`, `content.page.next`
-    - first live item keys observed: `adult`, `categoryType`, `channelId`, `channelImageUrl`, `channelName`, `concurrentUserCount`, `liveCategory`, `liveCategoryValue`, `liveId`, `liveThumbnailImageUrl`, `liveTitle`, `openDate`, `tags`
-    - `size=20` sample had 20 live rows, parser-required fields were present and non-null for all rows
-    - `size=20` sample observed `categoryType` values `GAME` and `ETC`
-    - 2026-04-24 KST local wrapper smoke observed `ENTERTAINMENT` in the bounded
-      local/private live-list sample; this was added as category evidence only,
-      not as product/API/UI semantics.
-    - 2026-04-23 KST bounded local/private temporal probe followed `page.next`
-      for 3 pages across 2 runs. Each run fetched 60 live rows and still observed
-      a string `page.next` on page 3, so the probe intentionally stopped before
-      exhausting pagination.
-    - The bounded pagination probe found 1 live row per run with blank
-      `categoryType`, `liveCategory`, and `liveCategoryValue`. Those rows are raw
-      evidence only and are category-fact ineligible until a separate semantics
-      slice decides whether/how to represent uncategorized lives.
-    - Across the 2 bounded runs, category aggregation produced 15 then 13
-      category rows; the category union was 15 and the intersection was 13.
-    - The 2 bounded runs landed in the same KST half-hour bucket, so they can
-      support only observed bucket-level candidate values. They do not satisfy
-      1d/7d metric full coverage.
-    - current parser fixture uses only `categoryType`, `liveCategory`, `liveCategoryValue`, `concurrentUserCount`, `channelId`, `channelName`
+    - credential은 환경 변수 또는 secret manager로 주입한다. public fixture, 로그, 문서에는 저장하지 않는다.
+    - quota limit은 아직 public contract가 아니다. 공식 공통 에러 문서는 `429 TOO_MANY_REQUESTS` 를 quota 제한 초과로 둔다.
+- 응답 형태 기준:
+    - wrapper 후보: `code`, `message`, `content.data`, `content.page.next`
+    - public parser fixture는 official response shape를 대표하는 synthetic/sanitized payload만 사용한다.
+    - 현재 parser fixture는 `categoryType`, `liveCategory`, `liveCategoryValue`, `concurrentUserCount`, `channelId`, `channelName` 만 사용한다.
+    - `adult`, `channelImageUrl`, `liveThumbnailImageUrl`, `liveTitle`, `openDate`, `tags` 같은 UGC-heavy/provider raw field는 public fixture에 원문으로 보존하지 않는다.
 - 주기 방향: real ingest가 생기면 30분(00/30) bucket으로 정규화한다.
 - 주요 필드 후보:
     - `categoryType`: `GAME`, `SPORTS`, `ENTERTAINMENT`, `ETC`
@@ -184,22 +167,12 @@
     - 인증/쿼터/필드 안정성이 미확정이다.
     - 빈 category id/name/type row를 synthetic unknown category로 채우지 않는다.
       category-level fact 후보에서는 skip evidence로 남긴다.
-    - local/private probe artifact contract는 strict parser result와 probe
-      reporting을 분리한다.
-    - `category-result.jsonl` 은 category-fact-eligible live row만 모은 strict
-      candidate result다.
-    - `summary.json` / `temporal-summary.json` 은
-      `run_status`, `result_status`, `pagination.bounded_page_cutoff`,
-      `pagination.last_page_next_present`, `skip_counts`,
-      `skip_evidence.blank_category_page_indexes`, `coverage.status` 로
-      skip/pagination/coverage caveat를 설명한다.
-    - quota/HTTP failure, request error, invalid JSON, malformed page, partial
-      fetch는 local/private `failure.kind`, `failure.http_status_code`,
-      `failure.page_index` 수준으로만 요약하고 category result는 생성하지 않는다.
-    - bounded probe는 page 3에도 `page.next` 가 남은 상태에서 멈췄으므로 full
-      live-list population이나 pagination exhaustion 근거가 아니다.
-    - category result는 evidence browser 후보로만 읽는다. category-to-game mapping,
-      API/UI column semantics, Combined semantics는 이 source inventory에서 열지 않는다.
+    - local/private probe artifact contract는 strict parser result와 probe reporting을 분리한다.
+    - `category-result.jsonl` 은 category-fact-eligible live row만 모은 strict candidate result다.
+    - `summary.json` / `temporal-summary.json` 은 `run_status`, `result_status`, `pagination.bounded_page_cutoff`, `pagination.last_page_next_present`, `skip_counts`, `skip_evidence.blank_category_page_indexes`, `coverage.status` 로 skip/pagination/coverage caveat를 설명한다.
+    - quota/HTTP failure, request error, invalid JSON, malformed page, partial fetch는 local/private `failure.kind`, `failure.http_status_code`, `failure.page_index` 수준으로만 요약하고 category result는 생성하지 않는다.
+    - bounded probe는 full live-list population이나 pagination exhaustion 근거가 아니다.
+    - category result는 evidence browser 후보로만 읽는다. category-to-game mapping, API/UI column semantics, Combined semantics는 이 source inventory에서 열지 않는다.
     - real integration 전 raw capture는 local/private에 두고 parser regression은 sanitized fixture로 먼저 고정한다.
     - API 실패 시의 재시도/알림은 Chzzk-specific runtime slice에서 구현한다.
     - public fixture는 synthetic/sanitized payload만 둔다. live title, channel name, thumbnail URL 같은 raw UGC/provider response는 public에 그대로 남기지 않는다.
@@ -216,7 +189,7 @@
 
 - 목적: Chzzk가 막히는 경우 동일한 지표(시청/방송/Top) 제공
 - 상태: 미착수(TBD). Chzzk-specific probe 결과가 막혔을 때 별도 source inventory/probe slice에서 검토한다.
-- current rule: Twitch 때문에 먼저 generalized provider interface를 만들지 않는다.
+- 현재 rule: Twitch 때문에 먼저 generalized provider interface를 만들지 않는다.
 
 ## 4. Probe 산출물(샘플 JSON) 저장 규칙
 
