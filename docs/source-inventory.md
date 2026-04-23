@@ -1,5 +1,5 @@
 문서 목적: probe(샘플 검증) 실행 체크리스트 + 이후 스키마/파서/테스트의 기준점 + repo-grounded provider 확장 진입 기준 기록
-버전: v0.10 (Chzzk bounded pagination temporal probe caveat)
+버전: v0.11 (Chzzk local metric candidate validation)
 작성일: 2026-04-20 (KST)
 
 ## 0. 공통 원칙
@@ -25,10 +25,11 @@
 - first provider-specific probe/ingest candidate:
     - 첫 후보는 Chzzk category live-list probe 준비다.
     - source boundary는 Chzzk live/category payload에서 category type/id/name, live concurrent, channel id/name만 category-level evidence로 읽는 데 한정한다.
+    - category evidence는 browser 후보로만 해석한다. `categoryType=GAME` 이 있어도 canonical game semantics, Steam mapping, API/UI column, Combined semantics로 확장하지 않는다.
     - category-level 30분 fact 방향은 `(chzzk_category_id, bucket_time)` 단위의 category type/name, concurrent 합계, live_count, top channel evidence다.
     - sanitized parser fixture는 `tests/fixtures/chzzk/lives/` 아래에 고정한다.
     - current fixture는 official live-list response shape를 대표하는 synthetic/sanitized payload이며, live raw capture가 아니다.
-    - raw/probe responsibility는 provider 응답과 수집 메타데이터를 local/private 경계에 보존하는 것이다. ingest responsibility는 한 provider payload를 category 30분 row로 정규화하는 데 그치며 canonical game mapping, serving API, UI wiring을 하지 않는다.
+    - raw/probe responsibility는 provider 응답과 수집 메타데이터를 local/private 경계에 보존하는 것이다. ingest responsibility는 한 provider payload를 category 30분 row로 정규화하는 데 그치며 canonical game mapping, serving API, UI wiring, Combined semantics를 만들지 않는다.
 - real integration 전 필요 조건:
     - Chzzk live-list temporal coverage and category-missing behavior 추가 확인
     - local-only raw-to-category result artifact contract 확정
@@ -137,7 +138,7 @@
 
 ### 2.1 Live 목록
 
-- 목적: 카테고리(게임)별 시청/방송/Top streamer 집계 후보 원천
+- 목적: category-level 시청/방송/Top streamer 집계 후보 원천
 - 엔드포인트: `GET https://openapi.chzzk.naver.com/open/v1/lives`
 - 요청 파라미터:
     - `size`: optional, 1-20, default 20
@@ -162,6 +163,9 @@
       slice decides whether/how to represent uncategorized lives.
     - Across the 2 bounded runs, category aggregation produced 15 then 13
       category rows; the category union was 15 and the intersection was 13.
+    - The 2 bounded runs landed in the same KST half-hour bucket, so they can
+      support only observed bucket-level candidate values. They do not satisfy
+      1d/7d metric full coverage.
     - current parser fixture uses only `categoryType`, `liveCategory`, `liveCategoryValue`, `concurrentUserCount`, `channelId`, `channelName`
 - 주기 방향: real ingest가 생기면 30분(00/30) bucket으로 정규화한다.
 - 주요 필드 후보:
@@ -177,6 +181,10 @@
     - 인증/쿼터/필드 안정성이 미확정이다.
     - 빈 category id/name/type row를 synthetic unknown category로 채우지 않는다.
       category-level fact 후보에서는 skip evidence로 남긴다.
+    - bounded probe는 page 3에도 `page.next` 가 남은 상태에서 멈췄으므로 full
+      live-list population이나 pagination exhaustion 근거가 아니다.
+    - category result는 evidence browser 후보로만 읽는다. category-to-game mapping,
+      API/UI column semantics, Combined semantics는 이 source inventory에서 열지 않는다.
     - real integration 전 raw capture는 local/private에 두고 parser regression은 sanitized fixture로 먼저 고정한다.
     - API 실패 시의 재시도/알림은 Chzzk-specific runtime slice에서 구현한다.
     - public fixture는 synthetic/sanitized payload만 둔다. live title, channel name, thumbnail URL 같은 raw UGC/provider response는 public에 그대로 남기지 않는다.

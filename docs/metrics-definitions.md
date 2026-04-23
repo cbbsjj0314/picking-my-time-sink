@@ -1,7 +1,7 @@
 # Metrics & Definitions (요구사항 + 지표 정의서)
 
 문서 목적: 용어/지표/Δ 기준을 고정해 구현 중 재해석을 방지
-버전: v0.22 (Chzzk bounded pagination temporal probe caveat)
+버전: v0.23 (Chzzk local metric candidate validation)
 작성일: 2026-04-20 (KST)
 
 ## 0. 시간/기간 프리셋
@@ -294,39 +294,87 @@
 - metric grain 후보: `(chzzk_category_id, bucket_time)` category-level 30분 bucket.
 - source boundary: Chzzk live/category payload에서 category type/id/name, live concurrent, channel id/name만 읽는다.
 - sample payload/fixture: parser, DDL, ingest test보다 먼저 sanitized representative payload가 필요하다.
+- 해석 boundary: current evidence는 category evidence browser 후보로만 본다. `categoryType=GAME` 이 있더라도 canonical game semantics, Steam mapping, API/UI column, Combined semantics로 확장하지 않는다.
 - 제외: canonical game mapping, Twitch fallback, provider abstraction, streaming serving API, web dashboard streaming UI wiring, Combined/relationship KPI.
 - access status: official docs 기준 `/open/v1/lives` 는 Client 인증이 필요하다. 2026-04-20 KST unauthenticated probe는 `401` 로 client auth requirement를 확인했고, local credential을 주입한 read-only `size=1` and `size=20` probes는 `200` 과 current parser-compatible wrapper/field shape를 확인했다. `size=20` sample에서는 `GAME` and `ETC` category types가 관측되었다. 2026-04-23 KST bounded local/private temporal probe는 `page.next` 를 3 pages x 2 runs 범위에서 따라갔고, 각 run의 page 3에서 blank `categoryType` / `liveCategory` / `liveCategoryValue` row 1개를 확인했다. Quota behavior는 one-shot/bounded sample probe만으로는 확인하지 않았다.
 
 원천은 “동시 시청자(concurrent)”를 30분 단위 category bucket으로 수집하는 방향이다. missing bucket은 gap fill이나 synthetic score로 채우지 않는다.
 
-Bounded temporal probe 결과는 local observed candidate일 뿐 public/API/UI contract가 아니다. 2개 run은 같은 KST half-hour bucket에 속해 1d/7d full coverage를 만들지 못했고, 1d/7d streaming metric은 category별 distinct 30분 bucket이 각각 48/336개 있을 때만 후보로 해석한다. Blank category row는 viewer-hours, avg viewers, peak viewers, live count 후보에서 제외하고 skip evidence로만 남긴다.
+Bounded temporal probe 결과는 local observed candidate일 뿐 public/API/UI contract가 아니다. 2개 run은 같은 KST half-hour bucket에 속해 1d/7d full coverage를 만들지 못했다. 1d/7d streaming metric은 category별 distinct 30분 bucket이 각각 48/336개 있을 때만 후보로 해석한다. Blank category row는 viewer-hours, avg viewers, peak viewers, live count 후보에서 제외하고 skip evidence로만 남긴다.
+
+### 4.0 Chzzk local metric candidate validation
+
+Current local/private evidence에서 계산 가능한 값은 category-fact-eligible row에 한정한다.
+
+- category-fact-eligible live row:
+    - `categoryType`, `liveCategory`, `liveCategoryValue`, `concurrentUserCount`, `channelId`, `channelName` 이 present이고, 문자열 required field가 blank가 아니다.
+    - `liveCategory` 는 candidate category id, `liveCategoryValue` 는 candidate category display name으로만 본다.
+    - `categoryType=GAME` 은 category type evidence일 뿐 canonical game identity가 아니다.
+- category-fact-ineligible live row:
+    - blank `categoryType` / `liveCategory` / `liveCategoryValue` row는 synthetic unknown category로 만들지 않는다.
+    - current candidate metric 계산에는 넣지 않고, summary의 skipped evidence로만 남긴다.
+- bounded pagination caveat:
+    - 2026-04-23 KST probe는 3 pages x 2 runs로 intentionally bounded였다.
+    - 각 run의 page 3에도 string `page.next` 가 남아 있었으므로, 전체 live-list population이나 final page exhaustion을 증명하지 않는다.
+    - 따라서 category union/intersection과 observed metric 값은 bounded sample 안의 evidence다.
+- full coverage:
+    - 30분 category bucket 하나는 category별 `concurrent_sum`, `live_count`, `top_channel_*` snapshot candidate를 만들 수 있다.
+    - 1d selected window는 같은 category에 대해 KST 기준 distinct 30분 bucket 48개가 모두 있어야 full coverage다.
+    - 7d selected window는 같은 category에 대해 KST 기준 distinct 30분 bucket 336개가 모두 있어야 full coverage다.
+    - previous same-length delta가 필요하면 previous window도 같은 full coverage를 만족해야 한다.
+    - current probe는 두 run 모두 같은 KST half-hour bucket에 속하므로 category별 distinct bucket coverage가 1개에 그쳤고, 1d/7d full coverage를 만족하지 못한다.
 
 ### 4.1 Avg concurrent (기본 표시)
 
 - 정의: 기간 내 concurrent의 평균
     - avg_concurrent = AVG(concurrent_bucket)
+- current Chzzk 후보 조건:
+    - `concurrent_bucket` 은 category-fact-eligible live rows를 category별로 합산한 `concurrent_sum` 이다.
+    - bounded probe에서는 같은 half-hour bucket의 observed `avg_viewers_observed` 만 계산 가능하다.
+    - 1d/7d avg viewers는 category별 48/336 distinct bucket full coverage 전에는 public/API/UI metric으로 승격하지 않는다.
 
 ### 4.2 Total (파생: viewer-hours)
 
 - 정의: viewer_hours = Σ (concurrent_bucket * bucket_hours)
     - 30분 버킷이면 bucket_hours = 0.5
 - 해석: “기간 동안 소비된 총 시청량(근사)”
+- current Chzzk 후보 조건:
+    - 한 30분 bucket의 observed viewer-hours 후보는 `concurrent_sum * 0.5` 로만 계산한다.
+    - 1d viewer-hours 후보는 category별 48개 bucket 모두가 있을 때 `SUM(concurrent_sum * 0.5)` 로 계산한다.
+    - 7d viewer-hours 후보는 category별 336개 bucket 모두가 있을 때 `SUM(concurrent_sum * 0.5)` 로 계산한다.
+    - current bounded probe는 same-bucket observed value만 만들 수 있고 1d/7d total로 해석하지 않는다.
 
 ### 4.3 Total streams (방송 수)
 
 - 정의: 해당 bucket_time에서 라이브 채널 수(또는 카테고리 내 라이브 수)의 합/평균
 - MVP에서는 bucket_time 스냅샷 기준의 live_count를 저장하고, 기간 합계/평균은 파생
+- current Chzzk 후보 조건:
+    - bucket-level `live_count` 는 category-fact-eligible live rows의 category별 count다.
+    - blank category row는 count 대상이 아니라 skipped evidence다.
+    - 기간 live count는 목적에 따라 bucket `live_count` 의 합계 또는 평균을 별도 이름/단위로 고정해야 하며, current slice에서는 observed bucket/live_count candidate만 남긴다.
+    - 1d/7d 기간 live count 후보도 category별 48/336 distinct bucket full coverage 전에는 public/API/UI metric으로 승격하지 않는다.
 
-### 4.4 Top streamer (입구)
+### 4.4 Peak viewers
+
+- 정의: 기간 내 category bucket concurrent의 최댓값
+    - peak_viewers = MAX(concurrent_bucket)
+- current Chzzk 후보 조건:
+    - `concurrent_bucket` 은 category별 `concurrent_sum` 이다.
+    - bounded probe에서는 observed buckets 안의 `peak_viewers_observed` 만 계산 가능하다.
+    - current probe는 same KST half-hour bucket만 관측했으므로 1d/7d peak viewers로 해석하지 않는다.
+    - 1d/7d peak viewers 후보는 category별 48/336 distinct bucket full coverage가 있을 때만 기간 metric 후보가 된다.
+
+### 4.5 Top streamer (입구)
 
 - 정의: bucket_time에서 concurrent가 가장 큰 채널(또는 스트리머)
 - 저장: top_channel_id, top_channel_name, top_channel_concurrent
 
-### 4.5 시청 모멘텀(Δ)
+### 4.6 시청 모멘텀(Δ)
 
 - 30분 버킷 기준으로 전일 동일 버킷 대비:
     - Δ_avg_concurrent: 동일 버킷 비교 또는 기간 평균 비교(표현 방식은 UI에서 선택)
     - Δ_viewer_hours: 일 단위 rollup이 생기면 일 스냅샷 Δ로 전환 가능
+- current Chzzk 후보 metric에는 delta contract가 없다. 1d/7d selected/previous window coverage와 API/UI naming이 별도 slice에서 고정되기 전까지 Combined 또는 relationship KPI로 연결하지 않는다.
 
 ## 5. 가격/할인(구매 타이밍)
 
