@@ -567,10 +567,12 @@ def build_temporal_summary(run_summaries: Sequence[Mapping[str, Any]]) -> dict[s
     for category_id, rows in sorted(rows_by_category.items()):
         concurrent_values = [int(row["concurrent_sum"]) for row in rows]
         live_count_values = [int(row["live_count"]) for row in rows]
+        live_count_total = sum(live_count_values)
         observed_bucket_count = len(rows)
         category_type = str(rows[-1]["category_type"])
         categories.append(
             {
+                "avg_channels_observed": live_count_total / len(live_count_values),
                 "avg_viewers_observed": sum(concurrent_values) / len(concurrent_values),
                 "bucket_count": observed_bucket_count,
                 "category_type": category_type,
@@ -580,7 +582,7 @@ def build_temporal_summary(run_summaries: Sequence[Mapping[str, Any]]) -> dict[s
                 >= EXPECTED_BUCKETS_1D,
                 "full_7d_candidate_available": observed_bucket_count
                 >= EXPECTED_BUCKETS_7D,
-                "live_count_observed_total": sum(live_count_values),
+                "live_count_observed_total": live_count_total,
                 "missing_1d_bucket_count": max(
                     0, EXPECTED_BUCKETS_1D - observed_bucket_count
                 ),
@@ -588,7 +590,9 @@ def build_temporal_summary(run_summaries: Sequence[Mapping[str, Any]]) -> dict[s
                     0, EXPECTED_BUCKETS_7D - observed_bucket_count
                 ),
                 "observed_bucket_count": observed_bucket_count,
+                "peak_channels_observed": max(live_count_values),
                 "peak_viewers_observed": max(concurrent_values),
+                "viewer_per_channel_observed": sum(concurrent_values) / live_count_total,
                 "viewer_hours_observed": sum(value * 0.5 for value in concurrent_values),
             }
         )

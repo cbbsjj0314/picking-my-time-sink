@@ -444,42 +444,93 @@ def test_build_temporal_summary_marks_1d_7d_candidates_incomplete(tmp_path: Path
             "total_live_items": 40,
         },
     )
+    result_path_b = tmp_path / "run-b" / "category-result.jsonl"
+    result_path_b.parent.mkdir(parents=True)
+    result_path_b.write_text(
+        json.dumps(
+            {
+                "bucket_time": "2026-04-23T11:00:00+09:00",
+                "category_name": "Game Alpha",
+                "category_type": "GAME",
+                "chzzk_category_id": "game-alpha",
+                "collected_at": "2026-04-23T11:12:00+09:00",
+                "concurrent_sum": 24,
+                "live_count": 3,
+                "top_channel_concurrent": 12,
+                "top_channel_id": "channel-b",
+                "top_channel_name": "Channel B",
+            },
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    summary_path_b = tmp_path / "run-b" / "summary.json"
+    write_json(
+        summary_path_b,
+        {
+            "bucket_time": "2026-04-23T11:00:00+09:00",
+            "category_result_path": str(result_path_b),
+            "collected_at": "2026-04-23T11:12:00+09:00",
+            "coverage": {"status": "observed_bucket_only"},
+            "pages_fetched": 2,
+            "pagination": {
+                "bounded_page_cutoff": True,
+                "last_page_next_present": True,
+            },
+            "result_status": "category_results_available",
+            "run_status": "success",
+            "skip_counts": {
+                "blank_category_live_items": 0,
+                "category_fact_ineligible_live_items": 0,
+            },
+            "total_live_items": 40,
+        },
+    )
 
-    summary = build_temporal_summary([json.loads(summary_path.read_text(encoding="utf-8"))])
+    summary = build_temporal_summary(
+        [
+            json.loads(summary_path.read_text(encoding="utf-8")),
+            json.loads(summary_path_b.read_text(encoding="utf-8")),
+        ]
+    )
 
-    assert summary["runs"] == 1
-    assert summary["runs_with_results"] == 1
+    assert summary["runs"] == 2
+    assert summary["runs_with_results"] == 2
     assert summary["runs_excluded_from_comparison"] == 0
-    assert summary["total_pages"] == 2
+    assert summary["total_pages"] == 4
     assert summary["complete_1d_category_count"] == 0
     assert summary["complete_7d_category_count"] == 0
-    assert summary["bounded_page_cutoff_run_count"] == 1
-    assert summary["last_page_next_present_run_count"] == 1
+    assert summary["bounded_page_cutoff_run_count"] == 2
+    assert summary["last_page_next_present_run_count"] == 2
     assert summary["blank_category_skipped_live_items_total"] == 1
     assert summary["skipped_live_items_total"] == 1
     assert summary["coverage"] == {
         "full_1d_bucket_requirement": 48,
         "full_7d_bucket_requirement": 336,
-        "missing_1d_bucket_count": 47,
-        "missing_7d_bucket_count": 335,
+        "missing_1d_bucket_count": 46,
+        "missing_7d_bucket_count": 334,
         "observed_bucket_candidate_only": True,
-        "observed_bucket_count": 1,
-        "status": "observed_bucket_only",
+        "observed_bucket_count": 2,
+        "status": "partial_window",
     }
     assert summary["categories"] == [
         {
-            "avg_viewers_observed": 10,
-            "bucket_count": 1,
+            "avg_channels_observed": 2,
+            "avg_viewers_observed": 17,
+            "bucket_count": 2,
             "category_type": "GAME",
             "chzzk_category_id": "game-alpha",
-            "coverage_status": "observed_bucket_only",
+            "coverage_status": "partial_window",
             "full_1d_candidate_available": False,
             "full_7d_candidate_available": False,
-            "live_count_observed_total": 1,
-            "missing_1d_bucket_count": 47,
-            "missing_7d_bucket_count": 335,
-            "observed_bucket_count": 1,
-            "peak_viewers_observed": 10,
-            "viewer_hours_observed": 5.0,
+            "live_count_observed_total": 4,
+            "missing_1d_bucket_count": 46,
+            "missing_7d_bucket_count": 334,
+            "observed_bucket_count": 2,
+            "peak_channels_observed": 3,
+            "peak_viewers_observed": 24,
+            "viewer_per_channel_observed": 8.5,
+            "viewer_hours_observed": 17.0,
         }
     ]
