@@ -204,6 +204,8 @@
     - `temporal-summary.json` 은 comparable run만 읽어 category별
       `coverage_status`, observed bucket count, missing 1d/7d bucket count,
       bounded cutoff/blank-skip aggregate count를 비교한다.
+      Top-level `bucket_times` and observed bucket coverage also come only from
+      successful comparable runs with readable category result artifacts.
     - authenticated `size=1` and `size=20` live payload probes returned `200`; current parser fixture and parser candidate are compatible with the observed wrapper/field shape.
     - `size=20` sample observed `GAME` and `ETC` category types, repeated category aggregation, and no missing/null parser-required fields.
     - 2026-04-23 KST bounded local/private temporal probe followed `page.next`

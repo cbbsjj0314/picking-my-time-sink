@@ -331,6 +331,8 @@ Current local/private evidence에서 계산 가능한 값은 category-fact-eligi
       1d/7d full coverage는 아직 없음을 뜻한다.
     - failed/partial run은 `run_status` / `result_status` / `failure` 로만 남고,
       category window coverage 계산에는 포함하지 않는다.
+    - top-level temporal `bucket_times` and observed bucket coverage are based
+      only on successful comparable runs with readable category result artifacts.
 
 ### 4.1 Avg concurrent (기본 표시)
 
