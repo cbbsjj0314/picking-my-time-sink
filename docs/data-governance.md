@@ -1,7 +1,7 @@
 # Data Governance
 
 문서 목적: Steam-only MVP 데이터 의미, 품질, freshness, lineage, public/local 경계를 최소 거버넌스 기준으로 고정
-버전: v0.2 (Chzzk fixture boundary clarification)
+버전: v0.3 (Chzzk temporal probe skip boundary)
 작성일: 2026-04-20 (KST)
 
 ## 0. 현재 범위
@@ -127,6 +127,11 @@ This is the current public lineage map for the Steam-only MVP.
 Chzzk `fact_chzzk_category_30m` is currently only a provider-specific DDL/parser
 candidate. It has no live job boundary, serving object, API, UI, or canonical game
 mapping lineage yet.
+
+Chzzk bounded pagination/temporal raw captures remain local/private. If a live
+row lacks category id/name/type, current category fact candidates skip it and
+record skip evidence rather than inventing an unknown category. Public fixtures
+stay synthetic/sanitized and should not include raw UGC-heavy provider payloads.
 
 If a new chart or API surface is added, add at least one lineage row before or with implementation.
 
