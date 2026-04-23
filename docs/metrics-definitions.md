@@ -1,7 +1,7 @@
 # Metrics & Definitions (요구사항 + 지표 정의서)
 
 문서 목적: 용어/지표/Δ 기준을 고정해 구현 중 재해석을 방지
-버전: v0.26 (Chzzk unique channel local artifact candidate)
+버전: v0.27 (Chzzk channel-result local artifact MVP)
 작성일: 2026-04-20 (KST)
 
 ## 0. 시간/기간 프리셋
@@ -364,11 +364,12 @@ Current local/private evidence에서 계산 가능한 값은 category-fact-eligi
 - local/private observed candidate:
     - `temporal-summary.json` category entry may include `peak_channels_observed = MAX(live_count)` and `avg_channels_observed = AVG(live_count)` across observed category buckets.
     - `viewer_per_channel_observed = SUM(concurrent_sum) / SUM(live_count)` is an observed ratio over category aggregate buckets only.
-    - `unique_channels` cannot be computed from current `category-result.jsonl` alone because it does not preserve the full per-live `channelId` set. `top_channel_id` is not enough for unique channel counting.
-    - Repeatable unique-channel semantics should use a future local/private `channel-result.jsonl`, not raw page reread as the primary metric contract and not public/API/UI promotion in this slice.
-    - Minimum future grain: one observed category-bucket-channel evidence row with `bucket_time`, `collected_at`, `chzzk_category_id`, `category_type`, `category_name`, `channel_id`, `concurrent_user_count`, and optional local/private `channel_name` for operator inspection.
-    - Future formula: `unique_channels_observed = COUNT(DISTINCT channel_id)` per category over the observed bucket window.
+    - `unique_channels` cannot be computed from `category-result.jsonl` alone because it does not preserve the full per-live `channelId` set. `top_channel_id` is not enough for unique channel counting.
+    - Repeatable observed unique-channel semantics use local/private `channel-result.jsonl`, not raw page reread as the primary metric contract and not public/API/UI promotion in this slice.
+    - Minimum grain: one observed category-bucket-channel evidence row with `bucket_time`, `collected_at`, `chzzk_category_id`, `category_type`, `category_name`, `channel_id`, `concurrent_user_count`, and local/private `channel_name` for operator inspection.
+    - Formula: `unique_channels_observed = COUNT(DISTINCT channel_id)` per category over observed channel-result rows.
     - Blank category / category-fact-ineligible rows stay out of the channel artifact and remain summary skip evidence; bounded pagination caveats remain summary/temporal-summary caveats.
+    - Older category-only summaries remain comparable; when channel-result is absent, temporal summary leaves `unique_channels_observed` absent for that category instead of rereading raw pages.
 
 ### 4.4 Peak viewers
 

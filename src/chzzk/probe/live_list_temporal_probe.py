@@ -16,6 +16,7 @@ import httpx
 
 from chzzk.normalize.category_lives import (
     aggregate_category_lives,
+    build_channel_result_rows,
     build_result_row,
     extract_live_items,
     floor_to_kst_half_hour,
@@ -240,6 +241,8 @@ def build_run_summary(
     size: int,
     failure: Mapping[str, Any] | None = None,
     category_result_written: bool = True,
+    channel_result_rows: Sequence[Mapping[str, Any]] = (),
+    channel_result_written: bool = True,
 ) -> dict[str, Any]:
     """Build a sanitized summary for one bounded probe run."""
 
@@ -295,11 +298,16 @@ def build_run_summary(
     category_result_path = (
         str(run_dir / "category-result.jsonl") if category_result_written else None
     )
+    channel_result_path = (
+        str(run_dir / "channel-result.jsonl") if channel_result_written else None
+    )
     return {
         "bucket_time": bucket_time,
         "category_result_path": category_result_path,
         "category_result_rows": len(result_rows),
         "category_type_counts": dict(sorted(category_type_counts.items())),
+        "channel_result_path": channel_result_path,
+        "channel_result_rows": len(channel_result_rows),
         "collected_at": format_kst_iso(collected_at),
         "coverage": {
             "full_1d_candidate_available": False,
@@ -371,6 +379,8 @@ def write_probe_run(
         write_json(raw_dir / f"page-{index:03d}.json", payload)
 
     category_result_written = False
+    channel_result_written = False
+    channel_result_rows: list[dict[str, Any]] = []
     if failure is None:
         merged_payload = merge_pages(pages, skip_missing_required=True)
         rows = aggregate_category_lives(
@@ -381,6 +391,13 @@ def write_probe_run(
         result_rows = [build_result_row(row) for row in rows]
         write_jsonl(run_dir / "category-result.jsonl", result_rows)
         category_result_written = True
+        channel_result_rows = build_channel_result_rows(
+            merged_payload,
+            bucket_time=collected_at,
+            collected_at=collected_at,
+        )
+        write_jsonl(run_dir / "channel-result.jsonl", channel_result_rows)
+        channel_result_written = True
     else:
         result_rows = []
 
@@ -394,6 +411,8 @@ def write_probe_run(
         size=size,
         failure=failure,
         category_result_written=category_result_written,
+        channel_result_rows=channel_result_rows,
+        channel_result_written=channel_result_written,
     )
     write_json(run_dir / "summary.json", summary)
     return summary
@@ -506,9 +525,12 @@ def build_temporal_summary(run_summaries: Sequence[Mapping[str, Any]]) -> dict[s
     run_rows: list[tuple[str, Mapping[str, Any]]] = []
     category_ids_by_run: list[set[str]] = []
     run_category_counts: list[dict[str, Any]] = []
+    channel_ids_by_category: defaultdict[str, set[str]] = defaultdict(set)
     run_status_counts: Counter[str] = Counter()
     result_status_counts: Counter[str] = Counter()
     runs_with_results = 0
+    runs_with_channel_results = 0
+    runs_missing_channel_results = 0
     runs_excluded_from_comparison = 0
     bounded_page_cutoff_runs = 0
     last_page_next_present_runs = 0
@@ -557,6 +579,16 @@ def build_temporal_summary(run_summaries: Sequence[Mapping[str, Any]]) -> dict[s
         for row in rows:
             collected_at = str(summary["collected_at"])
             run_rows.append((collected_at, row))
+        channel_result_path = summary.get("channel_result_path")
+        if not isinstance(channel_result_path, str) or not Path(
+            channel_result_path
+        ).exists():
+            runs_missing_channel_results += 1
+            continue
+        runs_with_channel_results += 1
+        for row in read_jsonl(Path(channel_result_path)):
+            category_id = str(row["chzzk_category_id"])
+            channel_ids_by_category[category_id].add(str(row["channel_id"]))
 
     rows_by_key = _dedupe_rows_by_category_bucket(run_rows)
     rows_by_category: defaultdict[str, list[Mapping[str, Any]]] = defaultdict(list)
@@ -570,32 +602,33 @@ def build_temporal_summary(run_summaries: Sequence[Mapping[str, Any]]) -> dict[s
         live_count_total = sum(live_count_values)
         observed_bucket_count = len(rows)
         category_type = str(rows[-1]["category_type"])
-        categories.append(
-            {
-                "avg_channels_observed": live_count_total / len(live_count_values),
-                "avg_viewers_observed": sum(concurrent_values) / len(concurrent_values),
-                "bucket_count": observed_bucket_count,
-                "category_type": category_type,
-                "chzzk_category_id": category_id,
-                "coverage_status": _bucket_coverage_status(observed_bucket_count),
-                "full_1d_candidate_available": observed_bucket_count
-                >= EXPECTED_BUCKETS_1D,
-                "full_7d_candidate_available": observed_bucket_count
-                >= EXPECTED_BUCKETS_7D,
-                "live_count_observed_total": live_count_total,
-                "missing_1d_bucket_count": max(
-                    0, EXPECTED_BUCKETS_1D - observed_bucket_count
-                ),
-                "missing_7d_bucket_count": max(
-                    0, EXPECTED_BUCKETS_7D - observed_bucket_count
-                ),
-                "observed_bucket_count": observed_bucket_count,
-                "peak_channels_observed": max(live_count_values),
-                "peak_viewers_observed": max(concurrent_values),
-                "viewer_per_channel_observed": sum(concurrent_values) / live_count_total,
-                "viewer_hours_observed": sum(value * 0.5 for value in concurrent_values),
-            }
-        )
+        category_summary = {
+            "avg_channels_observed": live_count_total / len(live_count_values),
+            "avg_viewers_observed": sum(concurrent_values) / len(concurrent_values),
+            "bucket_count": observed_bucket_count,
+            "category_type": category_type,
+            "chzzk_category_id": category_id,
+            "coverage_status": _bucket_coverage_status(observed_bucket_count),
+            "full_1d_candidate_available": observed_bucket_count >= EXPECTED_BUCKETS_1D,
+            "full_7d_candidate_available": observed_bucket_count >= EXPECTED_BUCKETS_7D,
+            "live_count_observed_total": live_count_total,
+            "missing_1d_bucket_count": max(
+                0, EXPECTED_BUCKETS_1D - observed_bucket_count
+            ),
+            "missing_7d_bucket_count": max(
+                0, EXPECTED_BUCKETS_7D - observed_bucket_count
+            ),
+            "observed_bucket_count": observed_bucket_count,
+            "peak_channels_observed": max(live_count_values),
+            "peak_viewers_observed": max(concurrent_values),
+            "viewer_per_channel_observed": sum(concurrent_values) / live_count_total,
+            "viewer_hours_observed": sum(value * 0.5 for value in concurrent_values),
+        }
+        if category_id in channel_ids_by_category:
+            category_summary["unique_channels_observed"] = len(
+                channel_ids_by_category[category_id]
+            )
+        categories.append(category_summary)
 
     collected_times = sorted(str(summary["collected_at"]) for summary in run_summaries)
     bucket_times = sorted({str(summary["bucket_time"]) for summary in run_summaries})
@@ -647,6 +680,8 @@ def build_temporal_summary(run_summaries: Sequence[Mapping[str, Any]]) -> dict[s
         "result_status_counts": dict(sorted(result_status_counts.items())),
         "runs": len(run_summaries),
         "runs_excluded_from_comparison": runs_excluded_from_comparison,
+        "runs_missing_channel_results": runs_missing_channel_results,
+        "runs_with_channel_results": runs_with_channel_results,
         "run_category_counts": run_category_counts,
         "run_status_counts": dict(sorted(run_status_counts.items())),
         "runs_with_results": runs_with_results,
