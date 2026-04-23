@@ -1,6 +1,33 @@
 import type { GameExploreOverview } from '../api/games'
 import { formatWon } from './format'
 
+export const steamExploreSortKeys = [
+  'game',
+  'currentCcu',
+  'estimatedPlayerHours',
+  'avgCcu',
+  'peakCcu',
+  'reviewsAdded',
+  'positiveShare',
+  'price',
+] as const
+
+export type SteamExploreSortKey = (typeof steamExploreSortKeys)[number]
+export type SteamExploreSortDirection = 'asc' | 'desc'
+
+export interface SteamExploreSortState {
+  key: SteamExploreSortKey
+  direction: SteamExploreSortDirection
+}
+
+export const DEFAULT_STEAM_EXPLORE_SORT_STATE: SteamExploreSortState = {
+  key: 'estimatedPlayerHours',
+  direction: 'desc',
+}
+
+type SteamExploreSortValue = number | string | null
+type SteamExploreSortValueMap = Record<SteamExploreSortKey, SteamExploreSortValue>
+
 export interface SteamExploreTableRow {
   id: string
   canonicalGameId: number
@@ -26,6 +53,7 @@ export interface SteamExploreTableRow {
   priceTitle: string | null
   ccuAnchorLabel: string | null
   reviewAnchorLabel: string | null
+  sortValues: SteamExploreSortValueMap
 }
 
 const EMPTY_CELL = '-'
@@ -202,6 +230,17 @@ const formatCurrentCcuSupport = (row: GameExploreOverview) => {
 const formatPeriodMetricSupport = (value: number | null, support: string | null) =>
   finiteNumberOrNull(value) === null ? PERIOD_HISTORY_COLLECTING_LABEL : support
 
+const DEFAULT_SORT_DIRECTION_BY_KEY: Record<SteamExploreSortKey, SteamExploreSortDirection> = {
+  game: 'asc',
+  currentCcu: 'desc',
+  estimatedPlayerHours: 'desc',
+  avgCcu: 'desc',
+  peakCcu: 'desc',
+  reviewsAdded: 'desc',
+  positiveShare: 'desc',
+  price: 'desc',
+}
+
 const arePeriodMetricsCollecting = (row: GameExploreOverview) =>
   [
     row.period_avg_ccu_7d,
@@ -210,6 +249,20 @@ const arePeriodMetricsCollecting = (row: GameExploreOverview) =>
     row.reviews_added_7d,
     row.period_positive_ratio_7d,
   ].every((value) => finiteNumberOrNull(value) === null)
+
+const buildSortValues = (row: GameExploreOverview): SteamExploreSortValueMap => {
+  // Period-aware columns currently map to the fixed Last 7 Days Explore contract.
+  return {
+    game: row.canonical_name.toLocaleLowerCase('en-US'),
+    currentCcu: finiteNumberOrNull(row.current_ccu),
+    estimatedPlayerHours: finiteNumberOrNull(row.estimated_player_hours_7d),
+    avgCcu: finiteNumberOrNull(row.period_avg_ccu_7d),
+    peakCcu: finiteNumberOrNull(row.period_peak_ccu_7d),
+    reviewsAdded: finiteNumberOrNull(row.reviews_added_7d),
+    positiveShare: finiteNumberOrNull(row.period_positive_ratio_7d),
+    price: finiteNumberOrNull(row.final_price_minor),
+  }
+}
 
 const buildSteamExploreTableRow = (row: GameExploreOverview): SteamExploreTableRow => {
   const periodMetricsCollecting = arePeriodMetricsCollecting(row)
@@ -254,19 +307,94 @@ const buildSteamExploreTableRow = (row: GameExploreOverview): SteamExploreTableR
     priceTitle: formatKstDateTime(row.price_bucket_time),
     ccuAnchorLabel: formatKstDate(row.ccu_period_anchor_date),
     reviewAnchorLabel: formatKstDate(row.reviews_snapshot_date),
+    sortValues: buildSortValues(row),
   }
 }
 
-export function buildSteamExploreTableRows(rows: GameExploreOverview[], searchQuery: string): SteamExploreTableRow[] {
+const compareNullableNumbers = (left: number | null, right: number | null, direction: SteamExploreSortDirection) => {
+  if (left === null && right === null) {
+    return 0
+  }
+
+  if (left === null) {
+    return 1
+  }
+
+  if (right === null) {
+    return -1
+  }
+
+  return direction === 'desc' ? right - left : left - right
+}
+
+const compareStrings = (left: string, right: string, direction: SteamExploreSortDirection) =>
+  direction === 'desc' ? right.localeCompare(left) : left.localeCompare(right)
+
+const compareByCurrentCcuDesc = (left: SteamExploreTableRow, right: SteamExploreTableRow) =>
+  compareNullableNumbers(left.sortValues.currentCcu as number | null, right.sortValues.currentCcu as number | null, 'desc')
+
+export function toggleSteamExploreSort(
+  currentSort: SteamExploreSortState,
+  key: SteamExploreSortKey,
+): SteamExploreSortState {
+  if (currentSort.key !== key) {
+    return {
+      key,
+      direction: DEFAULT_SORT_DIRECTION_BY_KEY[key],
+    }
+  }
+
+  return {
+    key,
+    direction: currentSort.direction === 'desc' ? 'asc' : 'desc',
+  }
+}
+
+export function sortSteamExploreTableRows(
+  rows: SteamExploreTableRow[],
+  sortState: SteamExploreSortState,
+): SteamExploreTableRow[] {
+  return [...rows].sort((left, right) => {
+    const primaryComparison =
+      sortState.key === 'game'
+        ? compareStrings(left.sortValues.game as string, right.sortValues.game as string, sortState.direction)
+        : compareNullableNumbers(
+            left.sortValues[sortState.key] as number | null,
+            right.sortValues[sortState.key] as number | null,
+            sortState.direction,
+          )
+
+    if (primaryComparison !== 0) {
+      return primaryComparison
+    }
+
+    if (sortState.key !== 'currentCcu') {
+      const currentCcuComparison = compareByCurrentCcuDesc(left, right)
+
+      if (currentCcuComparison !== 0) {
+        return currentCcuComparison
+      }
+    }
+
+    return left.canonicalGameId - right.canonicalGameId
+  })
+}
+
+export function buildSteamExploreTableRows(
+  rows: GameExploreOverview[],
+  searchQuery: string,
+  sortState: SteamExploreSortState,
+): SteamExploreTableRow[] {
   const normalizedSearch = searchQuery.trim().toLowerCase()
 
-  return rows
-    .map(buildSteamExploreTableRow)
-    .filter((row) => {
+  return sortSteamExploreTableRows(
+    rows.map(buildSteamExploreTableRow).filter((row) => {
       if (normalizedSearch.length === 0) {
         return true
       }
 
       return row.gameTitle.toLowerCase().includes(normalizedSearch)
-    })
+    }),
+    sortState,
+  )
 }

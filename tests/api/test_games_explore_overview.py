@@ -139,7 +139,10 @@ def test_service_sql_reads_explore_serving_view_with_default_sort() -> None:
     assert "delta_estimated_player_hours_7d_pct" in sql
     assert "delta_reviews_added_7d_abs" in sql
     assert "delta_period_positive_ratio_30d_pp" in sql
-    assert "order by period_avg_ccu_7d desc nulls last, canonical_game_id asc" in sql
+    assert "order by" in sql
+    assert "estimated_player_hours_7d desc nulls last" in sql
+    assert "current_ccu desc nulls last" in sql
+    assert "canonical_game_id asc" in sql
 
 
 def test_to_response_record_preserves_null_evidence_fields() -> None:

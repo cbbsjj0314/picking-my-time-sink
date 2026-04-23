@@ -51,11 +51,18 @@ def test_explore_view_model_keeps_nulls_and_timestamp_fields_grounded() -> None:
     source = STEAM_EXPLORE_VIEW_MODEL_PATH.read_text(encoding="utf-8")
 
     assert "const EMPTY_CELL = '-'" in source
+    assert "export const DEFAULT_STEAM_EXPLORE_SORT_STATE" in source
+    assert "key: 'estimatedPlayerHours'" in source
+    assert "direction: 'desc'" in source
     assert "currentCcuLabel: formatOptionalInteger(row.current_ccu)" in source
     assert "currentCcuTitle: formatKstDateTime(row.ccu_bucket_time)" in source
     assert "ccuAnchorLabel: formatKstDate(row.ccu_period_anchor_date)" in source
     assert "reviewAnchorLabel: formatKstDate(row.reviews_snapshot_date)" in source
     assert "priceTitle: formatKstDateTime(row.price_bucket_time)" in source
+    assert "sortValues: buildSortValues(row)" in source
+    assert "currentCcu: finiteNumberOrNull(row.current_ccu)" in source
+    assert "estimatedPlayerHours: finiteNumberOrNull(row.estimated_player_hours_7d)" in source
+    assert "price: finiteNumberOrNull(row.final_price_minor)" in source
 
 
 def test_explore_period_null_state_uses_history_collection_copy() -> None:
@@ -123,13 +130,38 @@ def test_detail_price_display_uses_free_without_discount_support() -> None:
 def test_explore_table_summarizes_freshness_without_fake_fallback() -> None:
     source = STEAM_EXPLORE_TABLE_PATH.read_text(encoding="utf-8")
 
+    assert "{ key: 'currentCcu', label: 'Current CCU' }" in source
+    assert "{ key: 'estimatedPlayerHours', label: 'Estimated Player-Hours' }" in source
+    assert "{ key: 'avgCcu', label: 'Avg CCU' }" in source
     assert "getUniformEvidenceLabel" in source
+    assert "getAriaSort" in source
+    assert "onClick={() => onSortChange(column.key)}" in source
+    assert "Default sort follows Estimated Player-Hours" in source
     assert "return `${label} mixed snapshots`" in source
     assert "Current CCU" in source
     assert "CCU period anchor" in source
     assert "Reviews anchor" in source
     assert "Price snapshot" in source
     assert "freshnessLabels.join(' · ')" in source
+
+
+def test_explore_hook_routes_sort_state_through_view_model() -> None:
+    app_source = APP_PATH.read_text(encoding="utf-8")
+    hook_source = Path("web/src/hooks/useSteamExploreOverview.ts").read_text(encoding="utf-8")
+
+    assert (
+        "const [sortState, setSortState] = useState<SteamExploreSortState>"
+        "(DEFAULT_STEAM_EXPLORE_SORT_STATE)"
+        in hook_source
+    )
+    assert (
+        "rows: enabled ? buildSteamExploreTableRows(apiRows, searchQuery, sortState) : []"
+        in hook_source
+    )
+    assert "setSortState((currentSort) => toggleSteamExploreSort(currentSort, key))" in hook_source
+    assert "sortState: steamExploreSortState" in app_source
+    assert "requestSort: requestSteamExploreSort" in app_source
+    assert "onSortChange={requestSteamExploreSort}" in app_source
 
 
 def test_top_selling_detail_7d_average_waits_for_full_history_window() -> None:

@@ -263,7 +263,8 @@
 - 서빙 객체는 `srv_game_explore_period_metrics` 이고, 목록 엔드포인트는 `/games/explore/overview` 이다.
 - 현재 엔드포인트는 `limit`만 지원한다. period/window, region, market, rank_type 쿼리 계약은 아직 없다.
 - 기준 유니버스는 `tracked_game.is_active = true` 인 Steam canonical game이다.
-- 기본 정렬은 `period_avg_ccu_7d DESC NULLS LAST, canonical_game_id ASC` 이다.
+- API/server default 정렬은 `estimated_player_hours_7d DESC NULLS LAST, current_ccu DESC NULLS LAST, canonical_game_id ASC` 이다.
+- current web table 정렬 상태는 프론트 `Explore` row/view-model layer가 관리한다. 현재 fixed `Last 7 Days` minimum path에서는 period-aware sortable columns를 대응하는 7d fields에 매핑한다.
 - 현재 서빙 형태는 게임 식별 정보, current/latest CCU, 7일 CCU 기간 평균/최고 및 same-window delta, strict 7일 `Estimated Player-Hours`, 리뷰 누적 기준 snapshot, 리뷰 7일/30일 boundary 기반 파생 필드와 previous-period comparison, 최신 KR 가격 근거를 한 row에 담는다.
 - current `Most Played` longer-window API는 `7d|30d|90d` list ordering context만 바꾸고 latest CCU row shape를 반환한다. 이를 `Explore` period avg/peak metric API로 재해석하지 않는다.
 - CCU 기간 지표:

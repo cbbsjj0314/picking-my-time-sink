@@ -1,7 +1,14 @@
 import { useEffect, useState } from 'react'
 import { gamesApi, type GameExploreOverview } from '../api/games'
 import { getSteamQueryErrorMessage } from '../lib/steamViewModel'
-import { buildSteamExploreTableRows, type SteamExploreTableRow } from '../lib/steamExploreViewModel'
+import {
+  buildSteamExploreTableRows,
+  DEFAULT_STEAM_EXPLORE_SORT_STATE,
+  toggleSteamExploreSort,
+  type SteamExploreSortKey,
+  type SteamExploreSortState,
+  type SteamExploreTableRow,
+} from '../lib/steamExploreViewModel'
 
 interface UseSteamExploreOverviewArgs {
   enabled: boolean
@@ -14,6 +21,8 @@ interface UseSteamExploreOverviewResult {
   totalRowCount: number
   loading: boolean
   error: string | null
+  sortState: SteamExploreSortState
+  requestSort: (key: SteamExploreSortKey) => void
 }
 
 export function useSteamExploreOverview({
@@ -24,6 +33,7 @@ export function useSteamExploreOverview({
   const [apiRows, setApiRows] = useState<GameExploreOverview[]>([])
   const [loading, setLoading] = useState(enabled)
   const [error, setError] = useState<string | null>(null)
+  const [sortState, setSortState] = useState<SteamExploreSortState>(DEFAULT_STEAM_EXPLORE_SORT_STATE)
 
   useEffect(() => {
     if (!enabled) {
@@ -68,9 +78,13 @@ export function useSteamExploreOverview({
   }, [enabled, limit])
 
   return {
-    rows: enabled ? buildSteamExploreTableRows(apiRows, searchQuery) : [],
+    rows: enabled ? buildSteamExploreTableRows(apiRows, searchQuery, sortState) : [],
     totalRowCount: enabled ? apiRows.length : 0,
     loading,
     error,
+    sortState,
+    requestSort: (key) => {
+      setSortState((currentSort) => toggleSteamExploreSort(currentSort, key))
+    },
   }
 }

@@ -52,7 +52,10 @@ SELECT
     discount_percent,
     is_free
 FROM srv_game_explore_period_metrics
-ORDER BY period_avg_ccu_7d DESC NULLS LAST, canonical_game_id ASC
+ORDER BY
+    estimated_player_hours_7d DESC NULLS LAST,
+    current_ccu DESC NULLS LAST,
+    canonical_game_id ASC
 LIMIT %s
 """
 
@@ -163,7 +166,7 @@ def to_response_record(row: Mapping[str, Any]) -> dict[str, Any]:
 
 
 def list_explore_overview(limit: int = 50) -> list[dict[str, Any]]:
-    """Return Explore overview rows sorted by 7-day average CCU, nulls last."""
+    """Return Explore overview rows sorted by 7-day player-hours, nulls last."""
 
     psycopg, dict_row = require_psycopg()
     conninfo = build_pg_conninfo_from_env()

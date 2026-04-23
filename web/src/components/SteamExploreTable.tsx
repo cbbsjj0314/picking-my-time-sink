@@ -1,4 +1,4 @@
-import type { SteamExploreTableRow } from '../lib/steamExploreViewModel'
+import type { SteamExploreSortKey, SteamExploreSortState, SteamExploreTableRow } from '../lib/steamExploreViewModel'
 
 interface SteamExploreTableProps {
   rows: SteamExploreTableRow[]
@@ -6,6 +6,8 @@ interface SteamExploreTableProps {
   loading?: boolean
   error?: string | null
   searchQuery?: string
+  sortState: SteamExploreSortState
+  onSortChange: (key: SteamExploreSortKey) => void
 }
 
 interface ExploreCellProps {
@@ -23,16 +25,32 @@ function ExploreCell({ value, support = null, title = null }: ExploreCellProps) 
   )
 }
 
-const tableHeadings = [
-  'Game',
-  'Current CCU',
-  'Avg CCU',
-  'Peak CCU',
-  'Estimated Player-Hours',
-  'Reviews Added',
-  'Positive Share',
-  'Price',
-]
+const tableColumns = [
+  { key: 'game', label: 'Game' },
+  { key: 'currentCcu', label: 'Current CCU' },
+  { key: 'estimatedPlayerHours', label: 'Estimated Player-Hours' },
+  { key: 'avgCcu', label: 'Avg CCU' },
+  { key: 'peakCcu', label: 'Peak CCU' },
+  { key: 'reviewsAdded', label: 'Reviews Added' },
+  { key: 'positiveShare', label: 'Positive Share' },
+  { key: 'price', label: 'Price' },
+] as const satisfies ReadonlyArray<{ key: SteamExploreSortKey; label: string }>
+
+const getAriaSort = (columnKey: SteamExploreSortKey, sortState: SteamExploreSortState) => {
+  if (sortState.key !== columnKey) {
+    return 'none'
+  }
+
+  return sortState.direction === 'asc' ? 'ascending' : 'descending'
+}
+
+const getSortIndicator = (columnKey: SteamExploreSortKey, sortState: SteamExploreSortState) => {
+  if (sortState.key !== columnKey) {
+    return '↕'
+  }
+
+  return sortState.direction === 'asc' ? '↑' : '↓'
+}
 
 const getUniformEvidenceLabel = (
   rows: SteamExploreTableRow[],
@@ -74,6 +92,8 @@ export function SteamExploreTable({
   loading = false,
   error = null,
   searchQuery = '',
+  sortState,
+  onSortChange,
 }: SteamExploreTableProps) {
   const freshnessLabels = [
     getUniformEvidenceLabel(rows, (row) => row.currentCcuTitle, 'Current CCU'),
@@ -93,7 +113,8 @@ export function SteamExploreTable({
           </p>
           <h2 className="type-display mt-2 text-[1.65rem] font-bold text-[var(--text-primary)]">Explore</h2>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--text-secondary)]">
-            Active tracked Steam games, sorted by average CCU for the selected period. Missing evidence stays "-".
+            Active tracked Steam games. Default sort follows Estimated Player-Hours for the selected period, while
+            missing evidence stays "-".
           </p>
         </div>
 
@@ -131,9 +152,18 @@ export function SteamExploreTable({
           <table className="min-w-[1120px] w-full border-collapse bg-[rgba(255,249,239,0.34)] text-left">
             <thead>
               <tr className="border-b border-[var(--ghost-border)] text-xs uppercase tracking-[0.08em] text-[var(--text-muted)]">
-                {tableHeadings.map((heading) => (
-                  <th key={heading} className="px-4 py-3 font-semibold">
-                    {heading}
+                {tableColumns.map((column) => (
+                  <th key={column.key} aria-sort={getAriaSort(column.key, sortState)} className="px-4 py-3 font-semibold">
+                    <button
+                      className="flex items-center gap-2 whitespace-nowrap transition hover:text-[var(--text-secondary)]"
+                      onClick={() => onSortChange(column.key)}
+                      type="button"
+                    >
+                      <span>{column.label}</span>
+                      <span aria-hidden="true" className="text-[0.7rem] text-[var(--paper-dim)]">
+                        {getSortIndicator(column.key, sortState)}
+                      </span>
+                    </button>
                   </th>
                 ))}
               </tr>
@@ -149,12 +179,12 @@ export function SteamExploreTable({
                     title={row.currentCcuTitle}
                     value={row.currentCcuLabel}
                   />
-                  <ExploreCell support={row.avgCcuSupportLabel} value={row.avgCcuLabel} />
-                  <ExploreCell support={row.peakCcuSupportLabel} value={row.peakCcuLabel} />
                   <ExploreCell
                     support={row.estimatedPlayerHoursSupportLabel}
                     value={row.estimatedPlayerHoursLabel}
                   />
+                  <ExploreCell support={row.avgCcuSupportLabel} value={row.avgCcuLabel} />
+                  <ExploreCell support={row.peakCcuSupportLabel} value={row.peakCcuLabel} />
                   <ExploreCell support={row.reviewsAddedSupportLabel} value={row.reviewsAddedLabel} />
                   <ExploreCell support={row.positiveShareSupportLabel} value={row.positiveShareLabel} />
                   <ExploreCell support={row.priceSupportLabel} title={row.priceTitle} value={row.priceLabel} />

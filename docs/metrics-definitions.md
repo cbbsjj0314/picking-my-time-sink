@@ -82,7 +82,7 @@
 - `tracked_game.last_seen_at` 은 current metric freshness anchor가 아니며, 오래 관측되지 않은 row를 자동으로 포함/제외하는 lifecycle timer로 사용하지 않는다.
 - warm 7일 rule은 current `Explore` serving active rule이 아니며, `is_active` 와 분리된 lifecycle/fetch-cadence 상태가 정의되기 전까지 metric base universe에 반영하지 않는다.
 - tracked universe seed provenance는 `topsellers_global`, `topsellers_kr`, `mostplayed_global`, `mostplayed_kr` 의 합집합으로 본다.
-- `Explore` default period preset은 `Last 7 Days` 이고, target default sort는 `7일 평균 동접 desc` 다.
+- `Explore` default period preset은 `Last 7 Days` 이고, target default sort는 strict `Estimated Player-Hours desc` 다.
 - period metric family는 KST date 기준 `latest available data date` 를 anchor로 쓴다.
 - anchor는 per-game anchor가 아니라 metric-wide anchor를 우선한다. 같은 테이블의 row들이 같은 기준일로 비교되도록, 특정 게임의 더 오래된 최신일로 fallback하지 않는다.
 - metric-wide anchor 예시:
@@ -106,7 +106,8 @@
 - 목록 엔드포인트는 `/games/explore/overview` 이다.
 - 현재 최소 경로는 쿼리 파라미터로 `limit`만 받는다. period/window, region, market, rank_type 쿼리 계약은 아직 없다.
 - 기준 유니버스는 `tracked_game.is_active = true` 인 Steam canonical game이다.
-- 기본 정렬은 `period_avg_ccu_7d DESC NULLS LAST, canonical_game_id ASC` 이다.
+- API/server default 정렬은 `estimated_player_hours_7d DESC NULLS LAST, current_ccu DESC NULLS LAST, canonical_game_id ASC` 이다.
+- current web `Explore` table도 프론트 row/view-model layer에서 동일한 기본 정렬을 유지한다. header click sort는 프론트 상태로 관리하고, 현재 fixed `Last 7 Days` path에서는 period-aware column sort key를 7d fields에 매핑한다.
 - 현재 응답 row는 아래의 실제 근거 필드 묶음으로 구성된다.
     - 식별 정보: `canonical_game_id`, `canonical_name`, `steam_appid`
     - 현재 CCU: `ccu_bucket_time`, `current_ccu`, `current_delta_ccu_abs`, `current_delta_ccu_pct`, `current_ccu_missing_flag`
