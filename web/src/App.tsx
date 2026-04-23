@@ -52,6 +52,8 @@ function App() {
     totalRowCount: steamExploreTotalRowCount,
     loading: steamExploreLoading,
     error: steamExploreError,
+    sortState: steamExploreSortState,
+    requestSort: requestSteamExploreSort,
   } = useSteamExploreOverview({
     enabled: steamDiscoverMode === 'Explore' && sourceTab === 'Steam',
     searchQuery: deferredSearch,
@@ -135,8 +137,10 @@ function App() {
             <SteamExploreTable
               error={steamExploreError}
               loading={steamExploreLoading}
+              onSortChange={requestSteamExploreSort}
               rows={steamExploreRows}
               searchQuery={deferredSearch}
+              sortState={steamExploreSortState}
               totalRowCount={steamExploreTotalRowCount}
             />
           ) : (
