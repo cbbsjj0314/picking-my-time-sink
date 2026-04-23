@@ -1,7 +1,7 @@
 # Metrics & Definitions (요구사항 + 지표 정의서)
 
 문서 목적: 용어/지표/Δ 기준을 고정해 구현 중 재해석을 방지
-버전: v0.23 (Chzzk local metric candidate validation)
+버전: v0.24 (Chzzk probe result contract hardening)
 작성일: 2026-04-20 (KST)
 
 ## 0. 시간/기간 프리셋
@@ -323,6 +323,14 @@ Current local/private evidence에서 계산 가능한 값은 category-fact-eligi
     - 7d selected window는 같은 category에 대해 KST 기준 distinct 30분 bucket 336개가 모두 있어야 full coverage다.
     - previous same-length delta가 필요하면 previous window도 같은 full coverage를 만족해야 한다.
     - current probe는 두 run 모두 같은 KST half-hour bucket에 속하므로 category별 distinct bucket coverage가 1개에 그쳤고, 1d/7d full coverage를 만족하지 못한다.
+    - local/private temporal summary는 `coverage.status`,
+      `coverage.observed_bucket_count`, `coverage.missing_1d_bucket_count`,
+      `coverage.missing_7d_bucket_count` 와 category별 동일 필드로 이 상태를
+      고정한다.
+    - `coverage.status=observed_bucket_only` 는 bucket candidate는 관측했지만
+      1d/7d full coverage는 아직 없음을 뜻한다.
+    - failed/partial run은 `run_status` / `result_status` / `failure` 로만 남고,
+      category window coverage 계산에는 포함하지 않는다.
 
 ### 4.1 Avg concurrent (기본 표시)
 

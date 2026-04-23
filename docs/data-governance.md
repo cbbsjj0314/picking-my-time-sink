@@ -1,7 +1,7 @@
 # Data Governance
 
 문서 목적: Steam-only MVP 데이터 의미, 품질, freshness, lineage, public/local 경계를 최소 거버넌스 기준으로 고정
-버전: v0.4 (Chzzk local metric candidate validation boundary)
+버전: v0.5 (Chzzk probe result contract hardening boundary)
 작성일: 2026-04-20 (KST)
 
 ## 0. 현재 범위
@@ -132,6 +132,14 @@ Chzzk bounded pagination/temporal raw captures remain local/private. If a live
 row lacks category id/name/type, current category fact candidates skip it and
 record skip evidence rather than inventing an unknown category. Public fixtures
 stay synthetic/sanitized and should not include raw UGC-heavy provider payloads.
+
+Local/private Chzzk temporal probe summaries may keep sanitized run-level
+reporting fields such as `run_status`, `result_status`, `failure.kind`,
+`failure.http_status_code`, `pagination.bounded_page_cutoff`,
+`pagination.last_page_next_present`, `skip_counts`, and `coverage.status`.
+These fields explain skip/pagination/failure/coverage caveats for repeated local
+comparison, but they do not promote raw payloads, UGC-heavy evidence, or public
+API/UI semantics.
 
 Chzzk local metric candidates are validated only as category evidence browser
 inputs. `viewer-hours`, `avg viewers`, `peak viewers`, and `live count` can be

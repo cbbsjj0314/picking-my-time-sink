@@ -1,5 +1,5 @@
 문서 목적: 테이블/파일 목록 + 그레인(1행 키) + 적재 규칙(증분/스냅샷) + 보존 기준 + repo-grounded provider 확장 경계 기록
-버전: v0.18 (Chzzk local metric candidate validation)
+버전: v0.19 (Chzzk probe result contract hardening)
 작성일: 2026-04-20 (KST)
 
 ## 0. 레이어 개요
@@ -171,6 +171,18 @@
         - current same-bucket bounded probe는 observed bucket candidates만 만들며 1d/7d fact 또는 serving metric을 만들지 않는다.
 - raw/probe/ingest responsibility boundary:
     - probe/raw: representative payload와 수집 메타데이터를 local/private 경계에 보존한다.
+    - local/private probe contract는 `category-result.jsonl` 과 `summary.json`
+      책임을 분리한다.
+    - `category-result.jsonl` 은 strict parser를 통과한
+      category-fact-eligible row만 담는다. blank/malformed/failure semantics를
+      JSONL row에 억지로 섞지 않는다.
+    - `summary.json` 은 `run_status`, `result_status`, `failure`,
+      `pagination`, `skip_counts`, `skip_evidence`, `coverage` 로 bounded
+      pagination, blank category skip, partial fetch/failure, observed bucket
+      coverage 상태를 설명한다.
+    - `temporal-summary.json` 은 comparable run만 읽어 category별
+      `coverage_status`, observed bucket count, missing 1d/7d bucket count,
+      bounded cutoff/blank-skip aggregate count를 비교한다.
     - authenticated `size=1` and `size=20` live payload probes returned `200`; current parser fixture and parser candidate are compatible with the observed wrapper/field shape.
     - `size=20` sample observed `GAME` and `ETC` category types, repeated category aggregation, and no missing/null parser-required fields.
     - 2026-04-23 KST bounded local/private temporal probe followed `page.next`
@@ -183,6 +195,8 @@
       KST half-hour bucket was observed.
     - Page 3 still had string `page.next`, so the bounded probe stopped before
       proving pagination exhaustion or complete live-list coverage.
+    - failed/partial run은 local/private raw page + summary boundary에만 남기고,
+      comparable category result/window coverage 판단에서는 제외한다.
     - unauthenticated probe는 client auth required `401` 을 확인했다.
     - public fixture는 official response shape 기반 synthetic/sanitized payload로만 둔다.
     - ingest: 한 Chzzk payload를 category 30분 fact row로 정규화한다.

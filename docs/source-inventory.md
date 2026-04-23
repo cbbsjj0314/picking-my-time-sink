@@ -1,5 +1,5 @@
 문서 목적: probe(샘플 검증) 실행 체크리스트 + 이후 스키마/파서/테스트의 기준점 + repo-grounded provider 확장 진입 기준 기록
-버전: v0.11 (Chzzk local metric candidate validation)
+버전: v0.12 (Chzzk probe result contract hardening)
 작성일: 2026-04-20 (KST)
 
 ## 0. 공통 원칙
@@ -181,6 +181,18 @@
     - 인증/쿼터/필드 안정성이 미확정이다.
     - 빈 category id/name/type row를 synthetic unknown category로 채우지 않는다.
       category-level fact 후보에서는 skip evidence로 남긴다.
+    - local/private probe artifact contract는 strict parser result와 probe
+      reporting을 분리한다.
+    - `category-result.jsonl` 은 category-fact-eligible live row만 모은 strict
+      candidate result다.
+    - `summary.json` / `temporal-summary.json` 은
+      `run_status`, `result_status`, `pagination.bounded_page_cutoff`,
+      `pagination.last_page_next_present`, `skip_counts`,
+      `skip_evidence.blank_category_page_indexes`, `coverage.status` 로
+      skip/pagination/coverage caveat를 설명한다.
+    - quota/HTTP failure, request error, invalid JSON, malformed page, partial
+      fetch는 local/private `failure.kind`, `failure.http_status_code`,
+      `failure.page_index` 수준으로만 요약하고 category result는 생성하지 않는다.
     - bounded probe는 page 3에도 `page.next` 가 남은 상태에서 멈췄으므로 full
       live-list population이나 pagination exhaustion 근거가 아니다.
     - category result는 evidence browser 후보로만 읽는다. category-to-game mapping,
