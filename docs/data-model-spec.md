@@ -1,5 +1,5 @@
 문서 목적: 테이블/파일 목록 + 그레인(1행 키) + 적재 규칙(증분/스냅샷) + 보존 기준 + repo-grounded provider 확장 경계 기록
-버전: v0.17 (Chzzk bounded pagination temporal probe caveat)
+버전: v0.18 (Chzzk local metric candidate validation)
 작성일: 2026-04-20 (KST)
 
 ## 0. 레이어 개요
@@ -148,6 +148,7 @@
     - 첫 provider-specific 후보는 Chzzk category live-list source다.
     - 첫 fact 방향은 provider-specific `fact_chzzk_category_30m` 후보이며, generalized streaming fact/table은 만들지 않는다.
     - canonical game 기준 서빙 shape는 provider raw/category 수집 이후의 downstream 단계다.
+    - current Chzzk category result는 category evidence browser 후보로만 해석하며, game semantics/API/UI column/Combined semantics로 확장하지 않는다.
 - current repo observations:
     - 현재 repo에는 Chzzk live-list sanitized parser fixture,
       provider-specific parser/upsert 후보, Postgres DDL 후보가 있다.
@@ -162,6 +163,12 @@
     - 컬럼 후보: `chzzk_category_id`, `bucket_time`, `category_type`, `category_name`, `concurrent_sum`, `live_count`, `top_channel_id`, `top_channel_name`, `top_channel_concurrent`, `collected_at`
     - `category_type` 은 official live-list `categoryType` enum인 `GAME`, `SPORTS`, `ETC` 로 제한한다.
     - upsert rule 후보: 같은 `(chzzk_category_id, bucket_time)` 재실행은 row를 대체하되, raw/probe payload와 execution metadata는 별도로 보존한다.
+    - metric candidate boundary:
+        - bucket-level `concurrent_sum`, `live_count`, `top_channel_*` 는 category-fact-eligible live rows만 사용한다.
+        - `viewer_hours` 후보는 30분 bucket 기준 `concurrent_sum * 0.5` 이고, period 후보는 full-window bucket coverage가 있을 때만 계산한다.
+        - `avg viewers` 와 `peak viewers` 후보는 period window의 `concurrent_sum` 평균/최댓값이다.
+        - 1d candidate full coverage는 category별 distinct 30분 bucket 48개, 7d candidate full coverage는 336개다.
+        - current same-bucket bounded probe는 observed bucket candidates만 만들며 1d/7d fact 또는 serving metric을 만들지 않는다.
 - raw/probe/ingest responsibility boundary:
     - probe/raw: representative payload와 수집 메타데이터를 local/private 경계에 보존한다.
     - authenticated `size=1` and `size=20` live payload probes returned `200`; current parser fixture and parser candidate are compatible with the observed wrapper/field shape.
@@ -174,6 +181,8 @@
     - The bounded temporal probe produced 15 then 13 category rows from 60 live
       rows per run. Category union was 15 and intersection was 13, but only one
       KST half-hour bucket was observed.
+    - Page 3 still had string `page.next`, so the bounded probe stopped before
+      proving pagination exhaustion or complete live-list coverage.
     - unauthenticated probe는 client auth required `401` 을 확인했다.
     - public fixture는 official response shape 기반 synthetic/sanitized payload로만 둔다.
     - ingest: 한 Chzzk payload를 category 30분 fact row로 정규화한다.
