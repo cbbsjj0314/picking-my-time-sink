@@ -15,7 +15,7 @@ CREATE TABLE IF NOT EXISTS fact_chzzk_category_30m (
     -- PK enforces one category aggregate per 30-minute bucket.
     CONSTRAINT fact_chzzk_category_30m_pk PRIMARY KEY (chzzk_category_id, bucket_time),
     CONSTRAINT fact_chzzk_category_30m_category_type_known CHECK (
-        category_type IN ('GAME', 'SPORTS', 'ETC')
+        category_type IN ('GAME', 'SPORTS', 'ENTERTAINMENT', 'ETC')
     ),
     CONSTRAINT fact_chzzk_category_30m_category_id_non_empty CHECK (
         LENGTH(BTRIM(chzzk_category_id)) > 0
@@ -39,4 +39,3 @@ CREATE TABLE IF NOT EXISTS fact_chzzk_category_30m (
 -- Index supports newest category-bucket scans when this provider path is promoted.
 CREATE INDEX IF NOT EXISTS idx_fact_chzzk_category_30m_bucket_desc
     ON fact_chzzk_category_30m (bucket_time DESC);
-

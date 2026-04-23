@@ -561,11 +561,17 @@ def build_temporal_summary(run_summaries: Sequence[Mapping[str, Any]]) -> dict[s
                 skip_counts.get("blank_category_live_items", 0)
             )
         result_path = summary.get("category_result_path")
-        if not isinstance(result_path, str):
+        result_path_obj = Path(result_path) if isinstance(result_path, str) else None
+        if (
+            summary.get("run_status") != "success"
+            or summary.get("result_status") != "category_results_available"
+            or result_path_obj is None
+            or not result_path_obj.exists()
+        ):
             runs_excluded_from_comparison += 1
             continue
         runs_with_results += 1
-        rows = read_jsonl(Path(result_path))
+        rows = read_jsonl(result_path_obj)
         category_ids = {str(row["chzzk_category_id"]) for row in rows}
         category_ids_by_run.append(category_ids)
         run_category_counts.append(
@@ -631,7 +637,7 @@ def build_temporal_summary(run_summaries: Sequence[Mapping[str, Any]]) -> dict[s
         categories.append(category_summary)
 
     collected_times = sorted(str(summary["collected_at"]) for summary in run_summaries)
-    bucket_times = sorted({str(summary["bucket_time"]) for summary in run_summaries})
+    bucket_times = sorted({bucket_time for _category_id, bucket_time in rows_by_key})
     complete_1d_categories = sum(
         1 for category in categories if category["full_1d_candidate_available"]
     )

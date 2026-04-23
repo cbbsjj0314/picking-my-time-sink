@@ -574,6 +574,105 @@ def test_build_temporal_summary_marks_1d_7d_candidates_incomplete(tmp_path: Path
     ]
 
 
+def test_build_temporal_summary_excludes_failed_runs_from_bucket_coverage(
+    tmp_path: Path,
+) -> None:
+    result_path = tmp_path / "run-success" / "category-result.jsonl"
+    result_path.parent.mkdir(parents=True)
+    result_path.write_text(
+        json.dumps(
+            {
+                "bucket_time": "2026-04-23T10:30:00+09:00",
+                "category_name": "Game Alpha",
+                "category_type": "GAME",
+                "chzzk_category_id": "game-alpha",
+                "collected_at": "2026-04-23T10:42:00+09:00",
+                "concurrent_sum": 10,
+                "live_count": 1,
+                "top_channel_concurrent": 10,
+                "top_channel_id": "channel-a",
+                "top_channel_name": "Channel A",
+            },
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    summary = build_temporal_summary(
+        [
+            {
+                "bucket_time": "2026-04-23T10:30:00+09:00",
+                "category_result_path": str(result_path),
+                "collected_at": "2026-04-23T10:42:00+09:00",
+                "coverage": {"status": "observed_bucket_only"},
+                "pages_fetched": 1,
+                "pagination": {
+                    "bounded_page_cutoff": False,
+                    "last_page_next_present": False,
+                },
+                "result_status": "category_results_available",
+                "run_id": "run-success",
+                "run_status": "success",
+                "skip_counts": {
+                    "blank_category_live_items": 0,
+                    "category_fact_ineligible_live_items": 0,
+                },
+                "total_live_items": 1,
+            },
+            {
+                "bucket_time": "2026-04-23T11:00:00+09:00",
+                "category_result_path": None,
+                "collected_at": "2026-04-23T11:03:00+09:00",
+                "coverage": {"status": "incomplete_due_to_fetch_failure"},
+                "pages_fetched": 1,
+                "pagination": {
+                    "bounded_page_cutoff": False,
+                    "last_page_next_present": True,
+                },
+                "result_status": "not_generated_due_to_fetch_failure",
+                "run_id": "run-partial",
+                "run_status": "partial_failure",
+                "skip_counts": {
+                    "blank_category_live_items": 0,
+                    "category_fact_ineligible_live_items": 0,
+                },
+                "total_live_items": 20,
+            },
+            {
+                "bucket_time": "2026-04-23T11:30:00+09:00",
+                "category_result_path": str(tmp_path / "missing" / "category-result.jsonl"),
+                "collected_at": "2026-04-23T11:31:00+09:00",
+                "coverage": {"status": "observed_bucket_only"},
+                "pages_fetched": 1,
+                "pagination": {
+                    "bounded_page_cutoff": False,
+                    "last_page_next_present": False,
+                },
+                "result_status": "category_results_available",
+                "run_id": "run-missing-artifact",
+                "run_status": "success",
+                "skip_counts": {
+                    "blank_category_live_items": 0,
+                    "category_fact_ineligible_live_items": 0,
+                },
+                "total_live_items": 20,
+            },
+        ]
+    )
+
+    assert summary["bucket_times"] == ["2026-04-23T10:30:00+09:00"]
+    assert summary["coverage"]["observed_bucket_count"] == 1
+    assert summary["coverage"]["missing_1d_bucket_count"] == 47
+    assert summary["coverage"]["status"] == "observed_bucket_only"
+    assert summary["runs_with_results"] == 1
+    assert summary["runs_excluded_from_comparison"] == 2
+    assert summary["run_status_counts"] == {
+        "partial_failure": 1,
+        "success": 2,
+    }
+
+
 def test_build_temporal_summary_computes_unique_channels_from_channel_results(
     tmp_path: Path,
 ) -> None:
