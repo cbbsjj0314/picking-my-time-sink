@@ -9,7 +9,7 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 KST = ZoneInfo("Asia/Seoul")
-ALLOWED_CATEGORY_TYPES = frozenset({"GAME", "SPORTS", "ETC"})
+ALLOWED_CATEGORY_TYPES = frozenset({"GAME", "SPORTS", "ENTERTAINMENT", "ETC"})
 
 UPSERT_SQL = """
 INSERT INTO fact_chzzk_category_30m (

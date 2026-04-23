@@ -179,6 +179,28 @@ def test_aggregate_category_lives_rejects_failed_common_response() -> None:
         )
 
 
+def test_aggregate_category_lives_accepts_observed_entertainment_type() -> None:
+    payload = load_fixture()
+    mutated = copy.deepcopy(payload)
+    item = mutated["content"]["data"][0]
+    item["categoryType"] = "ENTERTAINMENT"
+    item["liveCategory"] = "entertainment-category-alpha"
+    item["liveCategoryValue"] = "Representative Entertainment Alpha"
+
+    rows = aggregate_category_lives(
+        mutated,
+        bucket_time="2026-04-20T12:42:10+09:00",
+        collected_at="2026-04-20T03:42:10Z",
+    )
+
+    entertainment_rows = [
+        row for row in rows if row.chzzk_category_id == "entertainment-category-alpha"
+    ]
+    assert len(entertainment_rows) == 1
+    assert entertainment_rows[0].category_type == "ENTERTAINMENT"
+    assert entertainment_rows[0].category_name == "Representative Entertainment Alpha"
+
+
 def test_aggregate_category_lives_rejects_missing_category_id() -> None:
     payload = load_fixture()
     mutated = copy.deepcopy(payload)

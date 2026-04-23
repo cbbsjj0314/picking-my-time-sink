@@ -161,7 +161,8 @@
     - source boundary: Chzzk live/category payload에서 category id/name, live concurrent, channel id/name을 category-level evidence로 정규화한다.
     - DDL 후보: `sql/postgres/015_fact_chzzk_category_30m.sql`
     - 컬럼 후보: `chzzk_category_id`, `bucket_time`, `category_type`, `category_name`, `concurrent_sum`, `live_count`, `top_channel_id`, `top_channel_name`, `top_channel_concurrent`, `collected_at`
-    - `category_type` 은 official live-list `categoryType` enum인 `GAME`, `SPORTS`, `ETC` 로 제한한다.
+    - `category_type` 은 observed official live-list `categoryType` 후보인
+      `GAME`, `SPORTS`, `ENTERTAINMENT`, `ETC` 로 제한한다.
     - upsert rule 후보: 같은 `(chzzk_category_id, bucket_time)` 재실행은 row를 대체하되, raw/probe payload와 execution metadata는 별도로 보존한다.
     - metric candidate boundary:
         - bucket-level `concurrent_sum`, `live_count`, `top_channel_*` 는 category-fact-eligible live rows만 사용한다.

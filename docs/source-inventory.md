@@ -153,6 +153,9 @@
     - first live item keys observed: `adult`, `categoryType`, `channelId`, `channelImageUrl`, `channelName`, `concurrentUserCount`, `liveCategory`, `liveCategoryValue`, `liveId`, `liveThumbnailImageUrl`, `liveTitle`, `openDate`, `tags`
     - `size=20` sample had 20 live rows, parser-required fields were present and non-null for all rows
     - `size=20` sample observed `categoryType` values `GAME` and `ETC`
+    - 2026-04-24 KST local wrapper smoke observed `ENTERTAINMENT` in the bounded
+      local/private live-list sample; this was added as category evidence only,
+      not as product/API/UI semantics.
     - 2026-04-23 KST bounded local/private temporal probe followed `page.next`
       for 3 pages across 2 runs. Each run fetched 60 live rows and still observed
       a string `page.next` on page 3, so the probe intentionally stopped before
@@ -169,7 +172,7 @@
     - current parser fixture uses only `categoryType`, `liveCategory`, `liveCategoryValue`, `concurrentUserCount`, `channelId`, `channelName`
 - 주기 방향: real ingest가 생기면 30분(00/30) bucket으로 정규화한다.
 - 주요 필드 후보:
-    - `categoryType`: `GAME`, `SPORTS`, `ETC`
+    - `categoryType`: `GAME`, `SPORTS`, `ENTERTAINMENT`, `ETC`
     - `liveCategory`: 카테고리 식별자
     - `liveCategoryValue`: 카테고리 이름
     - `concurrentUserCount`: 라이브 현재 시청자 수

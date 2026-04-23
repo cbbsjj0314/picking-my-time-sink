@@ -32,7 +32,7 @@ def test_chzzk_category_fact_keeps_mapping_and_serving_deferred() -> None:
 def test_chzzk_category_fact_has_minimum_quality_constraints() -> None:
     sql = DDL_PATH.read_text(encoding="utf-8").lower()
 
-    assert "category_type in ('game', 'sports', 'etc')" in sql
+    assert "category_type in ('game', 'sports', 'entertainment', 'etc')" in sql
     assert "live_count > 0" in sql
     assert "concurrent_sum >= 0" in sql
     assert "top_channel_concurrent <= concurrent_sum" in sql

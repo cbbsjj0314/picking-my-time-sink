@@ -296,7 +296,7 @@
 - sample payload/fixture: parser, DDL, ingest test보다 먼저 sanitized representative payload가 필요하다.
 - 해석 boundary: current evidence는 category evidence browser 후보로만 본다. `categoryType=GAME` 이 있더라도 canonical game semantics, Steam mapping, API/UI column, Combined semantics로 확장하지 않는다.
 - 제외: canonical game mapping, Twitch fallback, provider abstraction, streaming serving API, web dashboard streaming UI wiring, Combined/relationship KPI.
-- access status: official docs 기준 `/open/v1/lives` 는 Client 인증이 필요하다. 2026-04-20 KST unauthenticated probe는 `401` 로 client auth requirement를 확인했고, local credential을 주입한 read-only `size=1` and `size=20` probes는 `200` 과 current parser-compatible wrapper/field shape를 확인했다. `size=20` sample에서는 `GAME` and `ETC` category types가 관측되었다. 2026-04-23 KST bounded local/private temporal probe는 `page.next` 를 3 pages x 2 runs 범위에서 따라갔고, 각 run의 page 3에서 blank `categoryType` / `liveCategory` / `liveCategoryValue` row 1개를 확인했다. Quota behavior는 one-shot/bounded sample probe만으로는 확인하지 않았다.
+- access status: official docs 기준 `/open/v1/lives` 는 Client 인증이 필요하다. 2026-04-20 KST unauthenticated probe는 `401` 로 client auth requirement를 확인했고, local credential을 주입한 read-only `size=1` and `size=20` probes는 `200` 과 current parser-compatible wrapper/field shape를 확인했다. `size=20` sample에서는 `GAME` and `ETC` category types가 관측되었다. 2026-04-23 KST bounded local/private temporal probe는 `page.next` 를 3 pages x 2 runs 범위에서 따라갔고, 각 run의 page 3에서 blank `categoryType` / `liveCategory` / `liveCategoryValue` row 1개를 확인했다. 2026-04-24 KST local wrapper smoke에서 `ENTERTAINMENT` category type도 bounded local/private evidence로 관측되어 category evidence 후보에 추가했다. Quota behavior는 one-shot/bounded sample probe만으로는 확인하지 않았다.
 
 원천은 “동시 시청자(concurrent)”를 30분 단위 category bucket으로 수집하는 방향이다. missing bucket은 gap fill이나 synthetic score로 채우지 않는다.
 
@@ -309,6 +309,7 @@ Current local/private evidence에서 계산 가능한 값은 category-fact-eligi
 - category-fact-eligible live row:
     - `categoryType`, `liveCategory`, `liveCategoryValue`, `concurrentUserCount`, `channelId`, `channelName` 이 present이고, 문자열 required field가 blank가 아니다.
     - `liveCategory` 는 candidate category id, `liveCategoryValue` 는 candidate category display name으로만 본다.
+    - 현재 허용 category type 후보는 `GAME`, `SPORTS`, `ENTERTAINMENT`, `ETC` 이다.
     - `categoryType=GAME` 은 category type evidence일 뿐 canonical game identity가 아니다.
 - category-fact-ineligible live row:
     - blank `categoryType` / `liveCategory` / `liveCategoryValue` row는 synthetic unknown category로 만들지 않는다.
