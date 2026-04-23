@@ -1,7 +1,7 @@
 # Metrics & Definitions (요구사항 + 지표 정의서)
 
 문서 목적: 용어/지표/Δ 기준을 고정해 구현 중 재해석을 방지
-버전: v0.24 (Chzzk probe result contract hardening)
+버전: v0.25 (Chzzk observed channel ratio candidates)
 작성일: 2026-04-20 (KST)
 
 ## 0. 시간/기간 프리셋
@@ -361,6 +361,11 @@ Current local/private evidence에서 계산 가능한 값은 category-fact-eligi
     - blank category row는 count 대상이 아니라 skipped evidence다.
     - 기간 live count는 목적에 따라 bucket `live_count` 의 합계 또는 평균을 별도 이름/단위로 고정해야 하며, current slice에서는 observed bucket/live_count candidate만 남긴다.
     - 1d/7d 기간 live count 후보도 category별 48/336 distinct bucket full coverage 전에는 public/API/UI metric으로 승격하지 않는다.
+- local/private observed candidate:
+    - `temporal-summary.json` category entry may include `peak_channels_observed = MAX(live_count)` and `avg_channels_observed = AVG(live_count)` across observed category buckets.
+    - `viewer_per_channel_observed = SUM(concurrent_sum) / SUM(live_count)` is an observed ratio over category aggregate buckets only.
+    - `unique_channels` cannot be computed from current `category-result.jsonl` alone because it does not preserve the full per-live `channelId` set. `top_channel_id` is not enough for unique channel counting.
+    - Repeatable unique-channel semantics need a future local/private channel-level artifact or explicit channel-level summary, not public/API/UI promotion in this slice.
 
 ### 4.4 Peak viewers
 

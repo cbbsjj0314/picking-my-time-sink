@@ -1,5 +1,5 @@
 문서 목적: 테이블/파일 목록 + 그레인(1행 키) + 적재 규칙(증분/스냅샷) + 보존 기준 + repo-grounded provider 확장 경계 기록
-버전: v0.19 (Chzzk probe result contract hardening)
+버전: v0.20 (Chzzk observed channel ratio candidates)
 작성일: 2026-04-20 (KST)
 
 ## 0. 레이어 개요
@@ -167,6 +167,14 @@
         - bucket-level `concurrent_sum`, `live_count`, `top_channel_*` 는 category-fact-eligible live rows만 사용한다.
         - `viewer_hours` 후보는 30분 bucket 기준 `concurrent_sum * 0.5` 이고, period 후보는 full-window bucket coverage가 있을 때만 계산한다.
         - `avg viewers` 와 `peak viewers` 후보는 period window의 `concurrent_sum` 평균/최댓값이다.
+        - local/private observed channel candidates may derive
+          `peak_channels_observed = MAX(live_count)`,
+          `avg_channels_observed = AVG(live_count)`, and
+          `viewer_per_channel_observed = SUM(concurrent_sum) / SUM(live_count)`
+          from comparable category aggregate buckets.
+        - `unique_channels` is not available from current `category-result.jsonl`
+          because the aggregate artifact does not retain the full per-live
+          `channelId` set; `top_channel_id` is insufficient for this count.
         - 1d candidate full coverage는 category별 distinct 30분 bucket 48개, 7d candidate full coverage는 336개다.
         - current same-bucket bounded probe는 observed bucket candidates만 만들며 1d/7d fact 또는 serving metric을 만들지 않는다.
 - raw/probe/ingest responsibility boundary:
