@@ -1,5 +1,5 @@
 문서 목적: 테이블/파일 목록 + 그레인(1행 키) + 적재 규칙(증분/스냅샷) + 보존 기준 + repo-grounded provider 확장 경계 기록
-버전: v0.20 (Chzzk observed channel ratio candidates)
+버전: v0.21 (Chzzk unique channel local artifact candidate)
 작성일: 2026-04-20 (KST)
 
 ## 0. 레이어 개요
@@ -175,6 +175,18 @@
         - `unique_channels` is not available from current `category-result.jsonl`
           because the aggregate artifact does not retain the full per-live
           `channelId` set; `top_channel_id` is insufficient for this count.
+        - Future local/private unique-channel calculation should use a
+          dedicated `channel-result.jsonl` candidate with one row per observed
+          category-bucket-channel evidence item. Minimum fields are
+          `bucket_time`, `collected_at`, `chzzk_category_id`, `category_type`,
+          `category_name`, `channel_id`, `concurrent_user_count`, and optional
+          local/private `channel_name` for operator inspection.
+        - Future formula:
+          `unique_channels_observed = COUNT(DISTINCT channel_id)` per category
+          over the observed bucket window. Blank category/category-fact
+          ineligible rows stay out of this artifact and remain summary skip
+          evidence; bounded pagination caveats remain summary/temporal-summary
+          caveats.
         - 1d candidate full coverage는 category별 distinct 30분 bucket 48개, 7d candidate full coverage는 336개다.
         - current same-bucket bounded probe는 observed bucket candidates만 만들며 1d/7d fact 또는 serving metric을 만들지 않는다.
 - raw/probe/ingest responsibility boundary:
