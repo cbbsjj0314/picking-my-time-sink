@@ -17,6 +17,19 @@
   - what was explicitly deferred
   - how to run and verify it
 
+## Ambiguity and assumptions
+- Do not silently choose an interpretation when the request, data contract, runtime boundary, or ownership boundary is ambiguous.
+- State the ambiguity and ask for clarification before implementation unless the task is small and the safest repo-grounded interpretation is obvious.
+- When proceeding with an assumption, make the assumption explicit in the plan and final summary.
+- Prefer repo-grounded evidence from existing code, tests, docs, and local boards over memory or generic best practice.
+- Do not treat local/private runtime evidence from another host as live scheduler health unless the current docs explicitly connect that evidence to the authority runtime.
+
+## Success criteria
+- For non-trivial changes, define the smallest observable success criteria before editing.
+- Prefer tests or read-only smoke checks that prove the requested behavior, not broad validation for unrelated areas.
+- If the requested behavior cannot be fully verified in the current environment, state what was verified, what was not verified, and why.
+- Do not claim a slice is complete just because code changed; completion requires the relevant docs, tests, or smoke evidence expected by the slice.
+
 ## Validation
 - After code changes, run:
   - `poetry run ruff check .`
@@ -64,6 +77,13 @@
 - Separate implemented scope from explicitly deferred follow-ups.
 - Do not pull in the “next natural slice” unless it is required for the current task.
 - Do not introduce heavy new tooling unless explicitly requested.
+
+## Surgical edits
+- Every material change should trace directly to the current request or the validation needed for it.
+- Do not refactor, reformat, rename, or clean up adjacent code unless it is required by the current slice.
+- If unrelated dead code, naming drift, formatting drift, or cleanup is noticed, mention it as deferred instead of changing it.
+- Keep mechanical formatting changes separate from behavior changes when they are unavoidable.
+- Prefer modifying the narrowest existing module, function, or API boundary over introducing a new abstraction.
 
 ## Git conventions
 - Prefer one branch per Now item.
