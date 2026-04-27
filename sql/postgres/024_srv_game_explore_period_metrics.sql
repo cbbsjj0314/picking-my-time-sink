@@ -116,28 +116,22 @@ raw_ccu_anchor AS (
 raw_ccu_window_rollups AS (
     SELECT
         ag.canonical_game_id,
-        CASE
-            WHEN COUNT(raw_ccu.bucket_time) FILTER (
-                WHERE (raw_ccu.bucket_time AT TIME ZONE 'Asia/Seoul')::DATE
-                    BETWEEN rca.anchor_date - 6 AND rca.anchor_date
-            ) = 336
-                THEN SUM(raw_ccu.ccu::DOUBLE PRECISION * 0.5) FILTER (
-                    WHERE (raw_ccu.bucket_time AT TIME ZONE 'Asia/Seoul')::DATE
-                        BETWEEN rca.anchor_date - 6 AND rca.anchor_date
-                )
-            ELSE NULL
-        END AS selected_estimated_player_hours_7d,
-        CASE
-            WHEN COUNT(raw_ccu.bucket_time) FILTER (
-                WHERE (raw_ccu.bucket_time AT TIME ZONE 'Asia/Seoul')::DATE
-                    BETWEEN rca.anchor_date - 13 AND rca.anchor_date - 7
-            ) = 336
-                THEN SUM(raw_ccu.ccu::DOUBLE PRECISION * 0.5) FILTER (
-                    WHERE (raw_ccu.bucket_time AT TIME ZONE 'Asia/Seoul')::DATE
-                        BETWEEN rca.anchor_date - 13 AND rca.anchor_date - 7
-                )
-            ELSE NULL
-        END AS previous_estimated_player_hours_7d
+        COUNT(raw_ccu.bucket_time) FILTER (
+            WHERE (raw_ccu.bucket_time AT TIME ZONE 'Asia/Seoul')::DATE
+                BETWEEN rca.anchor_date - 6 AND rca.anchor_date
+        ) AS selected_raw_bucket_count,
+        SUM(raw_ccu.ccu::DOUBLE PRECISION * 0.5) FILTER (
+            WHERE (raw_ccu.bucket_time AT TIME ZONE 'Asia/Seoul')::DATE
+                BETWEEN rca.anchor_date - 6 AND rca.anchor_date
+        ) AS selected_observed_player_hours_7d,
+        COUNT(raw_ccu.bucket_time) FILTER (
+            WHERE (raw_ccu.bucket_time AT TIME ZONE 'Asia/Seoul')::DATE
+                BETWEEN rca.anchor_date - 13 AND rca.anchor_date - 7
+        ) AS previous_raw_bucket_count,
+        SUM(raw_ccu.ccu::DOUBLE PRECISION * 0.5) FILTER (
+            WHERE (raw_ccu.bucket_time AT TIME ZONE 'Asia/Seoul')::DATE
+                BETWEEN rca.anchor_date - 13 AND rca.anchor_date - 7
+        ) AS previous_observed_player_hours_7d
     FROM active_games AS ag
     CROSS JOIN raw_ccu_anchor AS rca
     LEFT JOIN fact_steam_ccu_30m AS raw_ccu
@@ -149,20 +143,29 @@ raw_ccu_window_rollups AS (
 estimated_player_hours_metrics AS (
     SELECT
         canonical_game_id,
-        selected_estimated_player_hours_7d AS estimated_player_hours_7d,
+        selected_observed_player_hours_7d AS observed_player_hours_7d,
+        selected_raw_bucket_count AS estimated_player_hours_7d_observed_bucket_count,
+        336 AS estimated_player_hours_7d_expected_bucket_count,
+        LEAST(1.0, GREATEST(0.0, selected_raw_bucket_count::DOUBLE PRECISION / 336.0))
+            AS estimated_player_hours_7d_coverage_ratio,
         CASE
-            WHEN selected_estimated_player_hours_7d IS NULL
-              OR previous_estimated_player_hours_7d IS NULL
+            WHEN selected_raw_bucket_count = 336
+                THEN selected_observed_player_hours_7d
+            ELSE NULL
+        END AS estimated_player_hours_7d,
+        CASE
+            WHEN selected_raw_bucket_count != 336
+              OR previous_raw_bucket_count != 336
                 THEN NULL
-            ELSE selected_estimated_player_hours_7d - previous_estimated_player_hours_7d
+            ELSE selected_observed_player_hours_7d - previous_observed_player_hours_7d
         END AS delta_estimated_player_hours_7d_abs,
         CASE
-            WHEN selected_estimated_player_hours_7d IS NULL
-              OR previous_estimated_player_hours_7d IS NULL
-              OR previous_estimated_player_hours_7d <= 0.0
+            WHEN selected_raw_bucket_count != 336
+              OR previous_raw_bucket_count != 336
+              OR previous_observed_player_hours_7d <= 0.0
                 THEN NULL
-            ELSE ((selected_estimated_player_hours_7d - previous_estimated_player_hours_7d)
-                / previous_estimated_player_hours_7d) * 100.0
+            ELSE ((selected_observed_player_hours_7d - previous_observed_player_hours_7d)
+                / previous_observed_player_hours_7d) * 100.0
         END AS delta_estimated_player_hours_7d_pct
     FROM raw_ccu_window_rollups
 ),
@@ -423,7 +426,11 @@ SELECT
     latest_price.initial_price_minor,
     latest_price.final_price_minor,
     latest_price.discount_percent,
-    latest_price.is_free
+    latest_price.is_free,
+    eph.observed_player_hours_7d,
+    eph.estimated_player_hours_7d_observed_bucket_count,
+    eph.estimated_player_hours_7d_expected_bucket_count,
+    eph.estimated_player_hours_7d_coverage_ratio
 FROM active_games AS ag
 LEFT JOIN srv_game_latest_ccu AS latest_ccu
     ON latest_ccu.canonical_game_id = ag.canonical_game_id

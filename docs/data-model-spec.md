@@ -122,8 +122,9 @@
     - serving anchor는 metric-wide latest complete raw KST date다. Complete raw KST date의 현재 minimum 기준은 해당 KST date에 distinct half-hour bucket timestamp 48개가 있는 것이다.
     - selected/previous N-day window는 각각 expected KST half-hour bucket `48 * N` 개가 모두 있어야 full coverage다.
     - missing bucket, partial history, per-game older anchor fallback, gap fill, synthetic score는 허용하지 않는다.
+    - observed companion fields가 있는 serving surface에서는 selected window의 실제 raw bucket만 합산한 `observed_player_hours_Nd` 와 observed/expected bucket count, coverage ratio를 별도로 노출할 수 있다. 이 값은 strict metric을 대체하지 않고 coverage-adjusted estimate도 아니다.
     - 이 metric은 Steam public CCU 기반 근사 activity metric이며 unique players, sales, ownership, playtime telemetry가 아니다.
-    - 현재 `srv_game_explore_period_metrics` / `/games/explore/overview` 는 7d strict fields를 raw 30분 bucket 기준으로 노출한다.
+    - 현재 `srv_game_explore_period_metrics` / `/games/explore/overview` 는 7d strict fields와 selected-window observed/coverage fields를 raw 30분 bucket 기준으로 노출한다.
 
 ### 4.2 Streaming Category Metrics (30분) — provider 확장 후보
 
@@ -262,7 +263,7 @@
 - 기준 유니버스는 `tracked_game.is_active = true` 인 Steam canonical game이다.
 - API/server default 정렬은 `estimated_player_hours_7d DESC NULLS LAST, current_ccu DESC NULLS LAST, canonical_game_id ASC` 이다.
 - 현재 web table 정렬 상태는 프론트 `Explore` row/view-model layer가 관리한다. 현재 fixed `Last 7 Days` minimum path에서는 period-aware sortable columns를 대응하는 7d fields에 매핑한다.
-- 현재 서빙 형태는 게임 식별 정보, 최신 CCU, 7일 CCU 기간 평균/최고 및 same-window delta, strict 7일 `Estimated Player-Hours`, 리뷰 누적 기준 snapshot, 리뷰 7일/30일 boundary 기반 파생 필드와 previous-period comparison, 최신 KR 가격 근거를 한 row에 담는다.
+    - 현재 서빙 형태는 게임 식별 정보, 최신 CCU, 7일 CCU 기간 평균/최고 및 same-window delta, strict 7일 `Estimated Player-Hours`, selected-window observed player-hours/coverage hint, 리뷰 누적 기준 snapshot, 리뷰 7일/30일 boundary 기반 파생 필드와 previous-period comparison, 최신 KR 가격 근거를 한 row에 담는다.
 - 현재 `Most Played` longer-window API는 `7d|30d|90d` list ordering context만 바꾸고 latest CCU row shape를 반환한다. 이를 `Explore` period avg/peak metric API로 재해석하지 않는다.
 - CCU 기간 지표:
     - `agg_steam_ccu_daily` 는 `period_avg_ccu_Nd`, `period_peak_ccu_Nd`, selected vs previous same-length delta 계산에 필요한 daily `avg_ccu` / `peak_ccu` 를 담고 있다.
@@ -272,7 +273,8 @@
     - daily `avg_ccu * 24` path는 향후 approximation으로 별도 caveat/name을 붙이거나, daily rollup에 raw bucket count / expected bucket count / completeness flag 같은 coverage metadata가 추가되어 strict coverage를 증명할 수 있을 때만 derived path로 검토한다.
     - 현재 `srv_game_explore_period_metrics` 는 `fact_steam_ccu_30m` 에서 KST date 기준 latest complete raw CCU date를 metric-wide anchor로 잡는다. Complete raw KST date의 현재 minimum 기준은 해당 KST date에 distinct half-hour bucket timestamp 48개가 있는 것이다.
     - selected `[anchor - 6, anchor]` 와 previous `[anchor - 13, anchor - 7]` 가 각각 raw 30분 bucket 336개를 모두 가질 때만 7d strict fields를 계산한다.
-    - 노출 필드는 `estimated_player_hours_7d`, `delta_estimated_player_hours_7d_abs`, `delta_estimated_player_hours_7d_pct` 이다.
+    - selected window의 actual raw bucket만 합산한 `observed_player_hours_7d` 와 `estimated_player_hours_7d_observed_bucket_count`, `estimated_player_hours_7d_expected_bucket_count`, `estimated_player_hours_7d_coverage_ratio` 를 strict field와 별도로 노출한다.
+    - strict/delta 노출 필드는 `estimated_player_hours_7d`, `delta_estimated_player_hours_7d_abs`, `delta_estimated_player_hours_7d_pct` 이다.
 - 리뷰 기간 파생 지표:
     - `fact_steam_reviews_daily` 는 현재 all/all/all cumulative daily snapshot 기준 `reviews_added_7d`, `reviews_added_30d`, `period_positive_ratio_7d`, `period_positive_ratio_30d` 계산에 충분한 boundary totals를 담고 있다.
     - previous same-length comparison fields는 `delta_reviews_added_Nd_abs`, `delta_reviews_added_Nd_pct`, `delta_period_positive_ratio_Nd_pp` 이며, 현재 serving/API는 7d/30d variants를 노출한다.

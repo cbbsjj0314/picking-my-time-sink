@@ -42,6 +42,8 @@ export interface SteamExploreTableRow {
   peakCcuSupportLabel: string | null
   estimatedPlayerHoursLabel: string
   estimatedPlayerHoursSupportLabel: string | null
+  estimatedPlayerHoursCaveatLabel: string | null
+  estimatedPlayerHoursCaveatTitle: string | null
   reviewsAddedLabel: string
   reviewsAddedSupportLabel: string | null
   positiveShareLabel: string
@@ -100,6 +102,11 @@ const formatInteger = (value: number) => Math.round(value).toLocaleString('en-US
 const formatOptionalInteger = (value: number | null) => {
   const finiteValue = finiteNumberOrNull(value)
   return finiteValue === null ? EMPTY_CELL : formatInteger(finiteValue)
+}
+
+const formatCoveragePercent = (value: number) => {
+  const cappedValue = Math.min(1, Math.max(0, value))
+  return `${new Intl.NumberFormat('en-US', { maximumFractionDigits: 1 }).format(cappedValue * 100)}%`
 }
 
 const formatSignedInteger = (value: number) => {
@@ -230,6 +237,77 @@ const formatCurrentCcuSupport = (row: GameExploreOverview) => {
 const formatPeriodMetricSupport = (value: number | null, support: string | null) =>
   finiteNumberOrNull(value) === null ? PERIOD_HISTORY_COLLECTING_LABEL : support
 
+const getEstimatedPlayerHoursCoverageRatio = (row: GameExploreOverview) => {
+  const ratio = finiteNumberOrNull(row.estimated_player_hours_7d_coverage_ratio)
+
+  if (ratio !== null) {
+    return Math.min(1, Math.max(0, ratio))
+  }
+
+  const observedCount = finiteNumberOrNull(row.estimated_player_hours_7d_observed_bucket_count)
+  const expectedCount = finiteNumberOrNull(row.estimated_player_hours_7d_expected_bucket_count)
+
+  if (observedCount === null || expectedCount === null || expectedCount <= 0) {
+    return null
+  }
+
+  return Math.min(1, Math.max(0, observedCount / expectedCount))
+}
+
+const getPartialEstimatedPlayerHoursCaveatTitle = (row: GameExploreOverview) => {
+  const observedCount = finiteNumberOrNull(row.estimated_player_hours_7d_observed_bucket_count)
+  const expectedCount = finiteNumberOrNull(row.estimated_player_hours_7d_expected_bucket_count)
+  const coverageRatio = getEstimatedPlayerHoursCoverageRatio(row)
+
+  if (observedCount === null || expectedCount === null || expectedCount <= 0 || coverageRatio === null) {
+    return 'Strict 7D estimate pending.'
+  }
+
+  const missingCount = Math.max(0, expectedCount - observedCount)
+  return `${formatCoveragePercent(coverageRatio)} observed. Missing ${formatInteger(missingCount)} of ${formatInteger(
+    expectedCount,
+  )} buckets. Strict 7D estimate pending.`
+}
+
+const getEstimatedPlayerHoursDisplay = (row: GameExploreOverview) => {
+  const strictPlayerHours = finiteNumberOrNull(row.estimated_player_hours_7d)
+  const observedPlayerHours = finiteNumberOrNull(row.observed_player_hours_7d)
+  const observedCount = finiteNumberOrNull(row.estimated_player_hours_7d_observed_bucket_count)
+  const expectedCount = finiteNumberOrNull(row.estimated_player_hours_7d_expected_bucket_count)
+  const hasPartialObservedValue =
+    strictPlayerHours === null &&
+    observedPlayerHours !== null &&
+    observedCount !== null &&
+    expectedCount !== null &&
+    observedCount > 0 &&
+    observedCount < expectedCount
+
+  if (strictPlayerHours !== null) {
+    return {
+      label: formatInteger(strictPlayerHours),
+      supportLabel: formatDelta(row.delta_estimated_player_hours_7d_abs, row.delta_estimated_player_hours_7d_pct),
+      caveatLabel: null,
+      caveatTitle: null,
+    }
+  }
+
+  if (hasPartialObservedValue) {
+    return {
+      label: formatInteger(observedPlayerHours),
+      supportLabel: 'Strict 7D estimate pending.',
+      caveatLabel: 'Observed',
+      caveatTitle: getPartialEstimatedPlayerHoursCaveatTitle(row),
+    }
+  }
+
+  return {
+    label: EMPTY_CELL,
+    supportLabel: PERIOD_HISTORY_COLLECTING_LABEL,
+    caveatLabel: null,
+    caveatTitle: null,
+  }
+}
+
 const DEFAULT_SORT_DIRECTION_BY_KEY: Record<SteamExploreSortKey, SteamExploreSortDirection> = {
   game: 'asc',
   currentCcu: 'desc',
@@ -246,6 +324,7 @@ const arePeriodMetricsCollecting = (row: GameExploreOverview) =>
     row.period_avg_ccu_7d,
     row.period_peak_ccu_7d,
     row.estimated_player_hours_7d,
+    row.observed_player_hours_7d,
     row.reviews_added_7d,
     row.period_positive_ratio_7d,
   ].every((value) => finiteNumberOrNull(value) === null)
@@ -266,6 +345,7 @@ const buildSortValues = (row: GameExploreOverview): SteamExploreSortValueMap => 
 
 const buildSteamExploreTableRow = (row: GameExploreOverview): SteamExploreTableRow => {
   const periodMetricsCollecting = arePeriodMetricsCollecting(row)
+  const estimatedPlayerHoursDisplay = getEstimatedPlayerHoursDisplay(row)
 
   return {
     id: `canonical:${row.canonical_game_id}`,
@@ -285,11 +365,10 @@ const buildSteamExploreTableRow = (row: GameExploreOverview): SteamExploreTableR
       row.period_peak_ccu_7d,
       formatDelta(row.delta_period_peak_ccu_7d_abs, row.delta_period_peak_ccu_7d_pct),
     ),
-    estimatedPlayerHoursLabel: formatOptionalInteger(row.estimated_player_hours_7d),
-    estimatedPlayerHoursSupportLabel: formatPeriodMetricSupport(
-      row.estimated_player_hours_7d,
-      formatDelta(row.delta_estimated_player_hours_7d_abs, row.delta_estimated_player_hours_7d_pct),
-    ),
+    estimatedPlayerHoursLabel: estimatedPlayerHoursDisplay.label,
+    estimatedPlayerHoursSupportLabel: estimatedPlayerHoursDisplay.supportLabel,
+    estimatedPlayerHoursCaveatLabel: estimatedPlayerHoursDisplay.caveatLabel,
+    estimatedPlayerHoursCaveatTitle: estimatedPlayerHoursDisplay.caveatTitle,
     reviewsAddedLabel: formatOptionalInteger(row.reviews_added_7d),
     reviewsAddedSupportLabel: formatPeriodMetricSupport(
       row.reviews_added_7d,

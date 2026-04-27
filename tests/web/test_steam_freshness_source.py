@@ -62,6 +62,8 @@ def test_explore_view_model_keeps_nulls_and_timestamp_fields_grounded() -> None:
     assert "sortValues: buildSortValues(row)" in source
     assert "currentCcu: finiteNumberOrNull(row.current_ccu)" in source
     assert "estimatedPlayerHours: finiteNumberOrNull(row.estimated_player_hours_7d)" in source
+    assert "observed_player_hours_7d" in source
+    assert "estimatedPlayerHoursCaveatLabel" in source
     assert "price: finiteNumberOrNull(row.final_price_minor)" in source
 
 
@@ -77,9 +79,18 @@ def test_explore_period_null_state_uses_history_collection_copy() -> None:
         in view_model_source
     )
     assert "const formatPeriodMetricSupport" in view_model_source
+    assert "const getEstimatedPlayerHoursDisplay" in view_model_source
+    assert "Strict 7D estimate pending." in view_model_source
     assert "avgCcuSupportLabel: formatPeriodMetricSupport(" in view_model_source
     assert "peakCcuSupportLabel: formatPeriodMetricSupport(" in view_model_source
-    assert "estimatedPlayerHoursSupportLabel: formatPeriodMetricSupport(" in view_model_source
+    assert (
+        "estimatedPlayerHoursSupportLabel: estimatedPlayerHoursDisplay.supportLabel"
+        in view_model_source
+    )
+    assert (
+        "estimatedPlayerHoursCaveatLabel: estimatedPlayerHoursDisplay.caveatLabel"
+        in view_model_source
+    )
     assert "reviewsAddedSupportLabel: formatPeriodMetricSupport(" in view_model_source
     assert "positiveShareSupportLabel: formatPeriodMetricSupport(" in view_model_source
     assert "currentCcuSupportLabel: formatCurrentCcuSupport(row)" in view_model_source
@@ -91,6 +102,8 @@ def test_explore_period_null_state_uses_history_collection_copy() -> None:
     )
 
     assert "getPeriodHistoryCollectingNotice" in table_source
+    assert "getCommonEstimatedPlayerHoursCaveatTitle" in table_source
+    assert '<CaveatBadge label="Observed"' in table_source
     assert "rows.some((row) => !row.periodMetricsCollecting)" in table_source
     assert "Period metrics appear after the full window is available." in table_source
 
@@ -98,6 +111,10 @@ def test_explore_period_null_state_uses_history_collection_copy() -> None:
 def test_web_price_types_allow_free_rows_without_numeric_fields() -> None:
     source = GAMES_API_PATH.read_text(encoding="utf-8")
 
+    assert "observed_player_hours_7d: number | null" in source
+    assert "estimated_player_hours_7d_observed_bucket_count: number | null" in source
+    assert "estimated_player_hours_7d_expected_bucket_count: number | null" in source
+    assert "estimated_player_hours_7d_coverage_ratio: number | null" in source
     assert "currency_code: string | null" in source
     assert "initial_price_minor: number | null" in source
     assert "final_price_minor: number | null" in source

@@ -26,6 +26,10 @@ SELECT
     delta_period_avg_ccu_7d_pct,
     delta_period_peak_ccu_7d_abs,
     delta_period_peak_ccu_7d_pct,
+    observed_player_hours_7d,
+    estimated_player_hours_7d_observed_bucket_count,
+    estimated_player_hours_7d_expected_bucket_count,
+    estimated_player_hours_7d_coverage_ratio,
     estimated_player_hours_7d,
     delta_estimated_player_hours_7d_abs,
     delta_estimated_player_hours_7d_pct,
@@ -108,6 +112,18 @@ def to_response_record(row: Mapping[str, Any]) -> dict[str, Any]:
         ),
         "delta_period_peak_ccu_7d_pct": _optional_float(
             row.get("delta_period_peak_ccu_7d_pct")
+        ),
+        "observed_player_hours_7d": _optional_float(
+            row.get("observed_player_hours_7d")
+        ),
+        "estimated_player_hours_7d_observed_bucket_count": _optional_int(
+            row.get("estimated_player_hours_7d_observed_bucket_count")
+        ),
+        "estimated_player_hours_7d_expected_bucket_count": _optional_int(
+            row.get("estimated_player_hours_7d_expected_bucket_count")
+        ),
+        "estimated_player_hours_7d_coverage_ratio": _optional_float(
+            row.get("estimated_player_hours_7d_coverage_ratio")
         ),
         "estimated_player_hours_7d": _optional_float(
             row.get("estimated_player_hours_7d")

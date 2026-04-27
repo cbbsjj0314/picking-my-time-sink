@@ -51,11 +51,17 @@ def test_explore_view_uses_strict_raw_30m_player_hours_windows() -> None:
     assert "between rca.anchor_date - 6 and rca.anchor_date" in sql
     assert "between rca.anchor_date - 13 and rca.anchor_date - 7" in sql
     assert "count(raw_ccu.bucket_time) filter" in sql
-    assert ") = 336" in sql
+    assert "selected_raw_bucket_count = 336" in sql
+    assert "previous_raw_bucket_count != 336" in sql
+    assert "observed_player_hours_7d" in sql
+    assert "estimated_player_hours_7d_observed_bucket_count" in sql
+    assert "estimated_player_hours_7d_expected_bucket_count" in sql
+    assert "estimated_player_hours_7d_coverage_ratio" in sql
+    assert "least(1.0, greatest(0.0" in sql
     assert "estimated_player_hours_7d" in sql
     assert "delta_estimated_player_hours_7d_abs" in sql
     assert "delta_estimated_player_hours_7d_pct" in sql
-    assert "previous_estimated_player_hours_7d <= 0.0" in sql
+    assert "previous_observed_player_hours_7d <= 0.0" in sql
     assert "avg_ccu * 24" not in sql
     assert "avg_ccu) * 24" not in sql
     assert "* 24 * 7" not in sql
