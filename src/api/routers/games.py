@@ -116,6 +116,10 @@ class GameExploreOverviewResponse(BaseModel):
     delta_period_avg_ccu_7d_pct: float | None
     delta_period_peak_ccu_7d_abs: int | None
     delta_period_peak_ccu_7d_pct: float | None
+    observed_player_hours_7d: float | None
+    estimated_player_hours_7d_observed_bucket_count: int | None
+    estimated_player_hours_7d_expected_bucket_count: int | None
+    estimated_player_hours_7d_coverage_ratio: float | None
     estimated_player_hours_7d: float | None
     delta_estimated_player_hours_7d_abs: float | None
     delta_estimated_player_hours_7d_pct: float | None

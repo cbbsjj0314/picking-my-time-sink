@@ -35,6 +35,10 @@ def sample_response_record(canonical_game_id: int) -> dict[str, object]:
         "delta_period_avg_ccu_7d_pct": 10.05,
         "delta_period_peak_ccu_7d_abs": 300,
         "delta_period_peak_ccu_7d_pct": 20.0,
+        "observed_player_hours_7d": 92400.0,
+        "estimated_player_hours_7d_observed_bucket_count": 336,
+        "estimated_player_hours_7d_expected_bucket_count": 336,
+        "estimated_player_hours_7d_coverage_ratio": 1.0,
         "estimated_player_hours_7d": 92400.0,
         "delta_estimated_player_hours_7d_abs": 8400.0,
         "delta_estimated_player_hours_7d_pct": 10.0,
@@ -97,6 +101,10 @@ def test_list_games_explore_overview_returns_rows_and_passes_limit(monkeypatch) 
     assert body[0]["ccu_bucket_time"] == "2026-03-29T14:00:00+09:00"
     assert body[0]["current_ccu"] == 1200
     assert body[0]["period_avg_ccu_7d"] == 1100.5
+    assert body[0]["observed_player_hours_7d"] == 92400.0
+    assert body[0]["estimated_player_hours_7d_observed_bucket_count"] == 336
+    assert body[0]["estimated_player_hours_7d_expected_bucket_count"] == 336
+    assert body[0]["estimated_player_hours_7d_coverage_ratio"] == 1.0
     assert body[0]["estimated_player_hours_7d"] == 92400.0
     assert body[0]["reviews_added_7d"] == 70
     assert body[0]["delta_reviews_added_7d_pct"] == 40.0
@@ -136,6 +144,8 @@ def test_service_sql_reads_explore_serving_view_with_default_sort() -> None:
     assert "fact_steam_reviews_daily" not in sql
     assert "fact_steam_price_1h" not in sql
     assert "estimated_player_hours_7d" in sql
+    assert "observed_player_hours_7d" in sql
+    assert "estimated_player_hours_7d_coverage_ratio" in sql
     assert "delta_estimated_player_hours_7d_pct" in sql
     assert "delta_reviews_added_7d_abs" in sql
     assert "delta_period_positive_ratio_30d_pp" in sql
@@ -162,6 +172,10 @@ def test_to_response_record_preserves_null_evidence_fields() -> None:
         "delta_period_avg_ccu_7d_pct": None,
         "delta_period_peak_ccu_7d_abs": None,
         "delta_period_peak_ccu_7d_pct": None,
+        "observed_player_hours_7d": None,
+        "estimated_player_hours_7d_observed_bucket_count": 0,
+        "estimated_player_hours_7d_expected_bucket_count": 336,
+        "estimated_player_hours_7d_coverage_ratio": 0.0,
         "estimated_player_hours_7d": None,
         "delta_estimated_player_hours_7d_abs": None,
         "delta_estimated_player_hours_7d_pct": None,
@@ -196,6 +210,10 @@ def test_to_response_record_preserves_null_evidence_fields() -> None:
     assert mapped["current_ccu"] is None
     assert mapped["current_ccu_missing_flag"] is True
     assert mapped["period_avg_ccu_7d"] is None
+    assert mapped["observed_player_hours_7d"] is None
+    assert mapped["estimated_player_hours_7d_observed_bucket_count"] == 0
+    assert mapped["estimated_player_hours_7d_expected_bucket_count"] == 336
+    assert mapped["estimated_player_hours_7d_coverage_ratio"] == 0.0
     assert mapped["estimated_player_hours_7d"] is None
     assert mapped["reviews_added_7d"] is None
     assert mapped["period_positive_ratio_7d"] is None
@@ -224,6 +242,8 @@ def test_to_response_record_maps_non_finite_float_evidence_to_null() -> None:
     row["current_delta_ccu_pct"] = float("nan")
     row["delta_period_avg_ccu_7d_abs"] = "NaN"
     row["delta_period_avg_ccu_7d_pct"] = "Infinity"
+    row["observed_player_hours_7d"] = "-Infinity"
+    row["estimated_player_hours_7d_coverage_ratio"] = float("inf")
     row["estimated_player_hours_7d"] = float("inf")
     row["delta_period_positive_ratio_7d_pp"] = "-Infinity"
 
@@ -232,6 +252,8 @@ def test_to_response_record_maps_non_finite_float_evidence_to_null() -> None:
     assert mapped["current_delta_ccu_pct"] is None
     assert mapped["delta_period_avg_ccu_7d_abs"] is None
     assert mapped["delta_period_avg_ccu_7d_pct"] is None
+    assert mapped["observed_player_hours_7d"] is None
+    assert mapped["estimated_player_hours_7d_coverage_ratio"] is None
     assert mapped["estimated_player_hours_7d"] is None
     assert mapped["delta_period_positive_ratio_7d_pp"] is None
 
@@ -256,6 +278,10 @@ def test_list_explore_overview_executes_view_query(monkeypatch) -> None:
             "delta_period_avg_ccu_7d_pct": "10.05",
             "delta_period_peak_ccu_7d_abs": "300",
             "delta_period_peak_ccu_7d_pct": "20.0",
+            "observed_player_hours_7d": "92400.0",
+            "estimated_player_hours_7d_observed_bucket_count": "336",
+            "estimated_player_hours_7d_expected_bucket_count": "336",
+            "estimated_player_hours_7d_coverage_ratio": "1.0",
             "estimated_player_hours_7d": "92400.0",
             "delta_estimated_player_hours_7d_abs": "8400.0",
             "delta_estimated_player_hours_7d_pct": "10.0",

@@ -112,13 +112,17 @@
     - 식별 정보: `canonical_game_id`, `canonical_name`, `steam_appid`
     - 현재 CCU: `ccu_bucket_time`, `current_ccu`, `current_delta_ccu_abs`, `current_delta_ccu_pct`, `current_ccu_missing_flag`
     - 7일 CCU 기간 지표: `ccu_period_anchor_date`, `period_avg_ccu_7d`, `period_peak_ccu_7d`, `delta_period_avg_ccu_7d_abs`, `delta_period_avg_ccu_7d_pct`, `delta_period_peak_ccu_7d_abs`, `delta_period_peak_ccu_7d_pct`
-    - 7일 raw CCU activity 지표: `estimated_player_hours_7d`, `delta_estimated_player_hours_7d_abs`, `delta_estimated_player_hours_7d_pct`
+    - 7일 raw CCU activity 지표: `estimated_player_hours_7d`, `delta_estimated_player_hours_7d_abs`, `delta_estimated_player_hours_7d_pct`, `observed_player_hours_7d`, `estimated_player_hours_7d_observed_bucket_count`, `estimated_player_hours_7d_expected_bucket_count`, `estimated_player_hours_7d_coverage_ratio`
     - 리뷰 metric-wide anchor의 누적 snapshot: `reviews_snapshot_date`, `total_reviews`, `total_positive`, `total_negative`, `positive_ratio`
     - 리뷰 기간 파생 지표: `reviews_added_7d`, `reviews_added_30d`, `period_positive_ratio_7d`, `period_positive_ratio_30d`, `delta_reviews_added_7d_abs`, `delta_reviews_added_7d_pct`, `delta_period_positive_ratio_7d_pp`, `delta_reviews_added_30d_abs`, `delta_reviews_added_30d_pct`, `delta_period_positive_ratio_30d_pp`
     - 최신 KR 가격 근거: `price_bucket_time`, `region`, `currency_code`, `initial_price_minor`, `final_price_minor`, `discount_percent`, `is_free`
 - 7일 CCU 기간 지표는 `agg_steam_ccu_daily` 의 최신 가용 `bucket_date` 를 metric-wide anchor로 사용한다.
 - 7일 raw CCU activity 지표는 `fact_steam_ccu_30m.bucket_time` 의 KST date 기준 최신 complete raw CCU date를 metric-wide anchor로 사용한다. Complete raw KST date의 현재 minimum 기준은 해당 KST date에 distinct half-hour bucket timestamp 48개가 있는 것이다.
 - `estimated_player_hours_7d` 는 selected window `[anchor - 6, anchor]` 에 raw 30분 bucket 336개가 모두 있을 때만 `SUM(ccu * 0.5)` 로 계산한다.
+- `observed_player_hours_7d` 는 같은 selected window에서 실제 존재하는 raw 30분 bucket만 `SUM(ccu * 0.5)` 로 합산한 observed evidence field다. 이 값은 gap fill, interpolation, coverage-adjusted extrapolation을 하지 않으며 strict sort key가 아니다.
+- `estimated_player_hours_7d_observed_bucket_count` 는 selected window에서 실제 관측된 raw 30분 bucket 수다.
+- `estimated_player_hours_7d_expected_bucket_count` 는 현재 fixed 7d window의 expected bucket 수인 `336` 이다.
+- `estimated_player_hours_7d_coverage_ratio` 는 `observed_bucket_count / expected_bucket_count` 를 0..1로 cap한 coverage hint다.
 - `delta_estimated_player_hours_7d_abs` / `delta_estimated_player_hours_7d_pct` 는 previous same-length window `[anchor - 13, anchor - 7]` 도 raw 30분 bucket 336개를 모두 가질 때만 계산한다.
 - 리뷰 기간 파생 지표는 `fact_steam_reviews_daily` 의 최신 가용 `snapshot_date` 를 metric-wide anchor로 사용한다.
 - 리뷰 previous-period comparison은 selected boundary snapshot과 previous same-length boundary snapshot을 사용한다. 7d는 `anchor`, `anchor - 7`, `anchor - 14`, 30d는 `anchor`, `anchor - 30`, `anchor - 60` 이 필요하다.
@@ -262,13 +266,15 @@
 - serving anchor는 metric-wide latest complete raw KST date다. Complete raw KST date의 현재 minimum 기준은 해당 KST date에 distinct half-hour bucket timestamp 48개가 있는 것이다.
 - selected N-day window의 expected KST half-hour bucket `48 * N` 개가 모두 있어야 `estimated_player_hours_Nd` 를 계산한다.
 - selected window에 missing bucket이 하나라도 있으면 `estimated_player_hours_Nd` 는 null이다.
+- `observed_player_hours_Nd` 가 노출되는 serving surface에서는 selected window에 실제 존재하는 raw bucket만 합산한다. 이 field는 missing bucket을 메우거나 expected coverage로 외삽하지 않으며, strict `estimated_player_hours_Nd` 의 대체값이나 정렬 key가 아니다.
+- observed coverage companion fields는 `estimated_player_hours_Nd_observed_bucket_count`, `estimated_player_hours_Nd_expected_bucket_count`, `estimated_player_hours_Nd_coverage_ratio` 형태를 따른다.
 - previous same-length comparison도 previous window의 expected bucket `48 * N` 개가 모두 있어야 한다.
 - Estimated Player-Hours previous same-length delta의 canonical serving field name은 `delta_estimated_player_hours_Nd_abs` / `delta_estimated_player_hours_Nd_pct` 로 둔다.
     - `delta_estimated_player_hours_Nd_abs = estimated_player_hours_Nd(selected) - estimated_player_hours_Nd(previous)`
     - `delta_estimated_player_hours_Nd_pct = delta_estimated_player_hours_Nd_abs / NULLIF(estimated_player_hours_Nd(previous), 0) * 100`
     - selected 또는 previous value가 null이면 두 delta 모두 null이다.
     - previous value가 0이면 absolute delta는 계산할 수 있지만 percent delta는 null이다.
-- 현재 `/games/explore/overview` 는 7d strict fields인 `estimated_player_hours_7d`, `delta_estimated_player_hours_7d_abs`, `delta_estimated_player_hours_7d_pct` 를 노출한다.
+- 현재 `/games/explore/overview` 는 7d strict fields인 `estimated_player_hours_7d`, `delta_estimated_player_hours_7d_abs`, `delta_estimated_player_hours_7d_pct` 와 selected-window observed/coverage fields인 `observed_player_hours_7d`, `estimated_player_hours_7d_observed_bucket_count`, `estimated_player_hours_7d_expected_bucket_count`, `estimated_player_hours_7d_coverage_ratio` 를 노출한다.
 - 현재 `agg_steam_ccu_daily` 는 daily `avg_ccu` / `peak_ccu` 만 제공하고 하루 내부 30분 bucket coverage completeness metadata가 없다.
 - 따라서 `SUM(avg_ccu * 24)` 또는 `AVG(avg_ccu) * 24 * N` 은 strict `estimated_player_hours_Nd` 의 현재 source of truth로 사용하지 않는다.
 - daily `avg_ccu * 24` path는 향후 approximation으로 별도 caveat/name을 붙이거나, daily rollup에 raw bucket coverage completeness metadata가 추가되어 strict coverage를 증명할 수 있을 때만 derived path로 검토한다.

@@ -80,6 +80,10 @@ export type GameExploreOverview = {
   delta_period_avg_ccu_7d_pct: number | null
   delta_period_peak_ccu_7d_abs: number | null
   delta_period_peak_ccu_7d_pct: number | null
+  observed_player_hours_7d: number | null
+  estimated_player_hours_7d_observed_bucket_count: number | null
+  estimated_player_hours_7d_expected_bucket_count: number | null
+  estimated_player_hours_7d_coverage_ratio: number | null
   estimated_player_hours_7d: number | null
   delta_estimated_player_hours_7d_abs: number | null
   delta_estimated_player_hours_7d_pct: number | null

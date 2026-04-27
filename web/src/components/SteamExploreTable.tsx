@@ -14,12 +14,28 @@ interface ExploreCellProps {
   value: string
   support?: string | null
   title?: string | null
+  caveatLabel?: string | null
+  caveatTitle?: string | null
 }
 
-function ExploreCell({ value, support = null, title = null }: ExploreCellProps) {
+function CaveatBadge({ label, title }: { label: string; title?: string | null }) {
   return (
-    <td className="px-4 py-3 align-top" title={title ?? undefined}>
-      <div className="metric-text whitespace-nowrap text-sm font-semibold text-[var(--text-primary)]">{value}</div>
+    <span
+      className="inline-flex h-5 shrink-0 items-center rounded border border-[var(--ghost-border-strong)] bg-[rgba(255,244,226,0.78)] px-1.5 text-[0.64rem] font-bold uppercase leading-none text-[var(--amber)]"
+      title={title ?? undefined}
+    >
+      {label}
+    </span>
+  )
+}
+
+function ExploreCell({ value, support = null, title = null, caveatLabel = null, caveatTitle = null }: ExploreCellProps) {
+  return (
+    <td className="px-4 py-3 align-top" title={title ?? caveatTitle ?? undefined}>
+      <div className="metric-text flex min-h-5 items-center gap-2 whitespace-nowrap text-sm font-semibold text-[var(--text-primary)]">
+        <span>{value}</span>
+        {caveatLabel ? <CaveatBadge label={caveatLabel} title={caveatTitle} /> : null}
+      </div>
       {support ? <div className="mt-1 whitespace-nowrap text-xs text-[var(--text-muted)]">{support}</div> : null}
     </td>
   )
@@ -86,6 +102,22 @@ const getPeriodHistoryCollectingNotice = (rows: SteamExploreTableRow[]) => {
   return `${labels[0]}. Period metrics appear after the full window is available.`
 }
 
+const getCommonEstimatedPlayerHoursCaveatTitle = (rows: SteamExploreTableRow[]) => {
+  if (rows.length === 0 || rows.some((row) => row.estimatedPlayerHoursCaveatLabel === null)) {
+    return null
+  }
+
+  const titles = Array.from(
+    new Set(
+      rows
+        .map((row) => row.estimatedPlayerHoursCaveatTitle)
+        .filter((value): value is string => value !== null),
+    ),
+  )
+
+  return titles.length === 1 ? titles[0] : null
+}
+
 export function SteamExploreTable({
   rows,
   totalRowCount,
@@ -102,6 +134,7 @@ export function SteamExploreTable({
     getUniformEvidenceLabel(rows, (row) => row.priceTitle, 'Price snapshot'),
   ].filter((value): value is string => value !== null)
   const periodHistoryCollectingNotice = getPeriodHistoryCollectingNotice(rows)
+  const estimatedPlayerHoursHeaderCaveatTitle = getCommonEstimatedPlayerHoursCaveatTitle(rows)
   const hasSearch = searchQuery.trim().length > 0
 
   return (
@@ -114,7 +147,7 @@ export function SteamExploreTable({
           <h2 className="type-display mt-2 text-[1.65rem] font-bold text-[var(--text-primary)]">Explore</h2>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--text-secondary)]">
             Active tracked Steam games. Default sort follows Estimated Player-Hours for the selected period, while
-            missing evidence stays "-".
+            incomplete evidence stays marked.
           </p>
         </div>
 
@@ -160,6 +193,9 @@ export function SteamExploreTable({
                       type="button"
                     >
                       <span>{column.label}</span>
+                      {column.key === 'estimatedPlayerHours' && estimatedPlayerHoursHeaderCaveatTitle ? (
+                        <CaveatBadge label="Observed" title={estimatedPlayerHoursHeaderCaveatTitle} />
+                      ) : null}
                       <span aria-hidden="true" className="text-[0.7rem] text-[var(--paper-dim)]">
                         {getSortIndicator(column.key, sortState)}
                       </span>
@@ -180,6 +216,10 @@ export function SteamExploreTable({
                     value={row.currentCcuLabel}
                   />
                   <ExploreCell
+                    caveatLabel={
+                      estimatedPlayerHoursHeaderCaveatTitle ? null : row.estimatedPlayerHoursCaveatLabel
+                    }
+                    caveatTitle={row.estimatedPlayerHoursCaveatTitle}
                     support={row.estimatedPlayerHoursSupportLabel}
                     value={row.estimatedPlayerHoursLabel}
                   />
