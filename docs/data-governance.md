@@ -125,8 +125,8 @@ This is the current public lineage map for the Steam-only MVP.
 | Tracked universe | `tracked_game`, `game_external_id`, `dim_game` | Steam ranking payloads, optional completed App Catalog evidence | `daily`, optional `app-catalog-weekly` |
 
 Chzzk `fact_chzzk_category_30m` is currently only a provider-specific DDL/parser
-candidate. It has no live job boundary, serving object, API, UI, or canonical game
-mapping lineage yet.
+candidate. It has no Postgres runtime write/integration path, live job boundary,
+serving read model, API, UI, or canonical game mapping lineage yet.
 
 Chzzk bounded pagination/temporal raw captures remain local/private. If a live
 row lacks category id/name/type, current category fact candidates skip it and
@@ -141,13 +141,22 @@ These fields explain skip/pagination/failure/coverage caveats for repeated local
 comparison, but they do not promote raw payloads, UGC-heavy evidence, or public
 API/UI semantics.
 
-Chzzk local metric candidates are validated only as category evidence browser
-inputs. `viewer-hours`, `avg viewers`, `peak viewers`, and `live count` can be
-computed from category-fact-eligible bucket rows, but current bounded evidence
-does not provide 1d or 7d full coverage. Page 3 still had `page.next`, so the
-sample also does not prove pagination exhaustion or full live-list population.
-These candidates must not be promoted into game semantics, API/UI columns, or
-Combined/relationship metrics without a separate semantics slice.
+First Chzzk source-view semantics are category-only category evidence browser
+semantics. `categoryType=GAME` is Chzzk category evidence, not Steam game
+mapping. Observed sample metrics such as `viewer_hours_observed`,
+`avg_viewers_observed`, `peak_viewers_observed`,
+`live_count_observed_total`, and optional `unique_channels_observed` may be
+defined from category/channel result artifacts, but they must keep observed
+naming or an equivalent caveat. They do not substitute for strict/full 1d or 7d
+metrics.
+
+Full Chzzk 1d/7d source-view metrics require per-category distinct KST half-hour
+bucket coverage of 48/336 buckets respectively. Failed, partial, malformed,
+empty, or missing-result runs do not count toward coverage. If bounded page
+cutoff or last-page next cursor evidence remains, product/public semantics must
+not claim pagination exhaustion or full live-list population. These candidates
+must not be promoted into game semantics, Combined/relationship metrics, or
+uncaveated API/UI fields without a separate implementation and semantics slice.
 
 If a new chart or API surface is added, add at least one lineage row before or with implementation.
 
