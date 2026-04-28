@@ -16,10 +16,11 @@
     - streaming 확장은 provider-specific source probe/ingest에서 시작한다. Steam service/API 범위를 먼저 일반화하지 않는다.
 - 현재 repo 관찰:
     - 현재 repo에는 Chzzk live-list parser fixture
-      `tests/fixtures/chzzk/lives/representative.json`, parser/upsert 후보
-      `src/chzzk/normalize/category_lives.py`, DDL 후보
-      `sql/postgres/015_fact_chzzk_category_30m.sql` 이 있다.
-    - Chzzk local/private bounded probe wrapper/scheduler evidence는 product/runtime integration이 아니다. Chzzk Postgres write job, API serving, UI wiring은 없다.
+      `tests/fixtures/chzzk/lives/representative.json`, parser/upsert
+      `src/chzzk/normalize/category_lives.py`, DDL
+      `sql/postgres/015_fact_chzzk_category_30m.sql`, and category-result-to-gold
+      loader가 있다.
+    - Chzzk local/private bounded probe wrapper/scheduler evidence는 product/runtime integration이 아니다. Chzzk API serving, UI wiring은 없다.
     - Twitch probe 산출물, runtime package, DDL은 없다.
     - 외부 ID 연결의 현재 grounded contract는 `game_external_id.source` 이며, tracked provenance는 `tracked_game.sources` 에 기록된다.
 - 첫 provider-specific source-view 후보:
@@ -30,9 +31,8 @@
     - sanitized parser fixture는 `tests/fixtures/chzzk/lives/` 아래에 고정한다.
     - 현재 fixture는 official live-list response shape를 대표하는 synthetic/sanitized payload이며, live raw capture가 아니다.
     - raw/probe 책임은 provider 응답과 수집 메타데이터를 local/private 경계에 보존하는 것이다.
-    - future runtime ingest 책임은 한 provider payload를 category 30분 row로 정규화하는 데 그친다. canonical game mapping, serving API, UI wiring, Combined semantics는 만들지 않는다.
-- real integration 전 필요 조건:
-    - `fact_chzzk_category_30m` DDL/parser candidate를 live Postgres runtime write path로 승격하는 별도 slice
+    - runtime ingest 책임은 derived/sanitized `category-result.jsonl` 을 category 30분 row로 적재하는 데 그친다. canonical game mapping, serving API, UI wiring, Combined semantics는 만들지 않는다.
+- real integration 후 남은 조건:
     - Chzzk live-list temporal coverage, category-missing behavior, bounded pagination caveat를 runtime write path에서도 보존
     - local-only raw-to-category/channel result artifact contract 유지
     - secrets는 환경 변수로 주입하고 토큰/쿠키/개인 헤더를 fixture, 로그, 문서에 저장하지 않는 운영 규칙 확정
@@ -158,7 +158,7 @@
 - product contract:
     - 첫 Chzzk source view는 category evidence browser로 시작한다.
     - category-only view이며, `categoryType=GAME` 은 Chzzk category type evidence일 뿐 Steam game mapping을 뜻하지 않는다.
-    - 현재 repo에는 `fact_chzzk_category_30m` DDL/parser candidate가 있지만, Postgres runtime write/integration, serving read model, API, web source view는 다음/later slice다.
+    - 현재 repo에는 `fact_chzzk_category_30m` artifact-to-Postgres write path가 있지만, serving read model, API, web source view는 다음/later slice다.
     - 첫 metric은 bounded observed sample metric만 허용한다. Full 1d/7d metric은 category별 distinct KST half-hour bucket 48/336개 coverage 전에는 주장하지 않는다.
     - bounded page cutoff 또는 last-page next cursor가 남아 있으면 full live-list population이나 pagination exhaustion으로 표현하지 않는다.
 - 주요 필드 후보:
@@ -181,8 +181,8 @@
     - quota/HTTP failure, request error, invalid JSON, malformed page, partial fetch는 local/private `failure.kind`, `failure.http_status_code`, `failure.page_index` 수준으로만 요약하고 category result는 생성하지 않는다.
     - bounded probe는 full live-list population이나 pagination exhaustion 근거가 아니다.
     - category result는 category evidence browser 후보로만 읽는다. category-to-game mapping, API/UI serving semantics, Combined semantics는 이 source inventory에서 열지 않는다.
-    - real integration 전 raw capture는 local/private에 두고 parser regression은 sanitized fixture로 먼저 고정한다.
-    - API 실패 시의 재시도/알림은 Chzzk-specific runtime slice에서 구현한다.
+    - raw capture는 local/private에 두고 parser regression은 sanitized fixture로 고정한다.
+    - API 실패 시의 재시도/알림은 Chzzk-specific serving/runtime slice에서 구현한다.
     - public fixture는 synthetic/sanitized payload만 둔다. live title, channel name, thumbnail URL 같은 raw UGC/provider response는 public에 그대로 남기지 않는다.
     - credentials, private runtime identifiers, local host/path detail은 public source docs, fixtures, API/UI semantics에 올리지 않는다.
 

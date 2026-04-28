@@ -129,16 +129,21 @@
 ### 4.2 Streaming Category Metrics (30분) — Chzzk category evidence browser 후보
 
 - 문서 기준:
-    - 현재 MVP runtime은 Steam-only다. streaming fact/serving object는 아직 live contract가 아니다.
+    - 현재 MVP serving runtime은 Steam-only다. Chzzk는 category-result artifact를
+      `fact_chzzk_category_30m` 에 적재하는 provider-specific fact write path만
+      갖고 있으며, streaming serving object는 아직 live contract가 아니다.
     - streaming 확장은 provider-specific probe/ingest와 category-level 30분 fact에서 시작한다.
     - 첫 후보는 Chzzk category live-list source다.
-    - `fact_chzzk_category_30m` DDL/parser candidate는 존재하지만, Postgres runtime write/integration, serving read model, API, web source view는 아직 열지 않는다.
-    - 첫 fact runtime integration 후보는 `fact_chzzk_category_30m` 이다. generalized streaming fact/table은 만들지 않는다.
+    - `fact_chzzk_category_30m` DDL/parser candidate는 artifact-to-Postgres
+      runtime write path로 승격되었다. Serving read model, API, web source view는
+      아직 열지 않는다.
+    - 첫 fact runtime integration은 `fact_chzzk_category_30m` 이다. generalized streaming fact/table은 만들지 않는다.
     - canonical game 기준 serving shape는 provider raw/category 수집 이후의 downstream 단계다.
     - First Chzzk source view는 category evidence browser 후보로만 해석한다. `categoryType=GAME` 은 Chzzk category type evidence일 뿐 game semantics, Steam mapping, API/UI game column, Combined semantics로 확장하지 않는다.
 - 현재 repo 관찰:
-    - Chzzk live-list sanitized parser fixture, provider-specific parser/upsert 후보, Postgres DDL 후보가 있다.
-    - Chzzk local/private bounded probe wrapper/scheduler evidence는 product/runtime integration이 아니다. Chzzk Postgres write job, serving read model, API serving, UI wiring은 없다.
+    - Chzzk live-list sanitized parser fixture, provider-specific parser/upsert,
+      Postgres DDL, and category-result-to-gold loader가 있다.
+    - Chzzk local/private bounded probe wrapper/scheduler evidence는 product/runtime integration이 아니다. Chzzk scheduler write path, serving read model, API serving, UI wiring은 없다.
     - `src/twitch`, Twitch probe sample, Twitch DDL은 없다.
     - 현재 재사용 가능한 공통 경계는 `game_external_id` mapping과 `tracked_game.sources` provenance다.
 - 첫 provider-specific fact 후보:
@@ -149,7 +154,7 @@
     - 컬럼 후보: `chzzk_category_id`, `bucket_time`, `category_type`, `category_name`, `concurrent_sum`, `live_count`, `top_channel_id`, `top_channel_name`, `top_channel_concurrent`, `collected_at`
     - `category_type` 은 observed official live-list `categoryType` 후보인
       `GAME`, `SPORTS`, `ENTERTAINMENT`, `ETC` 로 제한한다.
-    - 같은 `(chzzk_category_id, bucket_time)` 재실행은 row를 대체한다. raw/probe payload와 execution metadata는 local/private에 따로 보존한다.
+    - 같은 `(chzzk_category_id, bucket_time)` 재실행은 `ON CONFLICT` upsert로 row를 대체한다. Loader summary는 insert/update를 구분하지 않고 valid row, upsert attempt, committed row count만 기록한다. raw/probe payload와 execution metadata는 local/private에 따로 보존한다.
     - bucket-level `concurrent_sum`, `live_count`, `top_channel_*` 는 category-fact-eligible live row만 사용한다.
     - First source-view metric 후보는 observed sample value만 public/product 의미로 고정한다. `viewer_hours_observed = SUM(concurrent_sum * 0.5)`, `avg_viewers_observed = AVG(concurrent_sum)`, `peak_viewers_observed = MAX(concurrent_sum)`, `live_count_observed_total = SUM(live_count)` 이다.
     - 위 observed sample metric은 successful comparable category result bucket 위에서만 계산하며, full 1d/7d metric이나 strict sort key를 대체하지 않는다.
@@ -168,10 +173,11 @@
     - `temporal-summary.json` 은 comparable run만 읽어 `coverage_status`, observed bucket count, missing 1d/7d bucket count를 비교한다.
     - failed/partial run은 local/private summary boundary에 남기고 category window coverage 계산에서는 제외한다.
     - bounded page cutoff 또는 last-page next cursor가 남아 있으면 observed sample metric으로만 해석하고 full live-list population 또는 pagination exhaustion으로 표현하지 않는다.
-    - ingest는 한 Chzzk payload를 category 30분 fact row로 정규화한다.
+    - ingest는 local/private `category-result.jsonl` 의 strict category rows를
+      category 30분 fact row로 적재한다. Raw provider page는 runtime DB loader의
+      입력이 아니다.
     - ingest가 하지 않는 것: `canonical_game_id` 확정, `game_external_id` 자동 매핑, `gold_stream_game_30m`, serving API, web UI, Combined/relationship metric 생성.
-- real integration 전 필요 조건:
-    - `fact_chzzk_category_30m` DDL/parser candidate를 Postgres runtime write path로 승격하는 별도 slice
+- real integration 후 남은 조건:
     - serving read model, API, web source view는 runtime fact integration 이후 별도 slice
     - longer temporal coverage와 runtime error behavior 확인
     - category-fact-ineligible live row skip/reporting contract 확정
