@@ -294,7 +294,7 @@
 
 ## 4. 스트리밍 요약(화제인가) — Chzzk category evidence browser 기준
 
-현재 repo runtime에는 streaming metric scheduler/API/UI 구현이 없다. Chzzk live-list sanitized fixture, category parser/upsert, `fact_chzzk_category_30m` DDL, and category-result artifact-to-Postgres write path는 있지만, serving read model, API, web source view는 아직 열지 않는다. 이 장은 첫 Chzzk source view를 category-only evidence browser로 시작하기 위한 metric 의미를 고정한다.
+현재 repo runtime에는 Chzzk streaming metric scheduler/UI 구현이 없다. Chzzk live-list sanitized fixture, category parser/upsert, `fact_chzzk_category_30m` DDL, category-result artifact-to-Postgres write path, and read-only category overview API가 있다. 이 장은 첫 Chzzk source view를 category-only evidence browser로 시작하기 위한 metric 의미를 고정한다.
 
 - 첫 후보: Chzzk category live-list source.
 - metric grain 후보: `(chzzk_category_id, bucket_time)` category-level 30분 KST bucket.
@@ -304,7 +304,7 @@
 - DB write boundary: local/private `category-result.jsonl` 의 strict category rows만
   `fact_chzzk_category_30m` 에 upsert한다. Inserted vs updated rows는
   `ON CONFLICT` upsert 특성상 loader summary에서 구분하지 않는다.
-- 제외: canonical game mapping, Twitch fallback, provider abstraction, streaming serving API, web dashboard streaming UI wiring, Combined/relationship KPI.
+- 제외: canonical game mapping, Twitch fallback, provider abstraction, web dashboard streaming UI wiring, Combined/relationship KPI.
 - access status: official docs 기준 `/open/v1/lives` 는 Client 인증이 필요하다. quota behavior와 runtime error behavior는 아직 public contract가 아니다.
 
 원천은 “동시 시청자(concurrent)”를 30분 단위 category bucket으로 수집하는 방향이다. missing bucket은 gap fill이나 synthetic score로 채우지 않는다.
@@ -348,7 +348,35 @@ First Chzzk source view는 category-only evidence browser다. 아래 metric은 s
 | `live_count_observed_total` | `category-result.jsonl` via local temporal summary | category over observed buckets | `SUM(live_count)` | live rows/channels in bounded sample | no successful comparable category bucket이면 null/absent | successful comparable category-result rows only | no; 48/336 buckets required |
 | `unique_channels_observed` | `channel-result.jsonl` via local temporal summary | category over observed buckets | `COUNT(DISTINCT channel_id)` | channels | channel-result evidence가 없으면 absent | successful comparable channel-result rows only | no; 48/336 buckets plus channel evidence required |
 
-Full `viewer_hours_1d/7d`, `avg_viewers_1d/7d`, `peak_viewers_1d/7d`, live-count period metrics, and deltas remain not exposed until a runtime/serving slice proves the required category bucket coverage and fixes API/UI naming.
+viewer_hours_1d/7d, avg_viewers_1d/7d, peak_viewers_1d/7d, live-count 기간 지표 및 각 delta는 필요한 category bucket coverage가 런타임/서빙 slice에서 입증되고 API/UI 네이밍이 정리되기 전까지 계속 비노출 상태로 둔다.
+
+### 4.0.2 Chzzk category overview API serving shape
+
+- Endpoint: `/chzzk/categories/overview`
+- Grain: 관측된 fact bucket 기준으로 `chzzk_category_id`마다 1개 row를 반환한다.
+- Source: `fact_chzzk_category_30m` only.
+- Category metadata: 각 `chzzk_category_id`의 최신 `bucket_time` row에서 `category_name` / `category_type`을 선택한다.
+- API는 observed sample metrics만 노출한다.
+  - `viewer_hours_observed = SUM(concurrent_sum * 0.5)`
+  - `avg_viewers_observed = AVG(concurrent_sum)`
+  - `peak_viewers_observed = MAX(concurrent_sum)`
+  - `live_count_observed_total = SUM(live_count)`
+  - `avg_channels_observed = AVG(live_count)`
+  - `peak_channels_observed = MAX(live_count)`
+- `observed_bucket_count`는 해당 category에서 관측된 distinct 30-minute bucket 수다.
+- `full_1d_candidate_available`은 `observed_bucket_count >= 48`일 때만 true다.
+- `full_7d_candidate_available`은 `observed_bucket_count >= 336`일 때만 true다.
+- `missing_1d_bucket_count = max(0, 48 - observed_bucket_count)`.
+- `missing_7d_bucket_count = max(0, 336 - observed_bucket_count)`.
+- `coverage_status`는 category별 bucket coverage 상태이며, 아래 값만 사용한다.
+  - `observed_bucket_only`
+  - `partial_window`
+  - `full_1d_candidate_available`
+  - `full_7d_candidate_available`
+- 첫 API slice에서 `bounded_sample_caveat`은 항상 `"bounded_sample"` 문자열이다.
+- `bounded_sample_caveat`은 bucket coverage 상태와 독립적이며, bounded pagination / live-list completeness caveat만 표시한다.
+  - 즉, 이 API는 full live-list population이나 pagination exhaustion을 claim하지 않는다.
+- API는 strict/full 1d/7d metrics, coverage-adjusted estimates, gap fill, interpolation, extrapolation, deltas, Steam game mapping, Combined semantics, `unique_channels_observed`를 노출하지 않는다.
 
 ### 4.1 Avg concurrent (기본 표시)
 

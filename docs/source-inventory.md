@@ -19,8 +19,8 @@
       `tests/fixtures/chzzk/lives/representative.json`, parser/upsert
       `src/chzzk/normalize/category_lives.py`, DDL
       `sql/postgres/015_fact_chzzk_category_30m.sql`, and category-result-to-gold
-      loader가 있다.
-    - Chzzk local/private bounded probe wrapper/scheduler evidence는 product/runtime integration이 아니다. Chzzk API serving, UI wiring은 없다.
+      loader, read-only category overview API가 있다.
+    - Chzzk local/private bounded probe wrapper/scheduler evidence는 product/runtime integration이 아니다. Chzzk UI wiring은 없다.
     - Twitch probe 산출물, runtime package, DDL은 없다.
     - 외부 ID 연결의 현재 grounded contract는 `game_external_id.source` 이며, tracked provenance는 `tracked_game.sources` 에 기록된다.
 - 첫 provider-specific source-view 후보:
@@ -31,7 +31,7 @@
     - sanitized parser fixture는 `tests/fixtures/chzzk/lives/` 아래에 고정한다.
     - 현재 fixture는 official live-list response shape를 대표하는 synthetic/sanitized payload이며, live raw capture가 아니다.
     - raw/probe 책임은 provider 응답과 수집 메타데이터를 local/private 경계에 보존하는 것이다.
-    - runtime ingest 책임은 derived/sanitized `category-result.jsonl` 을 category 30분 row로 적재하는 데 그친다. canonical game mapping, serving API, UI wiring, Combined semantics는 만들지 않는다.
+    - runtime ingest 책임은 derived/sanitized `category-result.jsonl` 을 category 30분 row로 적재하는 데 그친다. API serving은 read-only category overview에 한정하며 canonical game mapping, UI wiring, Combined semantics는 만들지 않는다.
 - real integration 후 남은 조건:
     - Chzzk live-list temporal coverage, category-missing behavior, bounded pagination caveat를 runtime write path에서도 보존
     - local-only raw-to-category/channel result artifact contract 유지
@@ -39,7 +39,7 @@
     - runtime integration으로 DDL execution/parser behavior/write path를 바꾸면 related regression tests를 같은 thin slice에서 추가/갱신
     - category-to-game mapping workflow와 Twitch fallback 여부는 별도 slice에서 결정
 - 명시적 비범위:
-    - Twitch 구현, provider abstraction layer, streaming serving API, web dashboard streaming UI wiring, Combined/relationship KPI
+    - Twitch 구현, provider abstraction layer, generalized streaming serving API, web dashboard streaming UI wiring, Combined/relationship KPI
 
 ## 1. Steam (MVP 핵심)
 
@@ -158,7 +158,9 @@
 - product contract:
     - 첫 Chzzk source view는 category evidence browser로 시작한다.
     - category-only view이며, `categoryType=GAME` 은 Chzzk category type evidence일 뿐 Steam game mapping을 뜻하지 않는다.
-    - 현재 repo에는 `fact_chzzk_category_30m` artifact-to-Postgres write path가 있지만, serving read model, API, web source view는 다음/later slice다.
+    - 현재 repo에는 `fact_chzzk_category_30m` artifact-to-Postgres write path와
+      read-only `/chzzk/categories/overview` category overview API가 있지만, web
+      source view는 다음/later slice다.
     - 첫 metric은 bounded observed sample metric만 허용한다. Full 1d/7d metric은 category별 distinct KST half-hour bucket 48/336개 coverage 전에는 주장하지 않는다.
     - bounded page cutoff 또는 last-page next cursor가 남아 있으면 full live-list population이나 pagination exhaustion으로 표현하지 않는다.
 - 주요 필드 후보:
@@ -180,9 +182,12 @@
     - `summary.json` / `temporal-summary.json` 은 `run_status`, `result_status`, `pagination.bounded_page_cutoff`, `pagination.last_page_next_present`, `skip_counts`, `skip_evidence.blank_category_page_indexes`, `coverage.status` 로 skip/pagination/coverage caveat를 설명한다.
     - quota/HTTP failure, request error, invalid JSON, malformed page, partial fetch는 local/private `failure.kind`, `failure.http_status_code`, `failure.page_index` 수준으로만 요약하고 category result는 생성하지 않는다.
     - bounded probe는 full live-list population이나 pagination exhaustion 근거가 아니다.
-    - category result는 category evidence browser 후보로만 읽는다. category-to-game mapping, API/UI serving semantics, Combined semantics는 이 source inventory에서 열지 않는다.
+    - category result는 category evidence browser 후보로만 읽는다. `/chzzk/categories/overview` 는 category-only observed sample serving semantics만 열고, category-to-game mapping, UI serving semantics, Combined semantics는 열지 않는다.
     - raw capture는 local/private에 두고 parser regression은 sanitized fixture로 고정한다.
     - API 실패 시의 재시도/알림은 Chzzk-specific serving/runtime slice에서 구현한다.
+    - `/chzzk/categories/overview` 의 `bounded_sample_caveat="bounded_sample"`
+      는 bounded pagination/live-list completeness caveat이며 bucket coverage
+      status가 아니다. Bucket coverage는 별도 `coverage_status` 로 표현한다.
     - public fixture는 synthetic/sanitized payload만 둔다. live title, channel name, thumbnail URL 같은 raw UGC/provider response는 public에 그대로 남기지 않는다.
     - credentials, private runtime identifiers, local host/path detail은 public source docs, fixtures, API/UI semantics에 올리지 않는다.
 
