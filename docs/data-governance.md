@@ -123,10 +123,12 @@ Local monitoring은 더 엄격한 thresholds, exact scheduler windows, host-spec
 | Latest KR top selling API / UI | `srv_rank_latest_kr_top_selling` | `fact_steam_rank_daily` | `daily`: ranking payload refresh and payload to gold |
 | Explore overview table | `srv_game_explore_period_metrics` | active `tracked_game`, latest CCU, price, reviews, period facts/rollups | `ccu-30m`, `price-1h`, `daily` |
 | Tracked universe | `tracked_game`, `game_external_id`, `dim_game` | Steam ranking payloads, optional completed App Catalog evidence | `daily`, optional `app-catalog-weekly` |
+| Chzzk category overview API | direct API service aggregate over `fact_chzzk_category_30m` | `fact_chzzk_category_30m` category observed buckets | local/private `category-result.jsonl` to gold loader |
 
 Chzzk `fact_chzzk_category_30m` 은 provider-specific DDL/parser candidate에서
-local/private `category-result.jsonl` artifact-to-Postgres write path로 승격되었다.
-아직 live fetch write boundary, serving read model, API, UI, canonical game mapping lineage가 없다.
+local/private `category-result.jsonl` artifact-to-Postgres write path와 read-only
+category overview API로 승격되었다.
+아직 live fetch write boundary, UI, canonical game mapping lineage가 없다.
 
 Chzzk bounded pagination/temporal raw captures는 local/private로 유지한다.
 live row에 category id/name/type이 없으면 current category fact candidates는 unknown category를 만들지 않고 skip evidence를 기록한다.
@@ -152,6 +154,11 @@ Full Chzzk 1d/7d source-view metrics에는 category별 distinct KST half-hour bu
 failed, partial, malformed, empty, missing-result runs는 coverage에 포함하지 않는다.
 bounded page cutoff 또는 last-page next cursor evidence가 남아 있으면 product/public semantics에서 pagination exhaustion 또는 full live-list population을 주장하면 안 된다.
 별도 implementation and semantics slice 없이는 이 candidates를 game semantics, Combined/relationship metrics, uncaveated API/UI fields로 승격하지 않는다.
+
+Chzzk `/chzzk/categories/overview` 는 `fact_chzzk_category_30m` 만 읽는
+category-only API surface다. `bounded_sample_caveat="bounded_sample"` 은 bounded
+pagination/live-list completeness caveat이며 bucket coverage 상태가 아니다.
+Per-category bucket coverage 상태는 별도 `coverage_status` 로 표현한다.
 
 새 chart 또는 API surface를 추가하면 implementation 전 또는 같은 slice 안에서 lineage row를 최소 1개 추가한다.
 

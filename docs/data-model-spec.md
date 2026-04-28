@@ -129,21 +129,23 @@
 ### 4.2 Streaming Category Metrics (30분) — Chzzk category evidence browser 후보
 
 - 문서 기준:
-    - 현재 MVP serving runtime은 Steam-only다. Chzzk는 category-result artifact를
-      `fact_chzzk_category_30m` 에 적재하는 provider-specific fact write path만
-      갖고 있으며, streaming serving object는 아직 live contract가 아니다.
+    - 현재 MVP serving runtime은 Steam 중심 baseline에 Chzzk category-only source
+      API serving을 더한 상태다. Chzzk는 category-result artifact를
+      `fact_chzzk_category_30m` 에 적재하는 provider-specific fact write path와
+      이를 읽는 read-only category overview API만 갖고 있다.
     - streaming 확장은 provider-specific probe/ingest와 category-level 30분 fact에서 시작한다.
     - 첫 후보는 Chzzk category live-list source다.
     - `fact_chzzk_category_30m` DDL/parser candidate는 artifact-to-Postgres
-      runtime write path로 승격되었다. Serving read model, API, web source view는
-      아직 열지 않는다.
+      runtime write path로 승격되었다. 첫 API surface는
+      `/chzzk/categories/overview` 이며, web source view는 아직 열지 않는다.
     - 첫 fact runtime integration은 `fact_chzzk_category_30m` 이다. generalized streaming fact/table은 만들지 않는다.
     - canonical game 기준 serving shape는 provider raw/category 수집 이후의 downstream 단계다.
     - First Chzzk source view는 category evidence browser 후보로만 해석한다. `categoryType=GAME` 은 Chzzk category type evidence일 뿐 game semantics, Steam mapping, API/UI game column, Combined semantics로 확장하지 않는다.
 - 현재 repo 관찰:
     - Chzzk live-list sanitized parser fixture, provider-specific parser/upsert,
       Postgres DDL, and category-result-to-gold loader가 있다.
-    - Chzzk local/private bounded probe wrapper/scheduler evidence는 product/runtime integration이 아니다. Chzzk scheduler write path, serving read model, API serving, UI wiring은 없다.
+    - Chzzk local/private bounded probe wrapper/scheduler evidence는 product/runtime integration이 아니다. Chzzk scheduler write path와 UI wiring은 없다.
+    - Chzzk API serving은 `fact_chzzk_category_30m` 을 직접 읽는 category-only overview에 한정한다.
     - `src/twitch`, Twitch probe sample, Twitch DDL은 없다.
     - 현재 재사용 가능한 공통 경계는 `game_external_id` mapping과 `tracked_game.sources` provenance다.
 - 첫 provider-specific fact 후보:
@@ -164,6 +166,25 @@
     - `unique_channels_observed = COUNT(DISTINCT channel_id)` 로 계산한다.
     - blank category 또는 category-fact-ineligible row는 channel artifact에 넣지 않고 summary skip evidence로만 남긴다.
     - 1d 후보 full coverage는 category별 distinct 30분 bucket 48개, 7d 후보 full coverage는 336개다.
+- 첫 API serving surface:
+    - endpoint: `/chzzk/categories/overview`
+    - read model: SQL serving view를 추가하지 않고 `fact_chzzk_category_30m` 을 직접 aggregate한다.
+    - category metadata rule: `category_name` / `category_type` 은 같은
+      `chzzk_category_id` 의 latest `bucket_time` row 기준으로 deterministic하게 선택한다.
+    - response fields: `chzzk_category_id`, `category_name`, `category_type`,
+      `observed_bucket_count`, `bucket_time_min`, `bucket_time_max`,
+      `viewer_hours_observed`, `avg_viewers_observed`, `peak_viewers_observed`,
+      `live_count_observed_total`, `avg_channels_observed`,
+      `peak_channels_observed`, `full_1d_candidate_available`,
+      `full_7d_candidate_available`, `missing_1d_bucket_count`,
+      `missing_7d_bucket_count`, `coverage_status`, `bounded_sample_caveat`.
+    - `bounded_sample_caveat` 는 string `"bounded_sample"` 로 고정하며, bounded
+      pagination/live-list completeness caveat다. 이 값은 bucket coverage 상태가
+      아니며 full live-list population 또는 pagination exhaustion을 claim하지 않는다는
+      UI marker다.
+    - `coverage_status` 는 per-category bucket coverage 상태이며
+      `observed_bucket_only`, `partial_window`,
+      `full_1d_candidate_available`, `full_7d_candidate_available` 중 하나다.
 - raw/probe/ingest 책임 경계:
     - probe/raw는 provider response와 수집 메타데이터를 local/private에 보존한다.
     - public fixture는 official response shape 기반 synthetic/sanitized payload로만 둔다.
@@ -176,9 +197,9 @@
     - ingest는 local/private `category-result.jsonl` 의 strict category rows를
       category 30분 fact row로 적재한다. Raw provider page는 runtime DB loader의
       입력이 아니다.
-    - ingest가 하지 않는 것: `canonical_game_id` 확정, `game_external_id` 자동 매핑, `gold_stream_game_30m`, serving API, web UI, Combined/relationship metric 생성.
+    - ingest/API serving이 하지 않는 것: `canonical_game_id` 확정, `game_external_id` 자동 매핑, `gold_stream_game_30m`, web UI, Combined/relationship metric 생성.
 - real integration 후 남은 조건:
-    - serving read model, API, web source view는 runtime fact integration 이후 별도 slice
+    - web source view는 API serving 이후 별도 slice
     - longer temporal coverage와 runtime error behavior 확인
     - category-fact-ineligible live row skip/reporting contract 확정
     - quota behavior 확인
