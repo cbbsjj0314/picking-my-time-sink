@@ -292,21 +292,21 @@
 - 현재 slice는 fake score, gap fill, synthetic timeline을 추가하지 않는다.
 - 따라서 full-window daily row가 없는 게임은 해당 window list에서 제외되고, longer window는 빈 리스트가 될 수 있다.
 
-## 4. 스트리밍 요약(화제인가) — provider-specific 준비 기준
+## 4. 스트리밍 요약(화제인가) — Chzzk category evidence browser 기준
 
-현재 repo runtime에는 streaming metric scheduler/API/UI 구현이 없다. Chzzk live-list sanitized fixture, category parser/upsert 후보, DDL 후보는 있지만 public API contract는 아니다. 이 장은 첫 provider-specific 후보의 metric 의미를 고정하는 준비 기준이다.
+현재 repo runtime에는 streaming metric scheduler/API/UI 구현이 없다. Chzzk live-list sanitized fixture, category parser/upsert 후보, `fact_chzzk_category_30m` DDL candidate는 있지만, Postgres runtime write path, serving read model, API, web source view는 아직 열지 않는다. 이 장은 첫 Chzzk source view를 category-only evidence browser로 시작하기 위한 metric 의미를 고정한다.
 
 - 첫 후보: Chzzk category live-list source.
-- metric grain 후보: `(chzzk_category_id, bucket_time)` category-level 30분 bucket.
+- metric grain 후보: `(chzzk_category_id, bucket_time)` category-level 30분 KST bucket.
 - source boundary: Chzzk live/category payload에서 category type/id/name, live concurrent, channel id/name만 읽는다.
-- sample payload/fixture: parser, DDL, ingest test보다 먼저 sanitized representative payload가 필요하다.
-- 해석 boundary: category evidence browser 후보로만 본다. `categoryType=GAME` 이 있어도 canonical game semantics, Steam mapping, API/UI column, Combined semantics로 확장하지 않는다.
+- sample payload/fixture: public에는 sanitized representative payload만 둔다.
+- 해석 boundary: category evidence browser로만 본다. `categoryType=GAME` 이 있어도 canonical game semantics, Steam mapping, Combined semantics로 확장하지 않는다.
 - 제외: canonical game mapping, Twitch fallback, provider abstraction, streaming serving API, web dashboard streaming UI wiring, Combined/relationship KPI.
 - access status: official docs 기준 `/open/v1/lives` 는 Client 인증이 필요하다. quota behavior와 runtime error behavior는 아직 public contract가 아니다.
 
 원천은 “동시 시청자(concurrent)”를 30분 단위 category bucket으로 수집하는 방향이다. missing bucket은 gap fill이나 synthetic score로 채우지 않는다.
 
-local/private probe 결과는 public/API/UI contract가 아니다. 1d/7d streaming metric은 category별 distinct 30분 bucket이 각각 48/336개 있을 때만 후보로 해석한다. Blank category row는 viewer-hours, avg viewers, peak viewers, live count 후보에서 제외하고 skip evidence로만 남긴다.
+local/private probe 결과는 bounded observed sample evidence다. First source view에서 노출 가능한 Chzzk metric은 `observed` 이름 또는 caveat를 유지해야 하며, full 1d/7d metric을 대체하지 않는다. 1d/7d streaming metric은 category별 distinct KST 30분 bucket이 각각 48/336개 있을 때만 full metric 후보로 해석한다. Blank category row는 viewer-hours, avg viewers, peak viewers, live count 후보에서 제외하고 skip evidence로만 남긴다.
 
 ### 4.0 Chzzk metric 후보 검증 기준
 
@@ -322,6 +322,7 @@ local/private probe 결과는 public/API/UI contract가 아니다. 1d/7d streami
     - 현재 candidate metric 계산에는 넣지 않고, summary의 skipped evidence로만 남긴다.
 - pagination caveat:
     - bounded probe는 전체 live-list population이나 final page exhaustion 근거가 아니다.
+    - bounded page cutoff 또는 last-page next cursor가 남아 있으면 public/product surface는 full population metric처럼 표현하지 않고 bounded observed sample caveat를 표시한다.
     - category union/intersection과 observed metric 값은 bounded sample 안의 evidence로만 본다.
 - full coverage:
     - 30분 category bucket 하나는 category별 `concurrent_sum`, `live_count`, `top_channel_*` snapshot candidate를 만들 수 있다.
@@ -332,13 +333,27 @@ local/private probe 결과는 public/API/UI contract가 아니다. 1d/7d streami
     - failed/partial run은 `run_status` / `result_status` / `failure` 로만 남기고 category window coverage 계산에는 포함하지 않는다.
     - top-level temporal `bucket_times` 와 observed bucket coverage는 successful comparable run의 readable category result artifact에서만 계산한다.
 
+### 4.0.1 First Chzzk source-view observed metrics
+
+First Chzzk source view는 category-only evidence browser다. 아래 metric은 successful comparable observed category bucket 위에서만 계산하고, `observed` naming/caveat 없이 full 1d/7d value처럼 노출하지 않는다.
+
+| Metric | Source artifact | Grain | Formula | Unit | Null rule | Coverage rule | Full 1d/7d claim |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `viewer_hours_observed` | `category-result.jsonl` via local temporal summary | category over observed buckets | `SUM(concurrent_sum * 0.5)` | viewer-hours | no successful comparable category bucket이면 null/absent | successful comparable category-result rows only | no; 48/336 buckets required |
+| `avg_viewers_observed` | `category-result.jsonl` via local temporal summary | category over observed buckets | `AVG(concurrent_sum)` | viewers | no successful comparable category bucket이면 null/absent | successful comparable category-result rows only | no; 48/336 buckets required |
+| `peak_viewers_observed` | `category-result.jsonl` via local temporal summary | category over observed buckets | `MAX(concurrent_sum)` | viewers | no successful comparable category bucket이면 null/absent | successful comparable category-result rows only | no; 48/336 buckets required |
+| `live_count_observed_total` | `category-result.jsonl` via local temporal summary | category over observed buckets | `SUM(live_count)` | live rows/channels in bounded sample | no successful comparable category bucket이면 null/absent | successful comparable category-result rows only | no; 48/336 buckets required |
+| `unique_channels_observed` | `channel-result.jsonl` via local temporal summary | category over observed buckets | `COUNT(DISTINCT channel_id)` | channels | channel-result evidence가 없으면 absent | successful comparable channel-result rows only | no; 48/336 buckets plus channel evidence required |
+
+Full `viewer_hours_1d/7d`, `avg_viewers_1d/7d`, `peak_viewers_1d/7d`, live-count period metrics, and deltas remain not exposed until a runtime/serving slice proves the required category bucket coverage and fixes API/UI naming.
+
 ### 4.1 Avg concurrent (기본 표시)
 
 - 정의: 기간 내 concurrent의 평균
     - avg_concurrent = AVG(concurrent_bucket)
 - 현재 Chzzk 후보 조건:
     - `concurrent_bucket` 은 category-fact-eligible live rows를 category별로 합산한 `concurrent_sum` 이다.
-    - bounded sample에서는 observed `avg_viewers_observed` 만 계산 가능하다.
+    - bounded sample에서는 `avg_viewers_observed` 만 계산 가능하다.
     - 1d/7d avg viewers는 category별 48/336 distinct bucket full coverage 전에는 public/API/UI metric으로 승격하지 않는다.
 
 ### 4.2 Total (파생: viewer-hours)
@@ -347,7 +362,7 @@ local/private probe 결과는 public/API/UI contract가 아니다. 1d/7d streami
     - 30분 버킷이면 bucket_hours = 0.5
 - 해석: “기간 동안 소비된 총 시청량(근사)”
 - 현재 Chzzk 후보 조건:
-    - 한 30분 bucket의 observed viewer-hours 후보는 `concurrent_sum * 0.5` 로만 계산한다.
+    - observed sample viewer-hours는 successful comparable observed category bucket에서 `SUM(concurrent_sum * 0.5)` 로 계산한다.
     - 1d viewer-hours 후보는 category별 48개 bucket 모두가 있을 때 `SUM(concurrent_sum * 0.5)` 로 계산한다.
     - 7d viewer-hours 후보는 category별 336개 bucket 모두가 있을 때 `SUM(concurrent_sum * 0.5)` 로 계산한다.
     - bounded sample의 observed value는 1d/7d total로 해석하지 않는다.
@@ -359,7 +374,7 @@ local/private probe 결과는 public/API/UI contract가 아니다. 1d/7d streami
 - 현재 Chzzk 후보 조건:
     - bucket-level `live_count` 는 category-fact-eligible live rows의 category별 count다.
     - blank category row는 count 대상이 아니라 skipped evidence다.
-    - 기간 live count는 목적에 따라 bucket `live_count` 의 합계 또는 평균을 별도 이름/단위로 고정해야 한다. 현재 slice에서는 observed bucket/live_count candidate만 남긴다.
+    - first source view에서 기간형 live count는 `live_count_observed_total = SUM(live_count)` 로만 bounded observed sample caveat와 함께 둘 수 있다.
     - 1d/7d 기간 live count 후보도 category별 48/336 distinct bucket full coverage 전에는 public/API/UI metric으로 승격하지 않는다.
 - local/private observed 후보:
     - `temporal-summary.json` category entry는 `peak_channels_observed = MAX(live_count)`, `avg_channels_observed = AVG(live_count)` 를 담을 수 있다.
