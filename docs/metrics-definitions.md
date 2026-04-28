@@ -294,13 +294,16 @@
 
 ## 4. 스트리밍 요약(화제인가) — Chzzk category evidence browser 기준
 
-현재 repo runtime에는 streaming metric scheduler/API/UI 구현이 없다. Chzzk live-list sanitized fixture, category parser/upsert 후보, `fact_chzzk_category_30m` DDL candidate는 있지만, Postgres runtime write path, serving read model, API, web source view는 아직 열지 않는다. 이 장은 첫 Chzzk source view를 category-only evidence browser로 시작하기 위한 metric 의미를 고정한다.
+현재 repo runtime에는 streaming metric scheduler/API/UI 구현이 없다. Chzzk live-list sanitized fixture, category parser/upsert, `fact_chzzk_category_30m` DDL, and category-result artifact-to-Postgres write path는 있지만, serving read model, API, web source view는 아직 열지 않는다. 이 장은 첫 Chzzk source view를 category-only evidence browser로 시작하기 위한 metric 의미를 고정한다.
 
 - 첫 후보: Chzzk category live-list source.
 - metric grain 후보: `(chzzk_category_id, bucket_time)` category-level 30분 KST bucket.
 - source boundary: Chzzk live/category payload에서 category type/id/name, live concurrent, channel id/name만 읽는다.
 - sample payload/fixture: public에는 sanitized representative payload만 둔다.
 - 해석 boundary: category evidence browser로만 본다. `categoryType=GAME` 이 있어도 canonical game semantics, Steam mapping, Combined semantics로 확장하지 않는다.
+- DB write boundary: local/private `category-result.jsonl` 의 strict category rows만
+  `fact_chzzk_category_30m` 에 upsert한다. Inserted vs updated rows는
+  `ON CONFLICT` upsert 특성상 loader summary에서 구분하지 않는다.
 - 제외: canonical game mapping, Twitch fallback, provider abstraction, streaming serving API, web dashboard streaming UI wiring, Combined/relationship KPI.
 - access status: official docs 기준 `/open/v1/lives` 는 Client 인증이 필요하다. quota behavior와 runtime error behavior는 아직 public contract가 아니다.
 
