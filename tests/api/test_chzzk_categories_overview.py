@@ -24,6 +24,8 @@ def sample_response_record(**overrides: object) -> dict[str, object]:
         "chzzk_category_id": "category-alpha",
         "category_name": "Synthetic Category Alpha",
         "category_type": "GAME",
+        "latest_bucket_time": dt.datetime(2026, 4, 29, 10, 30, tzinfo=KST),
+        "latest_viewers_observed": 40,
         "observed_bucket_count": 2,
         "bucket_time_min": dt.datetime(2026, 4, 29, 10, 0, tzinfo=KST),
         "bucket_time_max": dt.datetime(2026, 4, 29, 10, 30, tzinfo=KST),
@@ -33,6 +35,7 @@ def sample_response_record(**overrides: object) -> dict[str, object]:
         "live_count_observed_total": 5,
         "avg_channels_observed": 2.5,
         "peak_channels_observed": 3,
+        "viewer_per_channel_observed": 14.0,
         "full_1d_candidate_available": False,
         "full_7d_candidate_available": False,
         "missing_1d_bucket_count": 46,
@@ -49,6 +52,8 @@ def sample_db_row(**overrides: object) -> dict[str, object]:
         "chzzk_category_id": "category-alpha",
         "category_name": "Synthetic Category Alpha",
         "category_type": "GAME",
+        "latest_bucket_time": dt.datetime(2026, 4, 29, 10, 30, tzinfo=KST),
+        "latest_viewers_observed": "40",
         "observed_bucket_count": "2",
         "bucket_time_min": dt.datetime(2026, 4, 29, 10, 0, tzinfo=KST),
         "bucket_time_max": dt.datetime(2026, 4, 29, 10, 30, tzinfo=KST),
@@ -58,6 +63,7 @@ def sample_db_row(**overrides: object) -> dict[str, object]:
         "live_count_observed_total": "5",
         "avg_channels_observed": "2.5",
         "peak_channels_observed": "3",
+        "viewer_per_channel_observed": "14.0",
     }
     row.update(overrides)
     return row
@@ -92,6 +98,8 @@ def test_list_chzzk_categories_overview_returns_rows_and_passes_limit(monkeypatc
             "chzzk_category_id": "category-alpha",
             "category_name": "Synthetic Category Alpha",
             "category_type": "GAME",
+            "latest_bucket_time": "2026-04-29T10:30:00+09:00",
+            "latest_viewers_observed": 40,
             "observed_bucket_count": 2,
             "bucket_time_min": "2026-04-29T10:00:00+09:00",
             "bucket_time_max": "2026-04-29T10:30:00+09:00",
@@ -101,6 +109,7 @@ def test_list_chzzk_categories_overview_returns_rows_and_passes_limit(monkeypatc
             "live_count_observed_total": 5,
             "avg_channels_observed": 2.5,
             "peak_channels_observed": 3,
+            "viewer_per_channel_observed": 14.0,
             "full_1d_candidate_available": False,
             "full_7d_candidate_available": False,
             "missing_1d_bucket_count": 46,
@@ -153,6 +162,13 @@ def test_to_response_record_computes_observed_coverage_fields() -> None:
     assert mapped["missing_7d_bucket_count"] == 334
     assert mapped["coverage_status"] == "partial_window"
     assert mapped["bounded_sample_caveat"] == "bounded_sample"
+
+
+def test_latest_bucket_time_is_distinct_response_semantics_from_bucket_time_max() -> None:
+    mapped = chzzk_service.to_response_record(sample_db_row())
+
+    assert mapped["bucket_time_max"] == dt.datetime(2026, 4, 29, 10, 30, tzinfo=KST)
+    assert mapped["latest_bucket_time"] == dt.datetime(2026, 4, 29, 10, 30, tzinfo=KST)
 
 
 def test_bounded_sample_caveat_is_independent_from_bucket_coverage_status() -> None:
@@ -221,6 +237,11 @@ def test_service_sql_computes_observed_metrics_and_default_sort() -> None:
     assert "sum(live_count) as live_count_observed_total" in sql
     assert "avg(live_count::double precision) as avg_channels_observed" in sql
     assert "max(live_count) as peak_channels_observed" in sql
+    assert (
+        "sum(concurrent_sum::double precision) / nullif(sum(live_count), 0)"
+        in sql
+    )
+    assert "as viewer_per_channel_observed" in sql
     assert "order by" in sql
     assert "agg.viewer_hours_observed desc" in sql
     assert "agg.peak_viewers_observed desc" in sql
@@ -230,25 +251,66 @@ def test_service_sql_computes_observed_metrics_and_default_sort() -> None:
 def test_service_sql_selects_latest_category_metadata_deterministically() -> None:
     sql = chzzk_service.LIST_CATEGORY_OVERVIEW_SQL.lower()
 
+    assert "latest_category_rows as" in sql
     assert "select distinct on (chzzk_category_id)" in sql
     assert "category_name" in sql
     assert "category_type" in sql
+    assert "bucket_time as latest_bucket_time" in sql
+    assert "concurrent_sum as latest_viewers_observed" in sql
     assert (
         "order by chzzk_category_id, bucket_time desc, collected_at desc, ingested_at desc"
         in sql
     )
 
 
-def test_latest_metadata_row_is_preserved_in_response_record() -> None:
+def test_latest_category_row_fields_are_preserved_with_older_aggregate_buckets() -> None:
     mapped = chzzk_service.to_response_record(
         sample_db_row(
             category_name="Synthetic Category Latest",
             category_type="ENTERTAINMENT",
+            bucket_time_min=dt.datetime(2026, 4, 29, 10, 0, tzinfo=KST),
+            bucket_time_max=dt.datetime(2026, 4, 29, 11, 0, tzinfo=KST),
+            latest_bucket_time=dt.datetime(2026, 4, 29, 11, 0, tzinfo=KST),
+            latest_viewers_observed="55",
         )
     )
 
     assert mapped["category_name"] == "Synthetic Category Latest"
     assert mapped["category_type"] == "ENTERTAINMENT"
+    assert mapped["bucket_time_min"] == dt.datetime(2026, 4, 29, 10, 0, tzinfo=KST)
+    assert mapped["bucket_time_max"] == dt.datetime(2026, 4, 29, 11, 0, tzinfo=KST)
+    assert mapped["latest_bucket_time"] == dt.datetime(2026, 4, 29, 11, 0, tzinfo=KST)
+    assert mapped["latest_viewers_observed"] == 55
+
+
+def test_viewer_per_channel_non_finite_metric_maps_to_none() -> None:
+    nan_mapped = chzzk_service.to_response_record(
+        sample_db_row(viewer_per_channel_observed="NaN")
+    )
+    infinity_mapped = chzzk_service.to_response_record(
+        sample_db_row(viewer_per_channel_observed="Infinity")
+    )
+    none_mapped = chzzk_service.to_response_record(
+        sample_db_row(viewer_per_channel_observed=None)
+    )
+
+    assert nan_mapped["viewer_per_channel_observed"] is None
+    assert infinity_mapped["viewer_per_channel_observed"] is None
+    assert none_mapped["viewer_per_channel_observed"] is None
+
+
+def test_viewer_per_channel_none_serializes_as_json_null(monkeypatch) -> None:
+    monkeypatch.setattr(
+        chzzk_service,
+        "list_category_overview",
+        lambda limit=50: [sample_response_record(viewer_per_channel_observed=None)],
+    )
+
+    client = build_test_client()
+    response = client.get("/chzzk/categories/overview")
+
+    assert response.status_code == 200
+    assert response.json()[0]["viewer_per_channel_observed"] is None
 
 
 def test_list_category_overview_executes_read_only_aggregate_query(monkeypatch) -> None:

@@ -345,7 +345,9 @@ First Chzzk source view는 category-only evidence browser다. 아래 metric은 s
 | `viewer_hours_observed` | `category-result.jsonl` via local temporal summary | category over observed buckets | `SUM(concurrent_sum * 0.5)` | viewer-hours | no successful comparable category bucket이면 null/absent | successful comparable category-result rows only | no; 48/336 buckets required |
 | `avg_viewers_observed` | `category-result.jsonl` via local temporal summary | category over observed buckets | `AVG(concurrent_sum)` | viewers | no successful comparable category bucket이면 null/absent | successful comparable category-result rows only | no; 48/336 buckets required |
 | `peak_viewers_observed` | `category-result.jsonl` via local temporal summary | category over observed buckets | `MAX(concurrent_sum)` | viewers | no successful comparable category bucket이면 null/absent | successful comparable category-result rows only | no; 48/336 buckets required |
+| `latest_viewers_observed` | `category-result.jsonl` / `fact_chzzk_category_30m` | category at latest observed bucket | latest deterministic fact row의 `concurrent_sum` | viewers | category row가 없으면 absent | latest row by `bucket_time DESC, collected_at DESC, ingested_at DESC` | no; bounded latest observed bucket only |
 | `live_count_observed_total` | `category-result.jsonl` via local temporal summary | category over observed buckets | `SUM(live_count)` | live rows/channels in bounded sample | no successful comparable category bucket이면 null/absent | successful comparable category-result rows only | no; 48/336 buckets required |
+| `viewer_per_channel_observed` | `category-result.jsonl` / `fact_chzzk_category_30m` | category over observed buckets | `SUM(concurrent_sum) / NULLIF(SUM(live_count), 0)` | viewers per observed live row | denominator 0 or non-finite output이면 null | successful comparable category-result rows only | no; not unique channels |
 | `unique_channels_observed` | `channel-result.jsonl` via local temporal summary | category over observed buckets | `COUNT(DISTINCT channel_id)` | channels | channel-result evidence가 없으면 absent | successful comparable channel-result rows only | no; 48/336 buckets plus channel evidence required |
 
 viewer_hours_1d/7d, avg_viewers_1d/7d, peak_viewers_1d/7d, live-count 기간 지표 및 각 delta는 필요한 category bucket coverage가 런타임/서빙 slice에서 입증되고 API/UI 네이밍이 정리되기 전까지 계속 비노출 상태로 둔다.
@@ -360,9 +362,23 @@ viewer_hours_1d/7d, avg_viewers_1d/7d, peak_viewers_1d/7d, live-count 기간 지
   - `viewer_hours_observed = SUM(concurrent_sum * 0.5)`
   - `avg_viewers_observed = AVG(concurrent_sum)`
   - `peak_viewers_observed = MAX(concurrent_sum)`
+  - `latest_viewers_observed = latest deterministic category row의 concurrent_sum`
   - `live_count_observed_total = SUM(live_count)`
   - `avg_channels_observed = AVG(live_count)`
   - `peak_channels_observed = MAX(live_count)`
+  - `viewer_per_channel_observed = SUM(concurrent_sum) / NULLIF(SUM(live_count), 0)`
+- `latest_viewers_observed`, `latest_bucket_time`, `category_name`, `category_type`
+  는 같은 latest fact row에서 선택한다. Latest row ordering은
+  `bucket_time DESC, collected_at DESC, ingested_at DESC` 이다.
+- `bucket_time_max` 는 observed aggregate window의 max bucket이고,
+  `latest_bucket_time` 은 `latest_viewers_observed` 의 기준 bucket이다. 현재
+  API에서는 같은 값일 수 있지만 의미는 분리한다.
+- `latest_viewers_observed` 는 full live-list current population이 아니라 bounded
+  latest observed bucket snapshot이다. 이 이유로 `current_viewers_observed` 대신
+  `latest_viewers_observed` 이름을 사용한다.
+- `viewer_per_channel_observed` 는 unique channel count가 아니다. Category fact의
+  observed `live_count` 를 분모로 한 ratio이며, denominator 0 또는 non-finite
+  serving output은 null이다.
 - `observed_bucket_count`는 해당 category에서 관측된 distinct 30-minute bucket 수다.
 - `full_1d_candidate_available`은 `observed_bucket_count >= 48`일 때만 true다.
 - `full_7d_candidate_available`은 `observed_bucket_count >= 336`일 때만 true다.
@@ -409,7 +425,7 @@ viewer_hours_1d/7d, avg_viewers_1d/7d, peak_viewers_1d/7d, live-count 기간 지
     - 1d/7d 기간 live count 후보도 category별 48/336 distinct bucket full coverage 전에는 public/API/UI metric으로 승격하지 않는다.
 - local/private observed 후보:
     - `temporal-summary.json` category entry는 `peak_channels_observed = MAX(live_count)`, `avg_channels_observed = AVG(live_count)` 를 담을 수 있다.
-    - `viewer_per_channel_observed = SUM(concurrent_sum) / SUM(live_count)` 는 category aggregate bucket 위의 observed ratio다.
+    - `viewer_per_channel_observed = SUM(concurrent_sum) / NULLIF(SUM(live_count), 0)` 는 category aggregate bucket 위의 observed ratio이며, unique channels가 아니라 observed `live_count` 기반이다.
     - `unique_channels` 는 `category-result.jsonl` 만으로 계산하지 않는다. full per-live `channelId` set이 없고 `top_channel_id` 는 충분하지 않다.
     - 반복 가능한 unique-channel 계산은 local/private `channel-result.jsonl` 을 사용한다. 이 slice에서 public/API/UI metric으로 승격하지 않는다.
     - 최소 그레인: `bucket_time`, `collected_at`, `chzzk_category_id`, `category_type`, `category_name`, `channel_id`, `concurrent_user_count` 를 가진 category-bucket-channel evidence row.

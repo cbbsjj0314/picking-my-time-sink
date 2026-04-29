@@ -171,7 +171,10 @@
     - `channelId`: 채널 식별자
     - `channelName`: 채널명
 - 파생 집계(카테고리 단위):
-    - observed sample metric: `viewer_hours_observed`, `avg_viewers_observed`, `peak_viewers_observed`, `live_count_observed_total`, optional `unique_channels_observed`
+    - observed sample metric: `viewer_hours_observed`, `avg_viewers_observed`,
+      `peak_viewers_observed`, `latest_viewers_observed`,
+      `live_count_observed_total`, `viewer_per_channel_observed`, optional
+      `unique_channels_observed`
     - top streamer evidence는 category bucket의 최대 concurrent channel candidate로만 유지한다.
 - 실패/주의:
     - 인증/쿼터/필드 안정성이 미확정이다.
@@ -188,6 +191,12 @@
     - `/chzzk/categories/overview` 의 `bounded_sample_caveat="bounded_sample"`
       는 bounded pagination/live-list completeness caveat이며 bucket coverage
       status가 아니다. Bucket coverage는 별도 `coverage_status` 로 표현한다.
+    - `/chzzk/categories/overview` 의 `latest_viewers_observed` 는 latest
+      observed bucket의 bounded sample snapshot이다. `latest_bucket_time` 은 그
+      snapshot 기준 bucket이고, `bucket_time_max` 는 aggregate window max bucket이다.
+    - `/chzzk/categories/overview` 의 `viewer_per_channel_observed` 는
+      `SUM(concurrent_sum) / NULLIF(SUM(live_count), 0)` 로 계산한 observed
+      live-count ratio이며 unique channel count가 아니다.
     - public fixture는 synthetic/sanitized payload만 둔다. live title, channel name, thumbnail URL 같은 raw UGC/provider response는 public에 그대로 남기지 않는다.
     - credentials, private runtime identifiers, local host/path detail은 public source docs, fixtures, API/UI semantics에 올리지 않는다.
 
