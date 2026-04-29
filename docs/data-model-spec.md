@@ -137,20 +137,16 @@
       overview API를 갖고 있다.
     - streaming 확장은 provider-specific probe/ingest와 category-level 30분 fact에서 시작한다.
     - 첫 후보는 Chzzk category live-list source다.
-    - `fact_chzzk_category_30m` DDL/parser candidate는 artifact-to-Postgres
-      runtime write path로 승격되었다. 첫 API surface는
-      `/chzzk/categories/overview` 이며, web source view는 아직 열지 않는다.
+    - `fact_chzzk_category_30m` DDL/parser candidate는 artifact-to-Postgres runtime write path로 승격되었다. 첫 API/web source surface는 `/chzzk/categories/overview` 기반 Chzzk category source view다.
     - fact runtime integration은 provider-specific category aggregate fact와
       observed category-channel fact에 한정한다. generalized streaming
       fact/table은 만들지 않는다.
     - canonical game 기준 serving shape는 provider raw/category 수집 이후의 downstream 단계다.
     - First Chzzk source view는 category evidence browser 후보로만 해석한다. `categoryType=GAME` 은 Chzzk category type evidence일 뿐 game semantics, Steam mapping, API/UI game column, Combined semantics로 확장하지 않는다.
 - 현재 repo 관찰:
-    - Chzzk live-list sanitized parser fixture, provider-specific parser/upsert,
-      Postgres DDL, category-result-to-gold loader, and channel-result-to-gold
-      loader가 있다.
+    - Chzzk live-list sanitized parser fixture, provider-specific parser/upsert, Postgres DDL, category-result-to-gold loader, channel-result-to-gold loader, and nullable unique-channel API/web exposure가 있다.
     - Chzzk local/private bounded probe wrapper/scheduler evidence는 product/runtime integration이 아니다. Chzzk scheduler write path와 UI wiring은 없다.
-    - Chzzk API serving은 `fact_chzzk_category_30m` 을 직접 읽는 category-only overview에 한정한다.
+    - Chzzk API serving은 `fact_chzzk_category_30m` 을 row-driving/window source로 읽는 category overview에 한정하며, optional `fact_chzzk_category_channel_30m` matching evidence에서 `unique_channels_observed` 만 nullable observed metric으로 더한다.
     - `src/twitch`, Twitch probe sample, Twitch DDL은 없다.
     - 현재 재사용 가능한 공통 경계는 `game_external_id` mapping과 `tracked_game.sources` provenance다.
 - 첫 provider-specific fact 후보:
@@ -180,6 +176,7 @@
     - local/private input에 channel display name이 있더라도 이 fact에는 저장하거나
       노출하지 않는다.
     - `unique_channels_observed = COUNT(DISTINCT channel_id)` 로 계산한다.
+    - API/web exposure는 category observed bucket set에 matching되는 channel fact row만 count한다. Channel-only category/bucket facts는 overview row를 만들거나 count를 늘리지 않는다. Optional channel fact relation 또는 matching evidence가 없으면 `unique_channels_observed` 는 null이다.
     - blank category 또는 category-fact-ineligible row는 channel artifact에 넣지 않고 summary skip evidence로만 남긴다.
     - 1d 후보 full coverage는 category별 distinct 30분 bucket 48개, 7d 후보 full coverage는 336개다.
 - 첫 API serving surface:
@@ -196,6 +193,7 @@
       `viewer_hours_observed`, `avg_viewers_observed`, `peak_viewers_observed`,
       `live_count_observed_total`, `avg_channels_observed`,
       `peak_channels_observed`, `viewer_per_channel_observed`,
+      `unique_channels_observed`,
       `full_1d_candidate_available`, `full_7d_candidate_available`,
       `missing_1d_bucket_count`, `missing_7d_bucket_count`, `coverage_status`,
       `bounded_sample_caveat`.
@@ -224,15 +222,14 @@
     - ingest는 local/private `category-result.jsonl` 의 strict category rows를
       category 30분 fact row로 적재한다. Raw provider page는 runtime DB loader의
       입력이 아니다.
-    - ingest/API serving이 하지 않는 것: `canonical_game_id` 확정, `game_external_id` 자동 매핑, `gold_stream_game_30m`, web UI, Combined/relationship metric 생성.
+    - ingest/API/web serving이 하지 않는 것: `canonical_game_id` 확정, `game_external_id` 자동 매핑, `gold_stream_game_30m`, Combined/relationship metric 생성.
 - real integration 후 남은 조건:
-    - web source view는 API serving 이후 별도 slice
     - longer temporal coverage와 runtime error behavior 확인
     - category-fact-ineligible live row skip/reporting contract 확정
     - quota behavior 확인
     - category-to-game mapping workflow를 별도 schema/code slice로 고정
 - 명시적 비범위:
-    - Twitch fallback, generalized provider abstraction, `gold_stream_game_30m`, streaming serving API, web dashboard streaming UI wiring, Combined/relationship KPI
+    - Twitch fallback, generalized provider abstraction, `gold_stream_game_30m`, broader streaming serving API, Combined/relationship KPI
 
 ### 4.3 Steam Price (1시간)
 

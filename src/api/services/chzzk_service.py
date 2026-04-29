@@ -11,8 +11,12 @@ from api.services.ccu_service import build_pg_conninfo_from_env, require_psycopg
 EXPECTED_BUCKETS_1D = 48
 EXPECTED_BUCKETS_7D = 336
 BOUNDED_SAMPLE_CAVEAT = "bounded_sample"
+CHANNEL_FACT_RELATION_EXISTS_SQL = (
+    "SELECT to_regclass('fact_chzzk_category_channel_30m') IS NOT NULL "
+    "AS relation_exists"
+)
 
-LIST_CATEGORY_OVERVIEW_SQL = """
+LIST_CATEGORY_OVERVIEW_CATEGORY_ONLY_SQL = """
 WITH category_aggregates AS (
     SELECT
         chzzk_category_id,
@@ -55,7 +59,8 @@ SELECT
     agg.live_count_observed_total,
     agg.avg_channels_observed,
     agg.peak_channels_observed,
-    agg.viewer_per_channel_observed
+    agg.viewer_per_channel_observed,
+    NULL::INTEGER AS unique_channels_observed
 FROM category_aggregates AS agg
 INNER JOIN latest_category_rows AS latest
     ON latest.chzzk_category_id = agg.chzzk_category_id
@@ -65,6 +70,81 @@ ORDER BY
     agg.chzzk_category_id ASC
 LIMIT %s
 """
+
+LIST_CATEGORY_OVERVIEW_WITH_CHANNELS_SQL = """
+WITH category_observed_buckets AS (
+    SELECT
+        chzzk_category_id,
+        bucket_time
+    FROM fact_chzzk_category_30m
+),
+category_aggregates AS (
+    SELECT
+        chzzk_category_id,
+        COUNT(DISTINCT bucket_time) AS observed_bucket_count,
+        MIN(bucket_time) AS bucket_time_min,
+        MAX(bucket_time) AS bucket_time_max,
+        SUM(concurrent_sum * 0.5) AS viewer_hours_observed,
+        AVG(concurrent_sum::DOUBLE PRECISION) AS avg_viewers_observed,
+        MAX(concurrent_sum) AS peak_viewers_observed,
+        SUM(live_count) AS live_count_observed_total,
+        AVG(live_count::DOUBLE PRECISION) AS avg_channels_observed,
+        MAX(live_count) AS peak_channels_observed,
+        SUM(concurrent_sum::DOUBLE PRECISION) / NULLIF(SUM(live_count), 0)
+            AS viewer_per_channel_observed
+    FROM fact_chzzk_category_30m
+    GROUP BY chzzk_category_id
+),
+latest_category_rows AS (
+    SELECT DISTINCT ON (chzzk_category_id)
+        chzzk_category_id,
+        category_name,
+        category_type,
+        bucket_time AS latest_bucket_time,
+        concurrent_sum AS latest_viewers_observed
+    FROM fact_chzzk_category_30m
+    ORDER BY chzzk_category_id, bucket_time DESC, collected_at DESC, ingested_at DESC
+),
+channel_aggregates AS (
+    SELECT
+        buckets.chzzk_category_id,
+        COUNT(DISTINCT channels.channel_id) AS unique_channels_observed
+    FROM category_observed_buckets AS buckets
+    INNER JOIN fact_chzzk_category_channel_30m AS channels
+        ON channels.chzzk_category_id = buckets.chzzk_category_id
+        AND channels.bucket_time = buckets.bucket_time
+    GROUP BY buckets.chzzk_category_id
+)
+SELECT
+    agg.chzzk_category_id,
+    latest.category_name,
+    latest.category_type,
+    latest.latest_bucket_time,
+    latest.latest_viewers_observed,
+    agg.observed_bucket_count,
+    agg.bucket_time_min,
+    agg.bucket_time_max,
+    agg.viewer_hours_observed,
+    agg.avg_viewers_observed,
+    agg.peak_viewers_observed,
+    agg.live_count_observed_total,
+    agg.avg_channels_observed,
+    agg.peak_channels_observed,
+    agg.viewer_per_channel_observed,
+    channel_aggregates.unique_channels_observed
+FROM category_aggregates AS agg
+INNER JOIN latest_category_rows AS latest
+    ON latest.chzzk_category_id = agg.chzzk_category_id
+LEFT JOIN channel_aggregates
+    ON channel_aggregates.chzzk_category_id = agg.chzzk_category_id
+ORDER BY
+    agg.viewer_hours_observed DESC,
+    agg.peak_viewers_observed DESC,
+    agg.chzzk_category_id ASC
+LIMIT %s
+"""
+
+LIST_CATEGORY_OVERVIEW_SQL = LIST_CATEGORY_OVERVIEW_WITH_CHANNELS_SQL
 
 
 def _finite_float(value: Any) -> float:
@@ -92,6 +172,12 @@ def _coverage_status(observed_bucket_count: int) -> str:
     return "partial_window"
 
 
+def _relation_exists(row: Any) -> bool:
+    if isinstance(row, Mapping):
+        return bool(row["relation_exists"])
+    return bool(row[0])
+
+
 def to_response_record(row: Mapping[str, Any]) -> dict[str, Any]:
     """Map one aggregate DB row to the public Chzzk category overview shape."""
 
@@ -114,6 +200,11 @@ def to_response_record(row: Mapping[str, Any]) -> dict[str, Any]:
         "viewer_per_channel_observed": _optional_float(
             row["viewer_per_channel_observed"]
         ),
+        "unique_channels_observed": (
+            int(row["unique_channels_observed"])
+            if row["unique_channels_observed"] is not None
+            else None
+        ),
         "full_1d_candidate_available": observed_bucket_count >= EXPECTED_BUCKETS_1D,
         "full_7d_candidate_available": observed_bucket_count >= EXPECTED_BUCKETS_7D,
         "missing_1d_bucket_count": max(0, EXPECTED_BUCKETS_1D - observed_bucket_count),
@@ -131,7 +222,14 @@ def list_category_overview(limit: int = 50) -> list[dict[str, Any]]:
 
     with psycopg.connect(conninfo=conninfo) as conn:
         with conn.cursor(row_factory=dict_row) as cursor:
-            cursor.execute(LIST_CATEGORY_OVERVIEW_SQL, (limit,))
+            cursor.execute(CHANNEL_FACT_RELATION_EXISTS_SQL)
+            channel_fact_exists = _relation_exists(cursor.fetchone())
+            sql = (
+                LIST_CATEGORY_OVERVIEW_WITH_CHANNELS_SQL
+                if channel_fact_exists
+                else LIST_CATEGORY_OVERVIEW_CATEGORY_ONLY_SQL
+            )
+            cursor.execute(sql, (limit,))
             rows = cursor.fetchall()
 
     return [to_response_record(row) for row in rows]

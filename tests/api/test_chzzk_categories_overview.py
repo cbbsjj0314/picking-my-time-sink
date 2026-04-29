@@ -36,6 +36,7 @@ def sample_response_record(**overrides: object) -> dict[str, object]:
         "avg_channels_observed": 2.5,
         "peak_channels_observed": 3,
         "viewer_per_channel_observed": 14.0,
+        "unique_channels_observed": None,
         "full_1d_candidate_available": False,
         "full_7d_candidate_available": False,
         "missing_1d_bucket_count": 46,
@@ -64,6 +65,7 @@ def sample_db_row(**overrides: object) -> dict[str, object]:
         "avg_channels_observed": "2.5",
         "peak_channels_observed": "3",
         "viewer_per_channel_observed": "14.0",
+        "unique_channels_observed": None,
     }
     row.update(overrides)
     return row
@@ -110,6 +112,7 @@ def test_list_chzzk_categories_overview_returns_rows_and_passes_limit(monkeypatc
             "avg_channels_observed": 2.5,
             "peak_channels_observed": 3,
             "viewer_per_channel_observed": 14.0,
+            "unique_channels_observed": None,
             "full_1d_candidate_available": False,
             "full_7d_candidate_available": False,
             "missing_1d_bucket_count": 46,
@@ -201,7 +204,6 @@ def test_response_omits_private_raw_and_mapping_fields(monkeypatch) -> None:
     forbidden_keys = {
         "canonical_game_id",
         "steam_appid",
-        "unique_channels_observed",
         "top_channel_id",
         "top_channel_name",
         "top_channel_concurrent",
@@ -213,18 +215,38 @@ def test_response_omits_private_raw_and_mapping_fields(monkeypatch) -> None:
         "local_path",
     }
     assert keys.isdisjoint(forbidden_keys)
+    assert "unique_channels_observed" in keys
 
 
-def test_service_sql_reads_chzzk_category_fact_only() -> None:
-    sql = chzzk_service.LIST_CATEGORY_OVERVIEW_SQL.lower()
+def test_service_category_only_sql_reads_chzzk_category_fact_only() -> None:
+    sql = chzzk_service.LIST_CATEGORY_OVERVIEW_CATEGORY_ONLY_SQL.lower()
 
     assert "from fact_chzzk_category_30m" in sql
+    assert "fact_chzzk_category_channel_30m" not in sql
     assert "srv_" not in sql
     assert "fact_steam" not in sql
     assert "game_external_id" not in sql
     assert "canonical_game_id" not in sql
     assert "combined" not in sql
-    assert "unique_channels" not in sql
+    assert "null::integer as unique_channels_observed" in sql
+    assert "top_channel" not in sql
+
+
+def test_service_channel_sql_counts_matching_category_observed_bucket_channels() -> None:
+    sql = chzzk_service.LIST_CATEGORY_OVERVIEW_SQL.lower()
+
+    assert "from fact_chzzk_category_30m" in sql
+    assert "category_observed_buckets as" in sql
+    assert "inner join fact_chzzk_category_channel_30m as channels" in sql
+    assert "channels.chzzk_category_id = buckets.chzzk_category_id" in sql
+    assert "channels.bucket_time = buckets.bucket_time" in sql
+    assert "count(distinct channels.channel_id) as unique_channels_observed" in sql
+    assert "left join channel_aggregates" in sql
+    assert "srv_" not in sql
+    assert "fact_steam" not in sql
+    assert "game_external_id" not in sql
+    assert "canonical_game_id" not in sql
+    assert "combined" not in sql
     assert "top_channel" not in sql
 
 
@@ -313,6 +335,48 @@ def test_viewer_per_channel_none_serializes_as_json_null(monkeypatch) -> None:
     assert response.json()[0]["viewer_per_channel_observed"] is None
 
 
+def test_unique_channels_observed_serializes_as_json_null_when_unavailable(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(
+        chzzk_service,
+        "list_category_overview",
+        lambda limit=50: [sample_response_record(unique_channels_observed=None)],
+    )
+
+    client = build_test_client()
+    response = client.get("/chzzk/categories/overview")
+
+    assert response.status_code == 200
+    assert response.json()[0]["unique_channels_observed"] is None
+
+
+def test_unique_channels_observed_serializes_number_when_available(monkeypatch) -> None:
+    monkeypatch.setattr(
+        chzzk_service,
+        "list_category_overview",
+        lambda limit=50: [sample_response_record(unique_channels_observed=3)],
+    )
+
+    client = build_test_client()
+    response = client.get("/chzzk/categories/overview")
+
+    assert response.status_code == 200
+    assert response.json()[0]["unique_channels_observed"] == 3
+
+
+def test_to_response_record_maps_unique_channels_observed() -> None:
+    unavailable = chzzk_service.to_response_record(
+        sample_db_row(unique_channels_observed=None)
+    )
+    available = chzzk_service.to_response_record(
+        sample_db_row(unique_channels_observed="3")
+    )
+
+    assert unavailable["unique_channels_observed"] is None
+    assert available["unique_channels_observed"] == 3
+
+
 def test_list_category_overview_executes_read_only_aggregate_query(monkeypatch) -> None:
     captured: dict[str, object] = {}
     dict_row_sentinel = object()
@@ -326,9 +390,11 @@ def test_list_category_overview_executes_read_only_aggregate_query(monkeypatch) 
             del exc_type, exc, tb
             return False
 
-        def execute(self, sql: str, params: tuple[int]) -> None:
-            captured["sql"] = sql
-            captured["params"] = params
+        def execute(self, sql: str, params: tuple[int] | None = None) -> None:
+            captured.setdefault("execute_calls", []).append((sql, params))
+
+        def fetchone(self) -> dict[str, object]:
+            return {"relation_exists": True}
 
         def fetchall(self) -> list[dict[str, object]]:
             return rows
@@ -362,6 +428,68 @@ def test_list_category_overview_executes_read_only_aggregate_query(monkeypatch) 
 
     assert captured["conninfo"] == "fake"
     assert captured["row_factory"] is dict_row_sentinel
-    assert captured["sql"] == chzzk_service.LIST_CATEGORY_OVERVIEW_SQL
-    assert captured["params"] == (10,)
+    assert captured["execute_calls"] == [
+        (chzzk_service.CHANNEL_FACT_RELATION_EXISTS_SQL, None),
+        (chzzk_service.LIST_CATEGORY_OVERVIEW_WITH_CHANNELS_SQL, (10,)),
+    ]
     assert result == [sample_response_record()]
+
+
+def test_list_category_overview_degrades_to_null_when_channel_relation_missing(
+    monkeypatch,
+) -> None:
+    captured: dict[str, object] = {}
+    dict_row_sentinel = object()
+    rows = [sample_db_row(unique_channels_observed=None)]
+
+    class FakeCursor:
+        def __enter__(self) -> FakeCursor:
+            return self
+
+        def __exit__(self, exc_type, exc, tb) -> bool:
+            del exc_type, exc, tb
+            return False
+
+        def execute(self, sql: str, params: tuple[int] | None = None) -> None:
+            captured.setdefault("execute_calls", []).append((sql, params))
+
+        def fetchone(self) -> dict[str, object]:
+            return {"relation_exists": False}
+
+        def fetchall(self) -> list[dict[str, object]]:
+            return rows
+
+    class FakeConnection:
+        def __enter__(self) -> FakeConnection:
+            return self
+
+        def __exit__(self, exc_type, exc, tb) -> bool:
+            del exc_type, exc, tb
+            return False
+
+        def cursor(self, row_factory=None) -> FakeCursor:
+            captured["row_factory"] = row_factory
+            return FakeCursor()
+
+    class FakePsycopg:
+        @staticmethod
+        def connect(*, conninfo: str) -> FakeConnection:
+            captured["conninfo"] = conninfo
+            return FakeConnection()
+
+    monkeypatch.setattr(
+        chzzk_service,
+        "require_psycopg",
+        lambda: (FakePsycopg, dict_row_sentinel),
+    )
+    monkeypatch.setattr(chzzk_service, "build_pg_conninfo_from_env", lambda: "fake")
+
+    client = build_test_client()
+    response = client.get("/chzzk/categories/overview", params={"limit": 10})
+
+    assert captured["execute_calls"] == [
+        (chzzk_service.CHANNEL_FACT_RELATION_EXISTS_SQL, None),
+        (chzzk_service.LIST_CATEGORY_OVERVIEW_CATEGORY_ONLY_SQL, (10,)),
+    ]
+    assert response.status_code == 200
+    assert response.json()[0]["unique_channels_observed"] is None
