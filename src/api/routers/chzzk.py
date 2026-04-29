@@ -32,6 +32,7 @@ class ChzzkCategoryOverviewResponse(BaseModel):
     avg_channels_observed: float
     peak_channels_observed: int
     viewer_per_channel_observed: float | None
+    unique_channels_observed: int | None
     full_1d_candidate_available: bool
     full_7d_candidate_available: bool
     missing_1d_bucket_count: int

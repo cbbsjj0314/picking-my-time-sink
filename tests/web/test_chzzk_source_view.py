@@ -16,6 +16,7 @@ def test_chzzk_api_client_reads_category_overview() -> None:
     assert "latest_bucket_time: string" in source
     assert "latest_viewers_observed: number" in source
     assert "viewer_per_channel_observed: number | null" in source
+    assert "unique_channels_observed: number | null" in source
     assert "function listCategoryOverview" in source
     assert "withQuery('/chzzk/categories/overview', { limit: options.limit ?? 50 })" in source
 
@@ -27,6 +28,8 @@ def test_chzzk_view_model_maps_new_api_fields_directly() -> None:
     assert "latestViewersTitle: formatKstDateTime(row.latest_bucket_time)" in source
     assert "viewersPerChannelLabel: formatDecimal(row.viewer_per_channel_observed)" in source
     assert "viewersPerChannel: finiteNumberOrNull(row.viewer_per_channel_observed)" in source
+    assert "uniqueChannelsLabel: formatOptionalInteger(row.unique_channels_observed)" in source
+    assert "uniqueChannels: finiteNumberOrNull(row.unique_channels_observed)" in source
     assert "viewer_hours_observed / 0.5" not in source
     assert "viewer_hours_observed /" not in source
     assert "/ 0.5" not in source
@@ -43,7 +46,9 @@ def test_chzzk_source_view_is_connected_without_steam_or_combined_semantics() ->
     assert "chzzkApi.listCategoryOverview({ limit, signal: controller.signal })" in hook_source
     assert "Combined" not in table_source
     assert "Steam game mapping" not in table_source
-    assert "Unique Channels" not in table_source
+    assert "Unique Channels" in table_source
+    assert "channel_id" not in table_source
+    assert "channel_name" not in table_source
 
 
 def test_chzzk_table_uses_observed_sample_context_without_period_label() -> None:

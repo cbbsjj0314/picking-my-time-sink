@@ -24,6 +24,7 @@ export type ChzzkCategoryOverview = {
   avg_channels_observed: number
   peak_channels_observed: number
   viewer_per_channel_observed: number | null
+  unique_channels_observed: number | null
   full_1d_candidate_available: boolean
   full_7d_candidate_available: boolean
   missing_1d_bucket_count: number

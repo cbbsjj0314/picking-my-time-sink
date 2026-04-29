@@ -9,6 +9,7 @@ export const chzzkCategorySortKeys = [
   'avgChannels',
   'peakChannels',
   'viewersPerChannel',
+  'uniqueChannels',
 ] as const
 
 export type ChzzkCategorySortKey = (typeof chzzkCategorySortKeys)[number]
@@ -37,6 +38,8 @@ export interface ChzzkCategoryTableRow {
   peakChannelsTitle: string
   viewersPerChannelLabel: string
   viewersPerChannelTitle: string
+  uniqueChannelsLabel: string
+  uniqueChannelsTitle: string
   coverageLabel: string
   boundedSampleLabel: string | null
   boundedSampleTitle: string | null
@@ -132,6 +135,7 @@ const buildSortValues = (row: ChzzkCategoryOverview): ChzzkCategorySortValueMap 
   avgChannels: finiteNumberOrNull(row.avg_channels_observed),
   peakChannels: finiteNumberOrNull(row.peak_channels_observed),
   viewersPerChannel: finiteNumberOrNull(row.viewer_per_channel_observed),
+  uniqueChannels: finiteNumberOrNull(row.unique_channels_observed),
 })
 
 const buildChzzkCategoryTableRow = (row: ChzzkCategoryOverview): ChzzkCategoryTableRow => ({
@@ -149,6 +153,8 @@ const buildChzzkCategoryTableRow = (row: ChzzkCategoryOverview): ChzzkCategoryTa
   peakChannelsTitle: 'Maximum observed bucket live_count; not unique channels.',
   viewersPerChannelLabel: formatDecimal(row.viewer_per_channel_observed),
   viewersPerChannelTitle: 'API field viewer_per_channel_observed; observed live_count ratio.',
+  uniqueChannelsLabel: formatOptionalInteger(row.unique_channels_observed),
+  uniqueChannelsTitle: 'Distinct observed channel_id count from matching category-channel buckets.',
   coverageLabel: formatCoverageLabel(row),
   boundedSampleLabel: getBoundedSampleLabel(row),
   boundedSampleTitle: getBoundedSampleTitle(row),
@@ -166,6 +172,7 @@ const DEFAULT_SORT_DIRECTION_BY_KEY: Record<ChzzkCategorySortKey, ChzzkCategoryS
   avgChannels: 'desc',
   peakChannels: 'desc',
   viewersPerChannel: 'desc',
+  uniqueChannels: 'desc',
 }
 
 const compareNullableNumbers = (left: number | null, right: number | null, direction: ChzzkCategorySortDirection) => {

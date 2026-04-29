@@ -47,6 +47,7 @@ const tableColumns = [
   { key: 'avgChannels', label: 'Avg Channels' },
   { key: 'peakChannels', label: 'Peak Channels' },
   { key: 'viewersPerChannel', label: 'Viewers / Channel' },
+  { key: 'uniqueChannels', label: 'Unique Channels' },
 ] as const satisfies ReadonlyArray<{ key: ChzzkCategorySortKey; label: string }>
 
 const getAriaSort = (columnKey: ChzzkCategorySortKey, sortState: ChzzkCategorySortState) => {
@@ -141,7 +142,7 @@ export function ChzzkCategoryTable({
               : 'No Chzzk category rows are available.'}
           </div>
         ) : (
-          <table className="min-w-[1080px] w-full border-collapse bg-[rgba(255,249,239,0.34)] text-left">
+          <table className="min-w-[1200px] w-full border-collapse bg-[rgba(255,249,239,0.34)] text-left">
             <thead>
               <tr className="border-b border-[var(--ghost-border)] text-xs uppercase tracking-[0.08em] text-[var(--text-muted)]">
                 {tableColumns.map((column) => (
@@ -181,6 +182,7 @@ export function ChzzkCategoryTable({
                   <CategoryMetricCell title={row.avgChannelsTitle} value={row.avgChannelsLabel} />
                   <CategoryMetricCell title={row.peakChannelsTitle} value={row.peakChannelsLabel} />
                   <CategoryMetricCell title={row.viewersPerChannelTitle} value={row.viewersPerChannelLabel} />
+                  <CategoryMetricCell title={row.uniqueChannelsTitle} value={row.uniqueChannelsLabel} />
                 </tr>
               ))}
             </tbody>
