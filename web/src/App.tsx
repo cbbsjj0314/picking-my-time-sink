@@ -1,4 +1,5 @@
 import { startTransition, useDeferredValue, useEffect, useState } from 'react'
+import { ChzzkCategoryTable } from './components/ChzzkCategoryTable'
 import { PendingSourcePanel } from './components/PendingSourcePanel'
 import { SourceTabsRow } from './components/SourceTabsRow'
 import { SteamDiscoverModeRow } from './components/SteamDiscoverModeRow'
@@ -6,6 +7,7 @@ import { SteamDetailPanel } from './components/SteamDetailPanel'
 import { SteamExploreTable } from './components/SteamExploreTable'
 import { SteamRankingList } from './components/SteamRankingList'
 import { StickyShell } from './components/StickyShell'
+import { useChzzkCategoryOverview } from './hooks/useChzzkCategoryOverview'
 import { useSteamExploreOverview } from './hooks/useSteamExploreOverview'
 import { useSteamOverview } from './hooks/useSteamOverview'
 import type { RangeOption, SourceTab, SteamChartRange, SteamDiscoverMode } from './types'
@@ -56,6 +58,17 @@ function App() {
     requestSort: requestSteamExploreSort,
   } = useSteamExploreOverview({
     enabled: steamDiscoverMode === 'Explore' && sourceTab === 'Steam',
+    searchQuery: deferredSearch,
+  })
+  const {
+    rows: chzzkCategoryRows,
+    totalRowCount: chzzkCategoryTotalRowCount,
+    loading: chzzkCategoryLoading,
+    error: chzzkCategoryError,
+    sortState: chzzkCategorySortState,
+    requestSort: requestChzzkCategorySort,
+  } = useChzzkCategoryOverview({
+    enabled: sourceTab === 'Chzzk',
     searchQuery: deferredSearch,
   })
   const activeGames = steamGames
@@ -174,6 +187,16 @@ function App() {
               />
             </>
           )
+        ) : sourceTab === 'Chzzk' ? (
+          <ChzzkCategoryTable
+            error={chzzkCategoryError}
+            loading={chzzkCategoryLoading}
+            onSortChange={requestChzzkCategorySort}
+            rows={chzzkCategoryRows}
+            searchQuery={deferredSearch}
+            sortState={chzzkCategorySortState}
+            totalRowCount={chzzkCategoryTotalRowCount}
+          />
         ) : (
           <PendingSourcePanel sourceTab={sourceTab} />
         )}
