@@ -294,16 +294,18 @@
 
 ## 4. 스트리밍 요약(화제인가) — Chzzk category evidence browser 기준
 
-현재 repo runtime에는 Chzzk streaming metric scheduler/UI 구현이 없다. Chzzk live-list sanitized fixture, category parser/upsert, `fact_chzzk_category_30m` DDL, category-result artifact-to-Postgres write path, and read-only category overview API가 있다. 이 장은 첫 Chzzk source view를 category-only evidence browser로 시작하기 위한 metric 의미를 고정한다.
+현재 repo runtime에는 Chzzk streaming metric scheduler/UI 구현이 없다. Chzzk live-list sanitized fixture, category parser/upsert, `fact_chzzk_category_30m` DDL, category-result artifact-to-Postgres write path, `fact_chzzk_category_channel_30m` observed channel fact DDL/write path, and read-only category overview API가 있다. 이 장은 첫 Chzzk source view를 category-only evidence browser로 시작하기 위한 metric 의미를 고정한다.
 
 - 첫 후보: Chzzk category live-list source.
 - metric grain 후보: `(chzzk_category_id, bucket_time)` category-level 30분 KST bucket.
 - source boundary: Chzzk live/category payload에서 category type/id/name, live concurrent, channel id/name만 읽는다.
 - sample payload/fixture: public에는 sanitized representative payload만 둔다.
 - 해석 boundary: category evidence browser로만 본다. `categoryType=GAME` 이 있어도 canonical game semantics, Steam mapping, Combined semantics로 확장하지 않는다.
-- DB write boundary: local/private `category-result.jsonl` 의 strict category rows만
-  `fact_chzzk_category_30m` 에 upsert한다. Inserted vs updated rows는
-  `ON CONFLICT` upsert 특성상 loader summary에서 구분하지 않는다.
+- DB write boundary: local/private `category-result.jsonl` 의 strict category rows는
+  `fact_chzzk_category_30m` 에 upsert하고, local/private `channel-result.jsonl`
+  의 observed category-channel rows는 `fact_chzzk_category_channel_30m` 에
+  upsert한다. Inserted vs updated rows는 `ON CONFLICT` upsert 특성상 loader
+  summary에서 구분하지 않는다.
 - 제외: canonical game mapping, Twitch fallback, provider abstraction, web dashboard streaming UI wiring, Combined/relationship KPI.
 - access status: official docs 기준 `/open/v1/lives` 는 Client 인증이 필요하다. quota behavior와 runtime error behavior는 아직 public contract가 아니다.
 
@@ -348,7 +350,7 @@ First Chzzk source view는 category-only evidence browser다. 아래 metric은 s
 | `latest_viewers_observed` | `category-result.jsonl` / `fact_chzzk_category_30m` | category at latest observed bucket | latest deterministic fact row의 `concurrent_sum` | viewers | category row가 없으면 absent | latest row by `bucket_time DESC, collected_at DESC, ingested_at DESC` | no; bounded latest observed bucket only |
 | `live_count_observed_total` | `category-result.jsonl` via local temporal summary | category over observed buckets | `SUM(live_count)` | live rows/channels in bounded sample | no successful comparable category bucket이면 null/absent | successful comparable category-result rows only | no; 48/336 buckets required |
 | `viewer_per_channel_observed` | `category-result.jsonl` / `fact_chzzk_category_30m` | category over observed buckets | `SUM(concurrent_sum) / NULLIF(SUM(live_count), 0)` | viewers per observed live row | denominator 0 or non-finite output이면 null | successful comparable category-result rows only | no; not unique channels |
-| `unique_channels_observed` | `channel-result.jsonl` via local temporal summary | category over observed buckets | `COUNT(DISTINCT channel_id)` | channels | channel-result evidence가 없으면 absent | successful comparable channel-result rows only | no; 48/336 buckets plus channel evidence required |
+| `unique_channels_observed` | `fact_chzzk_category_channel_30m` where available | category over observed buckets | `COUNT(DISTINCT channel_id)` | channels | channel fact evidence가 없으면 absent | successful comparable observed channel fact rows only | no; 48/336 buckets plus channel evidence required |
 
 viewer_hours_1d/7d, avg_viewers_1d/7d, peak_viewers_1d/7d, live-count 기간 지표 및 각 delta는 필요한 category bucket coverage가 런타임/서빙 slice에서 입증되고 API/UI 네이밍이 정리되기 전까지 계속 비노출 상태로 둔다.
 
@@ -427,11 +429,15 @@ viewer_hours_1d/7d, avg_viewers_1d/7d, peak_viewers_1d/7d, live-count 기간 지
     - `temporal-summary.json` category entry는 `peak_channels_observed = MAX(live_count)`, `avg_channels_observed = AVG(live_count)` 를 담을 수 있다.
     - `viewer_per_channel_observed = SUM(concurrent_sum) / NULLIF(SUM(live_count), 0)` 는 category aggregate bucket 위의 observed ratio이며, unique channels가 아니라 observed `live_count` 기반이다.
     - `unique_channels` 는 `category-result.jsonl` 만으로 계산하지 않는다. full per-live `channelId` set이 없고 `top_channel_id` 는 충분하지 않다.
-    - 반복 가능한 unique-channel 계산은 local/private `channel-result.jsonl` 을 사용한다. 이 slice에서 public/API/UI metric으로 승격하지 않는다.
-    - 최소 그레인: `bucket_time`, `collected_at`, `chzzk_category_id`, `category_type`, `category_name`, `channel_id`, `concurrent_user_count` 를 가진 category-bucket-channel evidence row.
+    - 반복 가능한 unique-channel 계산은 persisted observed channel fact인
+      `fact_chzzk_category_channel_30m` 을 사용한다. 이 slice에서 public/API/UI
+      metric으로 승격하지 않는다.
+    - 최소 그레인: `(chzzk_category_id, bucket_time, channel_id)` category-bucket-channel evidence row.
     - Formula: `unique_channels_observed = COUNT(DISTINCT channel_id)`.
+    - local/private input에 channel display name이 있더라도 persisted fact, summary,
+      API, web surface에는 저장하거나 노출하지 않는다.
     - Blank category / category-fact-ineligible row는 channel artifact에 넣지 않고 summary skip evidence로만 남긴다.
-    - `channel-result.jsonl` 이 없으면 `unique_channels_observed` 는 absent로 둔다. raw page를 다시 읽어 public contract를 만들지 않는다.
+    - observed channel fact evidence가 없으면 `unique_channels_observed` 는 absent로 둔다. raw page를 다시 읽어 public contract를 만들지 않는다.
 
 ### 4.4 Peak viewers
 

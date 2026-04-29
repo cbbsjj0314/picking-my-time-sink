@@ -124,10 +124,13 @@ Local monitoring은 더 엄격한 thresholds, exact scheduler windows, host-spec
 | Explore overview table | `srv_game_explore_period_metrics` | active `tracked_game`, latest CCU, price, reviews, period facts/rollups | `ccu-30m`, `price-1h`, `daily` |
 | Tracked universe | `tracked_game`, `game_external_id`, `dim_game` | Steam ranking payloads, optional completed App Catalog evidence | `daily`, optional `app-catalog-weekly` |
 | Chzzk category overview API | direct API service aggregate over `fact_chzzk_category_30m` | `fact_chzzk_category_30m` category observed buckets | local/private `category-result.jsonl` to gold loader |
+| Chzzk observed channel fact | no public serving surface in this slice | `fact_chzzk_category_channel_30m` category-channel observed buckets | local/private `channel-result.jsonl` to gold loader |
 
 Chzzk `fact_chzzk_category_30m` 은 provider-specific DDL/parser candidate에서
 local/private `category-result.jsonl` artifact-to-Postgres write path와 read-only
-category overview API로 승격되었다.
+category overview API로 승격되었다. Chzzk `fact_chzzk_category_channel_30m` 은
+local/private `channel-result.jsonl` artifact-to-Postgres write path로 승격되었고,
+API/UI serving은 아직 열지 않는다.
 아직 live fetch write boundary, UI, canonical game mapping lineage가 없다.
 
 Chzzk bounded pagination/temporal raw captures는 local/private로 유지한다.
@@ -138,12 +141,14 @@ Local/private Chzzk temporal probe summaries에는 반복 비교를 위한 sanit
 예시는 `run_status`, `result_status`, `failure.kind`, `failure.http_status_code`, `pagination.bounded_page_cutoff`, `pagination.last_page_next_present`, `skip_counts`, `coverage.status` 다.
 이 fields는 skip/pagination/failure/coverage caveats를 설명하지만 raw payloads, UGC-heavy evidence, public API/UI semantics를 승격하지 않는다.
 
-Chzzk category-result-to-gold loader summary는 local/private operator evidence다.
+Chzzk category-result-to-gold 및 channel-result-to-gold loader summary는 local/private 운영자용 근거 자료다.
 Summary는 input/valid/skipped/upsert-attempt/committed/failed row counts, skip reason
 counts, bucket min/max, unique category count, and sanitized failure reason만 담는다.
 `ON CONFLICT` upsert 때문에 inserted row와 updated row는 구분하지 않는다.
 Summary에는 raw row contents, actual category/channel names, live title, thumbnail,
 raw provider payload, credentials, or DB environment details를 넣지 않는다.
+Channel-result input에 channel display name이 있더라도 persisted fact와 summary에는
+저장하거나 노출하지 않는다.
 
 첫 Chzzk source-view semantics는 category-only category evidence browser semantics다.
 `categoryType=GAME` 은 Chzzk category evidence이지 Steam game mapping이 아니다.
