@@ -131,19 +131,24 @@
 - 문서 기준:
     - 현재 MVP serving runtime은 Steam 중심 baseline에 Chzzk category-only source
       API serving을 더한 상태다. Chzzk는 category-result artifact를
-      `fact_chzzk_category_30m` 에 적재하는 provider-specific fact write path와
-      이를 읽는 read-only category overview API만 갖고 있다.
+      `fact_chzzk_category_30m` 에 적재하는 provider-specific fact write path,
+      channel-result artifact를 `fact_chzzk_category_channel_30m` 에 적재하는
+      provider-specific observed channel fact write path, and read-only category
+      overview API를 갖고 있다.
     - streaming 확장은 provider-specific probe/ingest와 category-level 30분 fact에서 시작한다.
     - 첫 후보는 Chzzk category live-list source다.
     - `fact_chzzk_category_30m` DDL/parser candidate는 artifact-to-Postgres
       runtime write path로 승격되었다. 첫 API surface는
       `/chzzk/categories/overview` 이며, web source view는 아직 열지 않는다.
-    - 첫 fact runtime integration은 `fact_chzzk_category_30m` 이다. generalized streaming fact/table은 만들지 않는다.
+    - fact runtime integration은 provider-specific category aggregate fact와
+      observed category-channel fact에 한정한다. generalized streaming
+      fact/table은 만들지 않는다.
     - canonical game 기준 serving shape는 provider raw/category 수집 이후의 downstream 단계다.
     - First Chzzk source view는 category evidence browser 후보로만 해석한다. `categoryType=GAME` 은 Chzzk category type evidence일 뿐 game semantics, Steam mapping, API/UI game column, Combined semantics로 확장하지 않는다.
 - 현재 repo 관찰:
     - Chzzk live-list sanitized parser fixture, provider-specific parser/upsert,
-      Postgres DDL, and category-result-to-gold loader가 있다.
+      Postgres DDL, category-result-to-gold loader, and channel-result-to-gold
+      loader가 있다.
     - Chzzk local/private bounded probe wrapper/scheduler evidence는 product/runtime integration이 아니다. Chzzk scheduler write path와 UI wiring은 없다.
     - Chzzk API serving은 `fact_chzzk_category_30m` 을 직접 읽는 category-only overview에 한정한다.
     - `src/twitch`, Twitch probe sample, Twitch DDL은 없다.
@@ -163,7 +168,17 @@
     - `peak_channels_observed`, `avg_channels_observed`, `viewer_per_channel_observed` 는 comparable category aggregate bucket에서만 observed 값으로 계산한다.
     - `viewer_per_channel_observed = SUM(concurrent_sum) / NULLIF(SUM(live_count), 0)` 이며 unique channel metric이 아니라 observed `live_count` 기반 ratio다. denominator 0 또는 non-finite serving output은 null이다.
     - `unique_channels` 는 `category-result.jsonl` 만으로 계산하지 않는다. full per-live `channelId` set이 없고 `top_channel_id` 는 충분하지 않다.
-    - `unique_channels_observed` 가 필요하면 local/private `channel-result.jsonl` 을 별도로 사용한다. 최소 필드는 `bucket_time`, `collected_at`, `chzzk_category_id`, `category_type`, `category_name`, `channel_id`, `concurrent_user_count` 이다.
+    - `unique_channels_observed` 는 persisted observed channel fact가 있으면
+      `fact_chzzk_category_channel_30m` 에서 계산한다.
+    - table: `fact_chzzk_category_channel_30m`
+    - 그레인/PK: `(chzzk_category_id, bucket_time, channel_id)`
+    - source boundary: local/private derived `channel-result.jsonl` 의
+      category-bucket-channel evidence row를 정규화한다.
+    - DDL 후보: `sql/postgres/016_fact_chzzk_category_channel_30m.sql`
+    - 컬럼 후보: `chzzk_category_id`, `bucket_time`, `channel_id`,
+      `category_type`, `category_name`, `concurrent_user_count`, `collected_at`
+    - local/private input에 channel display name이 있더라도 이 fact에는 저장하거나
+      노출하지 않는다.
     - `unique_channels_observed = COUNT(DISTINCT channel_id)` 로 계산한다.
     - blank category 또는 category-fact-ineligible row는 channel artifact에 넣지 않고 summary skip evidence로만 남긴다.
     - 1d 후보 full coverage는 category별 distinct 30분 bucket 48개, 7d 후보 full coverage는 336개다.
