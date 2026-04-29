@@ -158,9 +158,10 @@
       `GAME`, `SPORTS`, `ENTERTAINMENT`, `ETC` 로 제한한다.
     - 같은 `(chzzk_category_id, bucket_time)` 재실행은 `ON CONFLICT` upsert로 row를 대체한다. Loader summary는 insert/update를 구분하지 않고 valid row, upsert attempt, committed row count만 기록한다. raw/probe payload와 execution metadata는 local/private에 따로 보존한다.
     - bucket-level `concurrent_sum`, `live_count`, `top_channel_*` 는 category-fact-eligible live row만 사용한다.
-    - First source-view metric 후보는 observed sample value만 public/product 의미로 고정한다. `viewer_hours_observed = SUM(concurrent_sum * 0.5)`, `avg_viewers_observed = AVG(concurrent_sum)`, `peak_viewers_observed = MAX(concurrent_sum)`, `live_count_observed_total = SUM(live_count)` 이다.
+    - First source-view metric 후보는 observed sample value만 public/product 의미로 고정한다. `viewer_hours_observed = SUM(concurrent_sum * 0.5)`, `avg_viewers_observed = AVG(concurrent_sum)`, `peak_viewers_observed = MAX(concurrent_sum)`, `latest_viewers_observed = latest deterministic category row의 concurrent_sum`, `live_count_observed_total = SUM(live_count)` 이다.
     - 위 observed sample metric은 successful comparable category result bucket 위에서만 계산하며, full 1d/7d metric이나 strict sort key를 대체하지 않는다.
-    - `peak_channels_observed`, `avg_channels_observed`, `viewer_per_channel_observed` 는 comparable category aggregate bucket에서만 local/private observed 값으로 계산한다.
+    - `peak_channels_observed`, `avg_channels_observed`, `viewer_per_channel_observed` 는 comparable category aggregate bucket에서만 observed 값으로 계산한다.
+    - `viewer_per_channel_observed = SUM(concurrent_sum) / NULLIF(SUM(live_count), 0)` 이며 unique channel metric이 아니라 observed `live_count` 기반 ratio다. denominator 0 또는 non-finite serving output은 null이다.
     - `unique_channels` 는 `category-result.jsonl` 만으로 계산하지 않는다. full per-live `channelId` set이 없고 `top_channel_id` 는 충분하지 않다.
     - `unique_channels_observed` 가 필요하면 local/private `channel-result.jsonl` 을 별도로 사용한다. 최소 필드는 `bucket_time`, `collected_at`, `chzzk_category_id`, `category_type`, `category_name`, `channel_id`, `concurrent_user_count` 이다.
     - `unique_channels_observed = COUNT(DISTINCT channel_id)` 로 계산한다.
@@ -169,15 +170,26 @@
 - 첫 API serving surface:
     - endpoint: `/chzzk/categories/overview`
     - read model: SQL serving view를 추가하지 않고 `fact_chzzk_category_30m` 을 직접 aggregate한다.
-    - category metadata rule: `category_name` / `category_type` 은 같은
-      `chzzk_category_id` 의 latest `bucket_time` row 기준으로 deterministic하게 선택한다.
+    - category metadata/latest row rule: `category_name`, `category_type`,
+      `latest_bucket_time`, `latest_viewers_observed` 는 같은
+      `chzzk_category_id` 의 latest fact row 기준으로 deterministic하게 선택한다.
+      Latest row ordering은 `bucket_time DESC, collected_at DESC, ingested_at DESC`
+      이다.
     - response fields: `chzzk_category_id`, `category_name`, `category_type`,
-      `observed_bucket_count`, `bucket_time_min`, `bucket_time_max`,
+      `latest_bucket_time`, `latest_viewers_observed`, `observed_bucket_count`,
+      `bucket_time_min`, `bucket_time_max`,
       `viewer_hours_observed`, `avg_viewers_observed`, `peak_viewers_observed`,
       `live_count_observed_total`, `avg_channels_observed`,
-      `peak_channels_observed`, `full_1d_candidate_available`,
-      `full_7d_candidate_available`, `missing_1d_bucket_count`,
-      `missing_7d_bucket_count`, `coverage_status`, `bounded_sample_caveat`.
+      `peak_channels_observed`, `viewer_per_channel_observed`,
+      `full_1d_candidate_available`, `full_7d_candidate_available`,
+      `missing_1d_bucket_count`, `missing_7d_bucket_count`, `coverage_status`,
+      `bounded_sample_caveat`.
+    - `bucket_time_max` 는 observed aggregate window의 max bucket이고,
+      `latest_bucket_time` 은 `latest_viewers_observed` 의 기준 bucket이다. 현재
+      API에서는 같은 값일 수 있지만 의미는 분리한다.
+    - `latest_viewers_observed` 는 full live-list current population이 아니라 bounded
+      latest observed bucket snapshot이다. 실시간 전체 current 값으로 오해될 수 있어
+      `current_viewers_observed` 이름은 쓰지 않는다.
     - `bounded_sample_caveat` 는 string `"bounded_sample"` 로 고정하며, bounded
       pagination/live-list completeness caveat다. 이 값은 bucket coverage 상태가
       아니며 full live-list population 또는 pagination exhaustion을 claim하지 않는다는

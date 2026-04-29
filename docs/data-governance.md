@@ -147,7 +147,7 @@ raw provider payload, credentials, or DB environment details를 넣지 않는다
 
 첫 Chzzk source-view semantics는 category-only category evidence browser semantics다.
 `categoryType=GAME` 은 Chzzk category evidence이지 Steam game mapping이 아니다.
-`viewer_hours_observed`, `avg_viewers_observed`, `peak_viewers_observed`, `live_count_observed_total`, optional `unique_channels_observed` 같은 observed sample metrics는 category/channel result artifacts에서 정의할 수 있다.
+`viewer_hours_observed`, `avg_viewers_observed`, `peak_viewers_observed`, `latest_viewers_observed`, `live_count_observed_total`, `viewer_per_channel_observed`, optional `unique_channels_observed` 같은 observed sample metrics는 category/channel result artifacts에서 정의할 수 있다.
 다만 observed naming 또는 동등한 caveat를 유지해야 하며, strict/full 1d 또는 7d metrics를 대체하지 않는다.
 
 Full Chzzk 1d/7d source-view metrics에는 category별 distinct KST half-hour bucket coverage가 각각 48/336 buckets 필요하다.
@@ -159,6 +159,12 @@ Chzzk `/chzzk/categories/overview` 는 `fact_chzzk_category_30m` 만 읽는
 category-only API surface다. `bounded_sample_caveat="bounded_sample"` 은 bounded
 pagination/live-list completeness caveat이며 bucket coverage 상태가 아니다.
 Per-category bucket coverage 상태는 별도 `coverage_status` 로 표현한다.
+`latest_viewers_observed` 는 latest observed bucket의 bounded sample snapshot이며,
+`current_viewers_observed` 처럼 full live-list current population으로 읽힐 수 있는
+이름은 쓰지 않는다. `latest_bucket_time` 은 그 latest snapshot의 기준 bucket이고,
+`bucket_time_max` 는 observed aggregate window의 max bucket이다.
+`viewer_per_channel_observed` 는 observed `live_count` 기반 ratio이며 unique channel
+count가 아니다.
 
 새 chart 또는 API surface를 추가하면 implementation 전 또는 같은 slice 안에서 lineage row를 최소 1개 추가한다.
 

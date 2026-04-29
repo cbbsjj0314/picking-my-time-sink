@@ -20,6 +20,8 @@ class ChzzkCategoryOverviewResponse(BaseModel):
     chzzk_category_id: str
     category_name: str
     category_type: str
+    latest_bucket_time: dt.datetime
+    latest_viewers_observed: int
     observed_bucket_count: int
     bucket_time_min: dt.datetime
     bucket_time_max: dt.datetime
@@ -29,6 +31,7 @@ class ChzzkCategoryOverviewResponse(BaseModel):
     live_count_observed_total: int
     avg_channels_observed: float
     peak_channels_observed: int
+    viewer_per_channel_observed: float | None
     full_1d_candidate_available: bool
     full_7d_candidate_available: bool
     missing_1d_bucket_count: int
