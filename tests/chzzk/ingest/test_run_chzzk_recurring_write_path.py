@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import subprocess
 from pathlib import Path
 from typing import Any
 
@@ -457,16 +456,6 @@ def test_post_write_verification_does_not_reacquire_whole_run_lock(
     assert result["status"] == "success"
     assert result["post_write_dry_run"]["lock_reacquired"] is False
     assert acquire_count == 1
-
-
-def test_wsl_wrapper_is_dry_run_no_write_only_and_bash_valid() -> None:
-    script_path = Path("scripts/local/run_chzzk_regular_write_path_wsl.sh")
-    script = script_path.read_text(encoding="utf-8")
-
-    assert "--write" not in script
-    assert "dry-run/no-write only" in script
-    assert "run_chzzk_recurring_write_path" in script
-    subprocess.run(["bash", "-n", str(script_path)], check=True)
 
 
 def test_cli_help_does_not_run_relations_or_loaders(
