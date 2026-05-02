@@ -291,6 +291,46 @@ def test_first_invocation_checks_credentials_db_relations_before_one_fetch(
     assert_no_sensitive_leak(result, tmp_path)
 
 
+def test_no_source_selected_is_hard_failure_without_side_effects(tmp_path: Path) -> None:
+    events: list[str] = []
+
+    result = run(
+        tmp_path,
+        events=events,
+        allow_live_fetch_once=False,
+        from_orchestration_run_id=None,
+    )
+
+    assert events == []
+    assert result["status"] == "hard_failure"
+    assert result["failure_class"] == "orchestration_source_invalid"
+    assert result["credential_preconditions"] == {"checked": False}
+    assert result["db_env_preconditions"] == {"checked": False}
+    assert result["relation_preconditions"] == {}
+    assert result["live_fetch"]["invocation_count"] == 0
+    assert result["recurring_no_write_dry_run"]["status"] == "not_started"
+
+
+def test_both_sources_selected_is_hard_failure_without_side_effects(tmp_path: Path) -> None:
+    events: list[str] = []
+
+    result = run(
+        tmp_path,
+        events=events,
+        allow_live_fetch_once=True,
+        from_orchestration_run_id="prior-run",
+    )
+
+    assert events == []
+    assert result["status"] == "hard_failure"
+    assert result["failure_class"] == "orchestration_source_invalid"
+    assert result["credential_preconditions"] == {"checked": False}
+    assert result["db_env_preconditions"] == {"checked": False}
+    assert result["relation_preconditions"] == {}
+    assert result["live_fetch"]["invocation_count"] == 0
+    assert result["recurring_no_write_dry_run"]["status"] == "not_started"
+
+
 def test_missing_db_env_blocks_live_fetch_before_relation_check(tmp_path: Path) -> None:
     events: list[str] = []
 
@@ -570,3 +610,24 @@ def test_cli_help_does_not_start_steps(
 
     assert exc_info.value.code == 0
     assert "--allow-live-fetch-once" in capsys.readouterr().out
+
+
+def test_cli_rejects_both_source_modes_before_orchestration(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        orch,
+        "run_orchestration",
+        lambda **_kwargs: pytest.fail("parser must reject both source modes"),
+    )
+
+    with pytest.raises(SystemExit) as exc_info:
+        orch.main(
+            [
+                "--allow-live-fetch-once",
+                "--from-orchestration-run-id",
+                "prior-run",
+            ]
+        )
+
+    assert exc_info.value.code == 2

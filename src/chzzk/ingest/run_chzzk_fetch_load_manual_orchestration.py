@@ -627,7 +627,7 @@ def run_orchestration(
     started_at_utc = utc_now_iso()
     source = environ or os.environ
     paths = build_paths(base_dir=base_dir, run_id=run_id)
-    live_fetch_mode = allow_live_fetch_once and from_orchestration_run_id is None
+    live_fetch_mode = allow_live_fetch_once
     action_policy = _action_policy(
         live_fetch_enabled=live_fetch_mode,
         db_write_enabled=write_enabled,
@@ -645,7 +645,7 @@ def run_orchestration(
         )
 
     try:
-        if live_fetch_mode == (from_orchestration_run_id is not None):
+        if allow_live_fetch_once == (from_orchestration_run_id is not None):
             return _finish(
                 paths=paths,
                 started_at_utc=started_at_utc,
