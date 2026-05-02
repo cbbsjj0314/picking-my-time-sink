@@ -304,6 +304,7 @@ def test_no_source_selected_is_hard_failure_without_side_effects(tmp_path: Path)
     assert events == []
     assert result["status"] == "hard_failure"
     assert result["failure_class"] == "orchestration_source_invalid"
+    assert result["action_policy"]["live_fetch_enabled"] is False
     assert result["credential_preconditions"] == {"checked": False}
     assert result["db_env_preconditions"] == {"checked": False}
     assert result["relation_preconditions"] == {}
@@ -324,6 +325,7 @@ def test_both_sources_selected_is_hard_failure_without_side_effects(tmp_path: Pa
     assert events == []
     assert result["status"] == "hard_failure"
     assert result["failure_class"] == "orchestration_source_invalid"
+    assert result["action_policy"]["live_fetch_enabled"] is False
     assert result["credential_preconditions"] == {"checked": False}
     assert result["db_env_preconditions"] == {"checked": False}
     assert result["relation_preconditions"] == {}
