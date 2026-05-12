@@ -68,29 +68,7 @@ def relation_exists() -> dict[str, dict[str, Any]]:
 def write_probe_artifacts(output_dir: Path, run_id: str) -> None:
     run_dir = output_dir / run_id
     run_dir.mkdir(parents=True, exist_ok=True)
-    (run_dir / "summary.json").write_text(
-        json.dumps(
-            {
-                "category_result_path": SENSITIVE_PRIVATE_PATH,
-                "category_result_rows": 1,
-                "channel_result_path": SENSITIVE_PRIVATE_PATH,
-                "channel_result_rows": 1,
-                "coverage": {"status": "observed_bucket_only"},
-                "pagination": {
-                    "bounded_page_cutoff": True,
-                    "last_page_next_present": True,
-                    "pages_fetched": 3,
-                    "pages_requested": 3,
-                },
-                "raw_page_dir": SENSITIVE_PRIVATE_PATH,
-                "result_status": "category_results_available",
-                "run_status": "success",
-            },
-            sort_keys=True,
-        )
-        + "\n",
-        encoding="utf-8",
-    )
+    write_probe_summary(output_dir, run_id)
     raw_row = {
         "category_name": SENSITIVE_CATEGORY_NAME,
         "channel_id": SENSITIVE_CHANNEL_ID,
@@ -105,6 +83,52 @@ def write_probe_artifacts(output_dir: Path, run_id: str) -> None:
     )
     (run_dir / "channel-result.jsonl").write_text(
         json.dumps(raw_row, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+
+def write_probe_summary(
+    output_dir: Path,
+    run_id: str,
+    *,
+    failure_kind: str | None = None,
+    result_status: str = "category_results_available",
+    run_status: str = "success",
+) -> None:
+    run_dir = output_dir / run_id
+    run_dir.mkdir(parents=True, exist_ok=True)
+    failure = None
+    if failure_kind is not None:
+        failure = {
+            "http_status_code": 500,
+            "kind": failure_kind,
+            "message": SENSITIVE_API_BODY,
+            "page_index": 1,
+            "pages_fetched_before_failure": 0,
+            "retryable": True,
+        }
+    (run_dir / "summary.json").write_text(
+        json.dumps(
+            {
+                "category_result_path": SENSITIVE_PRIVATE_PATH,
+                "category_result_rows": 0 if failure_kind is not None else 1,
+                "channel_result_path": SENSITIVE_PRIVATE_PATH,
+                "channel_result_rows": 0 if failure_kind is not None else 1,
+                "coverage": {"status": "observed_bucket_only"},
+                "failure": failure,
+                "pagination": {
+                    "bounded_page_cutoff": failure_kind is None,
+                    "last_page_next_present": failure_kind is None,
+                    "pages_fetched": 0 if failure_kind is not None else 3,
+                    "pages_requested": 3,
+                },
+                "raw_page_dir": SENSITIVE_PRIVATE_PATH,
+                "result_status": result_status,
+                "run_status": run_status,
+            },
+            sort_keys=True,
+        )
+        + "\n",
         encoding="utf-8",
     )
 
@@ -369,6 +393,187 @@ def test_missing_relation_blocks_live_fetch(tmp_path: Path) -> None:
     assert result["status"] == "hard_failure"
     assert result["failure_class"] == "channel_relation_missing"
     assert result["live_fetch"]["invocation_count"] == 0
+
+
+def test_probe_fetch_failure_prefers_probe_failure_over_category_artifact_missing(
+    tmp_path: Path,
+) -> None:
+    events: list[str] = []
+    probe_root = tmp_path / "temporal-probe"
+
+    def failing_fetcher(
+        *,
+        output_dir: Path,
+        run_id: str,
+        pages: int,
+        size: int,
+        base_url: str,
+        timeout: float,
+        environ: dict[str, str],
+    ) -> dict[str, Any]:
+        del pages, size, base_url, timeout, environ
+        events.append(f"fetch:{run_id}")
+        write_probe_summary(
+            output_dir,
+            run_id,
+            failure_kind="http_error",
+            result_status="not_generated_due_to_fetch_failure",
+            run_status="failed",
+        )
+        return {"run_status": "failed"}
+
+    result = run(
+        tmp_path,
+        events=events,
+        probe_output_dir=probe_root,
+        allow_live_fetch_once=True,
+        fetcher=failing_fetcher,
+    )
+
+    assert events == ["relation", "fetch:orch-run-a"]
+    assert result["status"] == "hard_failure"
+    assert result["failure_class"] == "probe_http_error"
+    assert result["artifact_checks"]["category"]["status"] == "missing"
+    assert result["probe_summary"]["failure_kind"] == "http_error"
+    assert result["probe_summary"]["run_status"] == "failed"
+    assert result["probe_summary"]["result_status"] == "not_generated_due_to_fetch_failure"
+    assert_no_sensitive_leak(result, tmp_path)
+
+
+def test_missing_probe_summary_keeps_probe_summary_missing(tmp_path: Path) -> None:
+    events: list[str] = []
+    probe_root = tmp_path / "temporal-probe"
+
+    def missing_summary_fetcher(
+        *,
+        output_dir: Path,
+        run_id: str,
+        pages: int,
+        size: int,
+        base_url: str,
+        timeout: float,
+        environ: dict[str, str],
+    ) -> dict[str, Any]:
+        del pages, size, base_url, timeout, environ
+        events.append(f"fetch:{run_id}")
+        (output_dir / run_id).mkdir(parents=True)
+        return {"run_status": "failed"}
+
+    result = run(
+        tmp_path,
+        events=events,
+        probe_output_dir=probe_root,
+        allow_live_fetch_once=True,
+        fetcher=missing_summary_fetcher,
+    )
+
+    assert events == ["relation", "fetch:orch-run-a"]
+    assert result["status"] == "hard_failure"
+    assert result["failure_class"] == "probe_summary_missing"
+    assert result["probe_summary"] == {"status": "unavailable"}
+    assert_no_sensitive_leak(result, tmp_path)
+
+
+@pytest.mark.parametrize(
+    ("include_category", "expected_failure_class"),
+    [
+        (False, "category_artifact_missing"),
+        (True, "channel_artifact_missing"),
+    ],
+)
+def test_artifact_missing_without_fetch_failure_keeps_artifact_missing_semantics(
+    tmp_path: Path,
+    include_category: bool,
+    expected_failure_class: str,
+) -> None:
+    events: list[str] = []
+    probe_root = tmp_path / "temporal-probe"
+
+    def artifact_missing_fetcher(
+        *,
+        output_dir: Path,
+        run_id: str,
+        pages: int,
+        size: int,
+        base_url: str,
+        timeout: float,
+        environ: dict[str, str],
+    ) -> dict[str, Any]:
+        del pages, size, base_url, timeout, environ
+        events.append(f"fetch:{run_id}")
+        write_probe_summary(output_dir, run_id)
+        if include_category:
+            (output_dir / run_id / "category-result.jsonl").write_text(
+                "{}\n",
+                encoding="utf-8",
+            )
+        return {"run_status": "success"}
+
+    result = run(
+        tmp_path,
+        events=events,
+        probe_output_dir=probe_root,
+        allow_live_fetch_once=True,
+        fetcher=artifact_missing_fetcher,
+    )
+
+    assert events == ["relation", "fetch:orch-run-a"]
+    assert result["status"] == "hard_failure"
+    assert result["failure_class"] == expected_failure_class
+    assert result["probe_summary"]["failure_kind"] is None
+    assert result["probe_summary"]["run_status"] == "success"
+    assert result["probe_summary"]["result_status"] == "category_results_available"
+    assert_no_sensitive_leak(result, tmp_path)
+
+
+def test_prior_artifact_validation_prefixes_probe_fetch_failure(tmp_path: Path) -> None:
+    probe_root = tmp_path / "temporal-probe"
+    write_probe_summary(
+        probe_root,
+        "probe-run-a",
+        failure_kind="http_error",
+        result_status="not_generated_due_to_fetch_failure",
+        run_status="failed",
+    )
+    prior_dir = tmp_path / "orchestration" / "prior-run"
+    prior_dir.mkdir(parents=True)
+    (prior_dir / "result.json").write_text(
+        json.dumps(
+            {
+                "action_policy": {
+                    "db_write_enabled": False,
+                    "live_fetch_enabled": True,
+                    "live_fetch_invocation_limit": 1,
+                    "scheduler_registration_enabled": False,
+                },
+                "recurring_no_write_dry_run": {
+                    "mode": recurring.DRY_RUN_MODE,
+                    "status": "success",
+                    "success": True,
+                },
+                "selected_artifact_run_id": "probe-run-a",
+                "status": "success",
+            },
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    result = run(
+        tmp_path,
+        probe_output_dir=probe_root,
+        from_orchestration_run_id="prior-run",
+        write_enabled=True,
+        run_id="write-run",
+        environ=env(chzzk=False, db=True),
+    )
+
+    assert result["status"] == "hard_failure"
+    assert result["failure_class"] == "prior_probe_http_error"
+    assert result["prior_result_validation"]["failure_class"] == "prior_probe_http_error"
+    assert result["live_fetch"]["invocation_count"] == 0
+    assert_no_sensitive_leak(result, tmp_path)
 
 
 def test_from_orchestration_run_id_reuses_same_artifact_without_chzzk_credentials(

@@ -31,6 +31,15 @@ DEFAULT_FETCH_SIZE = 20
 SAFE_RUN_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]*$")
 REQUIRED_CHZZK_ENV = ("CHZZK_CLIENT_ID", "CHZZK_CLIENT_SECRET")
 REQUIRED_DB_ENV = ("POSTGRES_HOST", "POSTGRES_DB", "POSTGRES_USER", "POSTGRES_PASSWORD")
+PROBE_FETCH_FAILURE_CLASSES = {
+    "http_error": "probe_http_error",
+    "quota_http_error": "probe_quota_http_error",
+    "request_error": "probe_request_error",
+    "invalid_json": "probe_invalid_json",
+    "malformed_page": "probe_malformed_page",
+}
+PROBE_FETCH_FAILURE_RUN_STATUSES = {"failed", "partial_failure"}
+PROBE_FETCH_FAILURE_RESULT_STATUS = "not_generated_due_to_fetch_failure"
 
 Fetcher = Callable[..., Mapping[str, Any]]
 RecurringRunner = Callable[..., Mapping[str, Any]]
@@ -150,13 +159,28 @@ def check_selected_artifact(probe_run_dir: Path) -> dict[str, dict[str, Any]]:
     }
 
 
-def _artifact_failure_class(artifact_checks: Mapping[str, Mapping[str, Any]]) -> str | None:
+def _probe_fetch_failure_class(probe_summary: Mapping[str, Any]) -> str | None:
+    failure_kind = probe_summary.get("failure_kind")
+    if isinstance(failure_kind, str) and failure_kind:
+        return PROBE_FETCH_FAILURE_CLASSES.get(failure_kind, "probe_fetch_failed")
+    if probe_summary.get("run_status") in PROBE_FETCH_FAILURE_RUN_STATUSES:
+        return "probe_fetch_failed"
+    if probe_summary.get("result_status") == PROBE_FETCH_FAILURE_RESULT_STATUS:
+        return "probe_fetch_failed"
+    return None
+
+
+def _artifact_failure_class(
+    artifact_checks: Mapping[str, Mapping[str, Any]],
+    probe_summary: Mapping[str, Any],
+) -> str | None:
     if not artifact_checks["summary"]["exists"]:
         return "probe_summary_missing"
+    probe_failure = _probe_fetch_failure_class(probe_summary)
     if not artifact_checks["category"]["exists"]:
-        return "category_artifact_missing"
+        return probe_failure or "category_artifact_missing"
     if not artifact_checks["channel"]["exists"]:
-        return "channel_artifact_missing"
+        return probe_failure or "channel_artifact_missing"
     return None
 
 
@@ -573,7 +597,8 @@ def _validate_prior_result(
 
     probe_run_dir = probe_output_dir / safe_selected
     artifact_checks = check_selected_artifact(probe_run_dir)
-    artifact_failure = _artifact_failure_class(artifact_checks)
+    probe_summary = _sanitize_probe_summary(_read_probe_summary(probe_run_dir))
+    artifact_failure = _artifact_failure_class(artifact_checks, probe_summary)
     if artifact_failure is not None:
         return (
             {
@@ -777,7 +802,7 @@ def run_orchestration(
 
         artifact_checks = check_selected_artifact(probe_run_dir)
         probe_summary = _sanitize_probe_summary(_read_probe_summary(probe_run_dir))
-        artifact_failure = _artifact_failure_class(artifact_checks)
+        artifact_failure = _artifact_failure_class(artifact_checks, probe_summary)
         if artifact_failure is not None:
             return _finish(
                 paths=paths,
