@@ -159,7 +159,7 @@ class FakeCursor:
     def __exit__(self, *args: object) -> None:
         return None
 
-    def execute(self, sql: str) -> None:
+    def execute(self, sql: str, params: tuple[object, ...] | None = None) -> None:
         self.current_sql = sql
 
     def fetchone(self) -> tuple[object]:
@@ -224,6 +224,175 @@ def test_db_freshness_metrics_use_env_connection_and_dataset_timestamps(
     ) == 1800.0
 
 
+def test_chzzk_scheduler_metrics_parse_read_only_query_output() -> None:
+    now = dt.datetime(2026, 5, 14, 5, 0, tzinfo=dt.UTC)
+
+    def fake_runner() -> str:
+        return json.dumps(
+            {
+                "last_result": 0,
+                "latest_run_time": "2026-05-14T04:29:00Z",
+                "missed_runs": 0,
+                "new_instance_ignored_events": 2,
+                "task_available": True,
+                "task_enabled": True,
+            }
+        )
+
+    samples = exporter.collect_chzzk_scheduler_metrics(now=now, runner=fake_runner)
+
+    assert sample_value(samples, "chzzk_guarded_write_scheduler_task_available") == 1.0
+    assert sample_value(samples, "chzzk_guarded_write_scheduler_task_enabled") == 1.0
+    assert sample_value(samples, "chzzk_guarded_write_scheduler_last_result") == 0.0
+    assert sample_value(samples, "chzzk_guarded_write_scheduler_latest_run_age_seconds") == 1860.0
+    assert sample_value(samples, "chzzk_guarded_write_scheduler_recent_missing_intervals") == 0.0
+    assert sample_value(
+        samples,
+        "chzzk_guarded_write_scheduler_recent_new_instance_ignored_events",
+    ) == 2.0
+
+
+def test_chzzk_scheduler_metrics_fail_closed_when_query_unavailable() -> None:
+    def fake_runner() -> str:
+        raise OSError("scheduler unavailable")
+
+    samples = exporter.collect_chzzk_scheduler_metrics(
+        now=dt.datetime(2026, 5, 14, 5, 0, tzinfo=dt.UTC),
+        runner=fake_runner,
+    )
+
+    assert sample_value(samples, "chzzk_guarded_write_scheduler_task_available") == 0.0
+    assert sample_value(samples, "chzzk_guarded_write_scheduler_task_enabled") == 0.0
+    assert sample_value(samples, "chzzk_guarded_write_scheduler_last_result") == -1.0
+
+
+def test_chzzk_wrapper_metrics_use_sanitized_latest_evidence(tmp_path: Path) -> None:
+    older = tmp_path / "20260514T035900Z"
+    newer = tmp_path / "20260514T042900Z"
+    for run_dir in (older, newer):
+        (run_dir / "trace").mkdir(parents=True)
+    (older / "trace" / "end.json").write_text('{"exit_code":"0"}', encoding="utf-8")
+    (older / "guarded-write-result.json").write_text(
+        json.dumps({"guarded_write": {}, "status": "hard_failure"}),
+        encoding="utf-8",
+    )
+    (newer / "trace" / "end.json").write_text(
+        '{"exit_code":"0","recorded_at_utc":"2026-05-14T04:31:00Z"}',
+        encoding="utf-8",
+    )
+    (newer / "no-write-result.json").write_text('{"status":"success"}', encoding="utf-8")
+    (newer / "guarded-write-result.json").write_text(
+        json.dumps(
+            {
+                "guarded_write": {
+                    "category": {"committed_row_count": 25},
+                    "channel": {"committed_row_count": 60},
+                },
+                "status": "success",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    samples = exporter.collect_chzzk_wrapper_metrics(
+        now=dt.datetime(2026, 5, 14, 5, 0, tzinfo=dt.UTC),
+        wrapper_dir=tmp_path,
+    )
+
+    assert sample_value(
+        samples,
+        "chzzk_guarded_write_wrapper_latest_run_status",
+        {"status": "success"},
+    ) == 1.0
+    assert sample_value(
+        samples,
+        "chzzk_guarded_write_wrapper_latest_committed_rows",
+        {"dataset": "category"},
+    ) == 25.0
+    assert sample_value(samples, "chzzk_guarded_write_wrapper_latest_run_age_seconds") == 1740.0
+    assert sample_value(
+        samples,
+        "chzzk_guarded_write_wrapper_latest_committed_rows",
+        {"dataset": "channel"},
+    ) == 60.0
+
+
+class FakeChzzkCursor:
+    def __init__(self) -> None:
+        self.current_result: tuple[object, ...] = (None,)
+
+    def __enter__(self) -> FakeChzzkCursor:
+        return self
+
+    def __exit__(self, *args: object) -> None:
+        return None
+
+    def execute(self, sql: str, params: tuple[object, ...] | None = None) -> None:
+        if sql == "SELECT MAX(bucket_time) FROM fact_chzzk_category_30m":
+            self.current_result = (dt.datetime(2026, 5, 14, 4, 0, tzinfo=dt.UTC),)
+        elif sql == "SELECT MAX(bucket_time) FROM fact_chzzk_category_channel_30m":
+            self.current_result = (dt.datetime(2026, 5, 14, 4, 30, tzinfo=dt.UTC),)
+        elif sql == "SELECT COUNT(*) FROM fact_chzzk_category_30m WHERE bucket_time = %s":
+            self.current_result = (25,)
+        elif sql == "SELECT COUNT(*) FROM fact_chzzk_category_channel_30m WHERE bucket_time = %s":
+            self.current_result = (60,)
+        else:
+            raise AssertionError(f"unexpected SQL: {sql}")
+
+    def fetchone(self) -> tuple[object, ...]:
+        return self.current_result
+
+
+class FakeChzzkConnection:
+    def __enter__(self) -> FakeChzzkConnection:
+        return self
+
+    def __exit__(self, *args: object) -> None:
+        return None
+
+    def cursor(self) -> FakeChzzkCursor:
+        return FakeChzzkCursor()
+
+
+def test_chzzk_db_metrics_use_select_only_latest_bucket_counts(monkeypatch) -> None:
+    monkeypatch.setenv("POSTGRES_HOST", "localhost")
+    monkeypatch.setenv("POSTGRES_DB", "steam")
+    monkeypatch.setenv("POSTGRES_USER", "steam")
+    monkeypatch.setenv("POSTGRES_PASSWORD", "secret")
+    seen_conninfo: list[str] = []
+
+    def fake_connect(conninfo: str) -> FakeChzzkConnection:
+        seen_conninfo.append(conninfo)
+        return FakeChzzkConnection()
+
+    samples = exporter.collect_chzzk_db_metrics(
+        now=dt.datetime(2026, 5, 14, 5, 0, tzinfo=dt.UTC),
+        connect=fake_connect,
+    )
+
+    assert "host=localhost" in seen_conninfo[0]
+    assert sample_value(
+        samples,
+        "chzzk_db_dataset_freshness_age_seconds",
+        {"dataset": "category_30m"},
+    ) == 3600.0
+    assert sample_value(
+        samples,
+        "chzzk_db_dataset_freshness_age_seconds",
+        {"dataset": "category_channel_30m"},
+    ) == 1800.0
+    assert sample_value(
+        samples,
+        "chzzk_db_latest_bucket_rows",
+        {"dataset": "category_30m"},
+    ) == 25.0
+    assert sample_value(
+        samples,
+        "chzzk_db_latest_bucket_rows",
+        {"dataset": "category_channel_30m"},
+    ) == 60.0
+
+
 def test_render_prometheus_text_escapes_labels() -> None:
     text = exporter.render_prometheus_text(
         [
@@ -237,4 +406,3 @@ def test_render_prometheus_text_escapes_labels() -> None:
 
     assert '# TYPE steam_scheduler_latest_run_present gauge' in text
     assert 'cadence="quote\\"and\\\\slash"' in text
-

@@ -462,11 +462,297 @@
           "range": false,
           "refId": "B"
         }
-      ],
-      "title": "App Catalog Summary",
-      "type": "stat"
-    }
-  ],
+            ],
+            "title": "App Catalog Summary",
+            "type": "stat"
+        },
+        {
+            "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+            },
+            "fieldConfig": {
+                "defaults": {
+                    "decimals": 0
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 4,
+                "w": 8,
+                "x": 0,
+                "y": 19
+            },
+            "id": 8,
+            "options": {
+                "colorMode": "value",
+                "graphMode": "none",
+                "justifyMode": "auto",
+                "orientation": "auto",
+                "reduceOptions": {
+                    "calcs": [
+                        "lastNotNull"
+                    ],
+                    "fields": "",
+                    "values": false
+                },
+                "textMode": "auto"
+            },
+            "pluginVersion": "11.4.0",
+            "targets": [
+                {
+                    "datasource": {
+                        "type": "prometheus",
+                        "uid": "prometheus"
+                    },
+                    "editorMode": "code",
+                    "expr": "chzzk_guarded_write_scheduler_task_available",
+                    "instant": true,
+                    "legendFormat": "available",
+                    "range": false,
+                    "refId": "A"
+                },
+                {
+                    "datasource": {
+                        "type": "prometheus",
+                        "uid": "prometheus"
+                    },
+                    "editorMode": "code",
+                    "expr": "chzzk_guarded_write_scheduler_task_enabled",
+                    "instant": true,
+                    "legendFormat": "enabled",
+                    "range": false,
+                    "refId": "B"
+                },
+                {
+                    "datasource": {
+                        "type": "prometheus",
+                        "uid": "prometheus"
+                    },
+                    "editorMode": "code",
+                    "expr": "chzzk_guarded_write_scheduler_last_result",
+                    "instant": true,
+                    "legendFormat": "last result",
+                    "range": false,
+                    "refId": "C"
+                }
+            ],
+            "title": "Chzzk Scheduler Query",
+            "type": "stat"
+        },
+        {
+            "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+            },
+            "fieldConfig": {
+                "defaults": {
+                    "unit": "s"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 4,
+                "w": 8,
+                "x": 8,
+                "y": 19
+            },
+            "id": 9,
+            "options": {
+                "colorMode": "value",
+                "graphMode": "area",
+                "justifyMode": "auto",
+                "orientation": "auto",
+                "reduceOptions": {
+                    "calcs": [
+                        "lastNotNull"
+                    ],
+                    "fields": "",
+                    "values": false
+                },
+                "textMode": "auto"
+            },
+            "pluginVersion": "11.4.0",
+            "targets": [
+                {
+                    "datasource": {
+                        "type": "prometheus",
+                        "uid": "prometheus"
+                    },
+                    "editorMode": "code",
+                    "expr": "chzzk_guarded_write_wrapper_latest_run_age_seconds",
+                    "instant": true,
+                    "legendFormat": "wrapper age",
+                    "range": false,
+                    "refId": "A"
+                }
+            ],
+            "title": "Chzzk Wrapper Run Age",
+            "type": "stat"
+        },
+        {
+            "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+            },
+            "fieldConfig": {
+                "defaults": {
+                    "decimals": 0
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 4,
+                "w": 8,
+                "x": 16,
+                "y": 19
+            },
+            "id": 10,
+            "options": {
+                "colorMode": "value",
+                "graphMode": "none",
+                "justifyMode": "auto",
+                "orientation": "auto",
+                "reduceOptions": {
+                    "calcs": [
+                        "lastNotNull"
+                    ],
+                    "fields": "",
+                    "values": false
+                },
+                "textMode": "auto"
+            },
+            "pluginVersion": "11.4.0",
+            "targets": [
+                {
+                    "datasource": {
+                        "type": "prometheus",
+                        "uid": "prometheus"
+                    },
+                    "editorMode": "code",
+                    "expr": "chzzk_guarded_write_scheduler_recent_missing_intervals",
+                    "instant": true,
+                    "legendFormat": "missing intervals",
+                    "range": false,
+                    "refId": "A"
+                },
+                {
+                    "datasource": {
+                        "type": "prometheus",
+                        "uid": "prometheus"
+                    },
+                    "editorMode": "code",
+                    "expr": "chzzk_guarded_write_scheduler_recent_new_instance_ignored_events",
+                    "instant": true,
+                    "legendFormat": "event 322",
+                    "range": false,
+                    "refId": "B"
+                }
+            ],
+            "title": "Chzzk Scheduler Triage",
+            "type": "stat"
+        },
+        {
+            "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+            },
+            "fieldConfig": {
+                "defaults": {},
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 7,
+                "w": 12,
+                "x": 0,
+                "y": 23
+            },
+            "id": 11,
+            "options": {
+                "showHeader": true
+            },
+            "targets": [
+                {
+                    "datasource": {
+                        "type": "prometheus",
+                        "uid": "prometheus"
+                    },
+                    "editorMode": "code",
+                    "expr": "chzzk_guarded_write_wrapper_latest_run_status == 1",
+                    "format": "table",
+                    "instant": true,
+                    "legendFormat": "{{status}}",
+                    "range": false,
+                    "refId": "A"
+                },
+                {
+                    "datasource": {
+                        "type": "prometheus",
+                        "uid": "prometheus"
+                    },
+                    "editorMode": "code",
+                    "expr": "chzzk_guarded_write_wrapper_latest_committed_rows",
+                    "format": "table",
+                    "instant": true,
+                    "legendFormat": "{{dataset}} committed rows",
+                    "range": false,
+                    "refId": "B"
+                }
+            ],
+            "title": "Chzzk Wrapper Latest",
+            "type": "table"
+        },
+        {
+            "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+            },
+            "fieldConfig": {
+                "defaults": {},
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 7,
+                "w": 12,
+                "x": 12,
+                "y": 23
+            },
+            "id": 12,
+            "options": {
+                "showHeader": true
+            },
+            "targets": [
+                {
+                    "datasource": {
+                        "type": "prometheus",
+                        "uid": "prometheus"
+                    },
+                    "editorMode": "code",
+                    "expr": "chzzk_db_dataset_freshness_age_seconds",
+                    "format": "table",
+                    "instant": true,
+                    "legendFormat": "{{dataset}} age",
+                    "range": false,
+                    "refId": "A"
+                },
+                {
+                    "datasource": {
+                        "type": "prometheus",
+                        "uid": "prometheus"
+                    },
+                    "editorMode": "code",
+                    "expr": "chzzk_db_latest_bucket_rows",
+                    "format": "table",
+                    "instant": true,
+                    "legendFormat": "{{dataset}} rows",
+                    "range": false,
+                    "refId": "B"
+                }
+            ],
+            "title": "Chzzk DB Freshness",
+            "type": "table"
+        }
+    ],
   "refresh": "30s",
   "schemaVersion": 39,
   "tags": [
@@ -487,4 +773,3 @@
   "version": 1,
   "weekStart": ""
 }
-

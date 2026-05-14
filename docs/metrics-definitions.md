@@ -644,3 +644,25 @@ host, port, Docker Compose, local artifact path, credentials, smoke commands는 
     - timestamp가 없거나 파싱할 수 없으면 sample을 내지 않는다.
 - `steam_app_catalog_latest_summary_app_count`:
     - summary excerpt의 `app_count`가 integer일 때만 노출한다.
+
+### 8.5 Chzzk guarded-write observability metrics
+
+- source는 local read-only Windows Task Scheduler query, sanitized guarded-write wrapper evidence, Postgres `SELECT` query다.
+- scheduler query는 host/runtime 환경에 따라 unavailable일 수 있다. 이 경우 wrapper와 DB metrics가 guarded-write 상태를 확인하는 기본 read-only visibility가 된다.
+
+- scheduler metrics:
+    - `chzzk_guarded_write_scheduler_task_available`: guarded-write task state를 읽을 수 있으면 `1`, 아니면 `0`.
+    - `chzzk_guarded_write_scheduler_task_enabled`: guarded-write task가 enabled 상태이면 `1`, 아니면 `0`.
+    - `chzzk_guarded_write_scheduler_last_result`: latest scheduler result code. scheduler query가 unavailable이면 `-1`.
+    - `chzzk_guarded_write_scheduler_latest_run_age_seconds`: scrape timestamp와 scheduler latest run time 사이의 seconds.
+    - `chzzk_guarded_write_scheduler_recent_missing_intervals`: read-only scheduler info에서 확인한 recent missed-run count.
+    - `chzzk_guarded_write_scheduler_recent_new_instance_ignored_events`: read-only event log query에서 확인한 recent Event ID 322/NewInstanceIgnored count.
+
+- wrapper metrics:
+    - `chzzk_guarded_write_wrapper_latest_run_status{status}`: latest sanitized wrapper status. Active status label만 `1`, 나머지는 `0`.
+    - `chzzk_guarded_write_wrapper_latest_run_age_seconds`: scrape timestamp와 latest sanitized wrapper evidence timestamp 사이의 seconds.
+    - `chzzk_guarded_write_wrapper_latest_committed_rows{dataset}`: `category`, `channel`별 latest sanitized committed row count.
+
+- DB metrics:
+    - `chzzk_db_dataset_freshness_age_seconds{dataset}`: scrape timestamp와 latest `bucket_time` 사이의 seconds. 대상 dataset은 `category_30m`, `category_channel_30m`이다.
+    - `chzzk_db_latest_bucket_rows{dataset}`: 각 Chzzk fact table의 latest `bucket_time` 기준 row count.
