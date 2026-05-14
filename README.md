@@ -161,7 +161,7 @@ Combined 소스 및 KPI 체계 구축은 예정된 작업으로 분리해 두었
 
 ### 향후 도입 검토 도구
 
-* **Dagster**: 현재 정기 실행의 기준은 Windows Task Scheduler와 WSL2이며, 이를 바로 대체하는 런타임은 아니다. Steam과 Chzzk의 정기 수집 경로가 안정화된 뒤, 개발 및 운영 제어를 돕는 작은 pilot으로 검토한다. Airflow는 같은 문제를 해결할 수 있는 대체 orchestrator 후보로만 본다.
+* **Dagster**: 현재 정기 실행은 기존 로컬 운영 런타임 기준으로 운영 중이며, Dagster가 이를 바로 대체하는 런타임은 아니다. Steam과 Chzzk의 정기 수집 경로가 안정화된 뒤, 개발 및 운영 제어를 돕는 작은 pilot으로 검토한다. Airflow는 같은 문제를 해결할 수 있는 대체 orchestrator 후보로 본다.
 * **Loki**: Prometheus와 Grafana를 통한 지표 관측이 안정화된 후, Recurring file logs 관리가 운영상 병목을 일으킬 때 도입을 검토할 중앙 집중식 로그 관리(centralized logs) 후보군이다.
 * **ClickHouse**: Postgres와 DuckDB의 범위를 넘어서는 대규모 과거 데이터에 대한 OLAP 병목 현상이 실제로 확인될 경우 도입을 검토한다.
 * **Garage**: 현재 운영 중인 아티팩트 런타임은 아니며, 향후 S3 호환 아티팩트 저장소에 대해 자체 호스팅(self-hosted) 기반의 대안이나 마이그레이션이 필요할 때 고려할 옵션이다.
