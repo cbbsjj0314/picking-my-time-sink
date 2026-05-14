@@ -1,4 +1,4 @@
-"""Small Prometheus exporter for local Steam scheduler and DB freshness signals."""
+"""Small Prometheus exporter for local scheduler and DB freshness signals."""
 
 from __future__ import annotations
 
@@ -28,6 +28,14 @@ KST = ZoneInfo("Asia/Seoul")
 STATUS_LABELS = ("success", "partial_success", "lock_busy", "hard_failure", "missing", "unknown")
 APP_CATALOG_STATUS_LABELS = ("completed", "missing", "invalid", "other")
 CADENCES = (JOB_CCU_30M, JOB_PRICE_1H, JOB_DAILY, JOB_APP_CATALOG_WEEKLY)
+CHZZK_GUARDED_WRITE_TASK_NAME = "ChzzkFetchLoadGuardedWrite30m"
+CHZZK_GUARDED_WRITE_TASK_PATH = "\\PickingMyTimeSink\\"
+CHZZK_GUARDED_WRITE_WRAPPER_DIR = Path("tmp/chzzk/guarded-write-scheduler-wrapper")
+CHZZK_WRAPPER_STATUS_LABELS = ("success", "partial_success", "hard_failure", "missing", "unknown")
+CHZZK_DB_DATASETS = {
+    "category_30m": "fact_chzzk_category_30m",
+    "category_channel_30m": "fact_chzzk_category_channel_30m",
+}
 
 
 @dataclass(frozen=True, slots=True)
@@ -141,6 +149,39 @@ METRIC_HELP = {
     "steam_app_catalog_latest_summary_app_count": (
         "Optional App Catalog latest summary app count when present."
     ),
+    "chzzk_guarded_write_scheduler_task_available": (
+        "Whether the Chzzk guarded-write scheduler task was readable."
+    ),
+    "chzzk_guarded_write_scheduler_task_enabled": (
+        "Whether the Chzzk guarded-write scheduler task is enabled."
+    ),
+    "chzzk_guarded_write_scheduler_last_result": (
+        "Latest Windows Task Scheduler result code for the Chzzk guarded-write task."
+    ),
+    "chzzk_guarded_write_scheduler_latest_run_age_seconds": (
+        "Age in seconds from scrape time to the scheduler latest run time."
+    ),
+    "chzzk_guarded_write_scheduler_recent_missing_intervals": (
+        "Recent missed-run count reported by Task Scheduler for the guarded-write task."
+    ),
+    "chzzk_guarded_write_scheduler_recent_new_instance_ignored_events": (
+        "Recent Task Scheduler Event ID 322/NewInstanceIgnored count for guarded-write."
+    ),
+    "chzzk_guarded_write_wrapper_latest_run_status": (
+        "Latest guarded-write wrapper status. The active status label has value 1."
+    ),
+    "chzzk_guarded_write_wrapper_latest_run_age_seconds": (
+        "Age in seconds from scrape time to the latest guarded-write wrapper evidence."
+    ),
+    "chzzk_guarded_write_wrapper_latest_committed_rows": (
+        "Latest guarded-write sanitized committed row count by dataset."
+    ),
+    "chzzk_db_dataset_freshness_age_seconds": (
+        "Age in seconds from scrape time to the Chzzk dataset latest bucket."
+    ),
+    "chzzk_db_latest_bucket_rows": (
+        "Rows in each Chzzk dataset at its latest bucket_time."
+    ),
 }
 
 
@@ -187,6 +228,29 @@ def _number(value: object, default: float = 0.0) -> float:
     if isinstance(value, int | float):
         return float(value)
     return default
+
+
+def _int_or_none(value: object) -> int | None:
+    if isinstance(value, bool):
+        return int(value)
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float) and value.is_integer():
+        return int(value)
+    if isinstance(value, str):
+        try:
+            return int(value.strip())
+        except ValueError:
+            return None
+    return None
+
+
+def _load_json_mapping(path: Path) -> Mapping[str, Any] | None:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    return payload if isinstance(payload, dict) else None
 
 
 def load_latest_job_result(jobs_dir: Path, cadence: str) -> Mapping[str, Any] | None:
@@ -440,6 +504,293 @@ def collect_db_freshness_metrics(
     return samples
 
 
+def _default_chzzk_scheduler_command() -> list[str]:
+    script = rf"""
+$taskName = '{CHZZK_GUARDED_WRITE_TASK_NAME}'
+$taskPath = '{CHZZK_GUARDED_WRITE_TASK_PATH}'
+$windowStart = (Get-Date).AddHours(-24)
+try {{
+    $task = Get-ScheduledTask -TaskPath $taskPath -TaskName $taskName -ErrorAction Stop
+    $info = Get-ScheduledTaskInfo -TaskPath $taskPath -TaskName $taskName -ErrorAction Stop
+    $eventCount = 0
+    try {{
+        $filter = @{{
+            LogName='Microsoft-Windows-TaskScheduler/Operational'
+            Id=322
+            StartTime=$windowStart
+        }}
+        $events = Get-WinEvent -FilterHashtable $filter -ErrorAction SilentlyContinue
+        $eventCount = @($events | Where-Object {{ $_.Message -like "*$taskName*" }}).Count
+    }} catch {{
+        $eventCount = 0
+    }}
+    [pscustomobject]@{{
+        task_available = $true
+        task_enabled = ($task.State -ne 'Disabled')
+        last_result = $info.LastTaskResult
+        latest_run_time = $info.LastRunTime.ToUniversalTime().ToString('o')
+        missed_runs = $info.NumberOfMissedRuns
+        new_instance_ignored_events = $eventCount
+    }} | ConvertTo-Json -Compress
+}} catch {{
+    [pscustomobject]@{{
+        task_available = $false
+        task_enabled = $false
+        last_result = $null
+        latest_run_time = $null
+        missed_runs = 0
+        new_instance_ignored_events = 0
+    }} | ConvertTo-Json -Compress
+}}
+"""
+    return ["powershell.exe", "-NoProfile", "-Command", script]
+
+
+def _run_chzzk_scheduler_query(command: list[str] | None = None) -> str:
+    completed = subprocess.run(
+        command or _default_chzzk_scheduler_command(),
+        capture_output=True,
+        check=True,
+        text=True,
+        timeout=10,
+    )
+    return completed.stdout
+
+
+def parse_chzzk_scheduler_payload(payload_text: str) -> Mapping[str, Any] | None:
+    """Parse sanitized scheduler JSON output."""
+
+    try:
+        loaded = json.loads(payload_text)
+    except json.JSONDecodeError:
+        return None
+    return loaded if isinstance(loaded, dict) else None
+
+
+def collect_chzzk_scheduler_metrics(
+    *,
+    now: dt.datetime,
+    runner: Callable[[], str] = _run_chzzk_scheduler_query,
+) -> list[MetricSample]:
+    """Collect read-only Chzzk guarded-write scheduler metrics."""
+
+    try:
+        payload = parse_chzzk_scheduler_payload(runner())
+    except Exception:
+        payload = None
+
+    available = bool(payload and payload.get("task_available") is True)
+    enabled = bool(payload and payload.get("task_enabled") is True)
+    samples = [
+        MetricSample("chzzk_guarded_write_scheduler_task_available", 1.0 if available else 0.0),
+        MetricSample("chzzk_guarded_write_scheduler_task_enabled", 1.0 if enabled else 0.0),
+    ]
+    if payload is None:
+        samples.extend(
+            [
+                MetricSample("chzzk_guarded_write_scheduler_last_result", -1.0),
+                MetricSample("chzzk_guarded_write_scheduler_recent_missing_intervals", 0.0),
+                MetricSample(
+                    "chzzk_guarded_write_scheduler_recent_new_instance_ignored_events",
+                    0.0,
+                ),
+            ]
+        )
+        return samples
+
+    last_result = _int_or_none(payload.get("last_result"))
+    samples.append(
+        MetricSample(
+            "chzzk_guarded_write_scheduler_last_result",
+            float(last_result) if last_result is not None else -1.0,
+        )
+    )
+    latest_run_time = parse_datetime_utc(payload.get("latest_run_time"))
+    if latest_run_time is not None:
+        age_seconds = max(
+            (now.astimezone(dt.UTC) - latest_run_time).total_seconds(),
+            0.0,
+        )
+        samples.append(
+            MetricSample("chzzk_guarded_write_scheduler_latest_run_age_seconds", age_seconds)
+        )
+    samples.append(
+        MetricSample(
+            "chzzk_guarded_write_scheduler_recent_missing_intervals",
+            _number(payload.get("missed_runs")),
+        )
+    )
+    samples.append(
+        MetricSample(
+            "chzzk_guarded_write_scheduler_recent_new_instance_ignored_events",
+            _number(payload.get("new_instance_ignored_events")),
+        )
+    )
+    return samples
+
+
+def _latest_child_dir(base_dir: Path) -> Path | None:
+    if not base_dir.is_dir():
+        return None
+    dirs = [path for path in base_dir.iterdir() if path.is_dir()]
+    return max(dirs, key=lambda path: path.name, default=None)
+
+
+def _wrapper_status(run_dir: Path | None) -> tuple[str, Mapping[str, Any], Mapping[str, Any]]:
+    if run_dir is None:
+        return "missing", {}, {}
+    trace_end = _load_json_mapping(run_dir / "trace" / "end.json")
+    guarded = _load_json_mapping(run_dir / "guarded-write-result.json")
+    no_write = _load_json_mapping(run_dir / "no-write-result.json")
+    if guarded is None:
+        return "missing", {}, no_write or {}
+    status = str(guarded.get("status") or "unknown")
+    if status not in CHZZK_WRAPPER_STATUS_LABELS:
+        status = "unknown"
+    exit_code = _int_or_none((trace_end or {}).get("exit_code"))
+    if exit_code is not None and exit_code != 0 and status == "success":
+        status = "unknown"
+    return status, guarded, no_write or {}
+
+
+def _parse_wrapper_boundary_timestamp(run_dir: Path) -> dt.datetime | None:
+    try:
+        parsed = dt.datetime.strptime(run_dir.name, "%Y%m%dT%H%M%SZ")
+    except ValueError:
+        return None
+    return parsed.replace(tzinfo=dt.UTC)
+
+
+def _wrapper_latest_timestamp(
+    *,
+    run_dir: Path | None,
+    guarded: Mapping[str, Any],
+    no_write: Mapping[str, Any],
+) -> dt.datetime | None:
+    if run_dir is None:
+        return None
+    trace_end = _load_json_mapping(run_dir / "trace" / "end.json") or {}
+    candidates = (
+        guarded.get("finished_at_utc"),
+        trace_end.get("recorded_at_utc"),
+        no_write.get("finished_at_utc"),
+    )
+    for candidate in candidates:
+        parsed = parse_datetime_utc(candidate)
+        if parsed is not None:
+            return parsed
+    return _parse_wrapper_boundary_timestamp(run_dir)
+
+
+def collect_chzzk_wrapper_metrics(*, now: dt.datetime, wrapper_dir: Path) -> list[MetricSample]:
+    """Collect metrics from sanitized guarded-write wrapper evidence."""
+
+    run_dir = _latest_child_dir(wrapper_dir)
+    status, guarded, no_write = _wrapper_status(run_dir)
+    samples = [
+        MetricSample(
+            "chzzk_guarded_write_wrapper_latest_run_status",
+            1.0 if label == status else 0.0,
+            {"status": label},
+        )
+        for label in CHZZK_WRAPPER_STATUS_LABELS
+    ]
+    latest_at = _wrapper_latest_timestamp(run_dir=run_dir, guarded=guarded, no_write=no_write)
+    if latest_at is not None:
+        samples.append(
+            MetricSample(
+                "chzzk_guarded_write_wrapper_latest_run_age_seconds",
+                max((now.astimezone(dt.UTC) - latest_at).total_seconds(), 0.0),
+            )
+        )
+    guarded_write = guarded.get("guarded_write") if isinstance(guarded, Mapping) else None
+    guarded_mapping = guarded_write if isinstance(guarded_write, Mapping) else {}
+    for dataset, key in (("category", "category"), ("channel", "channel")):
+        summary = guarded_mapping.get(key)
+        summary_mapping = summary if isinstance(summary, Mapping) else {}
+        samples.append(
+            MetricSample(
+                "chzzk_guarded_write_wrapper_latest_committed_rows",
+                _number(summary_mapping.get("committed_row_count")),
+                {"dataset": dataset},
+            )
+        )
+    return samples
+
+
+def _fetch_chzzk_db_values_with_psycopg(connect: Callable[[str], Any]) -> dict[str, object]:
+    conninfo = build_pg_conninfo_from_env()
+    values: dict[str, object] = {}
+    with connect(conninfo) as conn:
+        with conn.cursor() as cursor:
+            for dataset, relation in CHZZK_DB_DATASETS.items():
+                cursor.execute(f"SELECT MAX(bucket_time) FROM {relation}")
+                row = cursor.fetchone()
+                latest_bucket = row[0] if row else None
+                values[f"{dataset}:latest_bucket"] = latest_bucket
+                if latest_bucket is None:
+                    values[f"{dataset}:latest_rows"] = None
+                    continue
+                cursor.execute(
+                    f"SELECT COUNT(*) FROM {relation} WHERE bucket_time = %s",
+                    (latest_bucket,),
+                )
+                row = cursor.fetchone()
+                values[f"{dataset}:latest_rows"] = row[0] if row else None
+    return values
+
+
+def collect_chzzk_db_metrics(
+    *,
+    now: dt.datetime,
+    connect: Callable[[str], Any] = _default_pg_connect,
+) -> list[MetricSample]:
+    """Collect read-only Chzzk DB freshness and latest bucket row metrics."""
+
+    try:
+        values = _fetch_chzzk_db_values_with_psycopg(connect)
+    except Exception:
+        values = {}
+
+    samples: list[MetricSample] = []
+    now_utc = now.astimezone(dt.UTC)
+    for dataset in CHZZK_DB_DATASETS:
+        labels = {"dataset": dataset}
+        latest_at = _date_or_datetime_to_utc(values.get(f"{dataset}:latest_bucket"))
+        if latest_at is not None:
+            samples.append(
+                MetricSample(
+                    "chzzk_db_dataset_freshness_age_seconds",
+                    max((now_utc - latest_at).total_seconds(), 0.0),
+                    labels,
+                )
+            )
+        samples.append(
+            MetricSample(
+                "chzzk_db_latest_bucket_rows",
+                _number(values.get(f"{dataset}:latest_rows")),
+                labels,
+            )
+        )
+    return samples
+
+
+def collect_chzzk_metrics(
+    *,
+    now: dt.datetime,
+    wrapper_dir: Path = CHZZK_GUARDED_WRITE_WRAPPER_DIR,
+    scheduler_runner: Callable[[], str] = _run_chzzk_scheduler_query,
+    connect: Callable[[str], Any] = _default_pg_connect,
+) -> list[MetricSample]:
+    """Collect all Chzzk guarded-write read-only metrics for one scrape."""
+
+    samples: list[MetricSample] = []
+    samples.extend(collect_chzzk_scheduler_metrics(now=now, runner=scheduler_runner))
+    samples.extend(collect_chzzk_wrapper_metrics(now=now, wrapper_dir=wrapper_dir))
+    samples.extend(collect_chzzk_db_metrics(now=now, connect=connect))
+    return samples
+
+
 def collect_app_catalog_summary_metrics(summary_path: Path) -> list[MetricSample]:
     """Collect optional App Catalog latest summary existence and status metrics."""
 
@@ -508,6 +859,7 @@ def collect_metrics(
     samples.extend(collect_scheduler_metrics(jobs_dir))
     samples.extend(collect_db_freshness_metrics(now=scrape_time))
     samples.extend(collect_app_catalog_summary_metrics(app_catalog_summary_path))
+    samples.extend(collect_chzzk_metrics(now=scrape_time))
     return samples
 
 
