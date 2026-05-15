@@ -25,7 +25,20 @@
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
   "id": null,
-  "links": [],
+  "links": [
+    {
+      "asDropdown": false,
+      "icon": "external link",
+      "includeVars": false,
+      "keepTime": true,
+      "tags": [],
+      "targetBlank": false,
+      "title": "Overview",
+      "tooltip": "Open the PMTS overview status board",
+      "type": "link",
+      "url": "/d/pmts-observability-overview"
+    }
+  ],
   "liveNow": false,
   "panels": [
     {
@@ -33,50 +46,24 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
+      "description": "Scheduler task availability can be host/runtime dependent. Treat available=0 as a visibility caution unless wrapper and DB signals also indicate a real failure.",
       "fieldConfig": {
         "defaults": {
-          "mappings": [
-            {
-              "options": {
-                "0": {
-                  "color": "red",
-                  "text": "down"
-                },
-                "1": {
-                  "color": "green",
-                  "text": "up"
-                }
-              },
-              "type": "value"
-            }
-          ],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "red",
-                "value": null
-              },
-              {
-                "color": "green",
-                "value": 1
-              }
-            ]
-          }
+          "decimals": 0
         },
         "overrides": []
       },
       "gridPos": {
         "h": 4,
-        "w": 6,
+        "w": 8,
         "x": 0,
         "y": 0
       },
       "id": 1,
       "options": {
-        "colorMode": "background",
+        "colorMode": "value",
         "graphMode": "none",
-        "justifyMode": "center",
+        "justifyMode": "auto",
         "orientation": "auto",
         "reduceOptions": {
           "calcs": [
@@ -95,14 +82,38 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "steam_observability_exporter_up",
+          "expr": "chzzk_guarded_write_scheduler_task_available",
           "instant": true,
-          "legendFormat": "exporter",
+          "legendFormat": "available",
           "range": false,
           "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "chzzk_guarded_write_scheduler_task_enabled",
+          "instant": true,
+          "legendFormat": "enabled",
+          "range": false,
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "chzzk_guarded_write_scheduler_last_result",
+          "instant": true,
+          "legendFormat": "last result",
+          "range": false,
+          "refId": "C"
         }
       ],
-      "title": "Exporter",
+      "title": "Scheduler Query",
       "type": "stat"
     },
     {
@@ -111,27 +122,13 @@
         "uid": "prometheus"
       },
       "fieldConfig": {
-        "defaults": {
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "yellow",
-                "value": 1
-              }
-            ]
-          }
-        },
+        "defaults": {},
         "overrides": []
       },
       "gridPos": {
         "h": 4,
-        "w": 9,
-        "x": 6,
+        "w": 8,
+        "x": 8,
         "y": 0
       },
       "id": 2,
@@ -147,7 +144,7 @@
           "fields": "",
           "values": false
         },
-        "textMode": "name"
+        "textMode": "auto"
       },
       "pluginVersion": "11.4.0",
       "targets": [
@@ -157,14 +154,14 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "steam_scheduler_latest_run_status{status!=\"missing\"} == 1",
+          "expr": "chzzk_guarded_write_wrapper_latest_run_status == 1",
           "instant": true,
-          "legendFormat": "{{cadence}} {{status}}",
+          "legendFormat": "{{status}}",
           "range": false,
           "refId": "A"
         }
       ],
-      "title": "Latest Scheduler Status",
+      "title": "Wrapper Latest Status",
       "type": "stat"
     },
     {
@@ -180,8 +177,8 @@
       },
       "gridPos": {
         "h": 4,
-        "w": 9,
-        "x": 15,
+        "w": 8,
+        "x": 16,
         "y": 0
       },
       "id": 3,
@@ -207,14 +204,14 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "time() - steam_scheduler_latest_run_timestamp_seconds",
+          "expr": "chzzk_guarded_write_wrapper_latest_run_age_seconds",
           "instant": true,
-          "legendFormat": "{{cadence}}",
+          "legendFormat": "wrapper age",
           "range": false,
           "refId": "A"
         }
       ],
-      "title": "Run Age",
+      "title": "Wrapper Run Age",
       "type": "stat"
     },
     {
@@ -224,204 +221,17 @@
       },
       "fieldConfig": {
         "defaults": {
-          "unit": "s"
+          "decimals": 0
         },
         "overrides": []
       },
       "gridPos": {
-        "h": 8,
-        "w": 12,
+        "h": 4,
+        "w": 8,
         "x": 0,
         "y": 4
       },
       "id": 4,
-      "options": {
-        "legend": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "mode": "single",
-          "sort": "none"
-        }
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "editorMode": "code",
-          "expr": "steam_scheduler_latest_run_duration_seconds",
-          "legendFormat": "{{cadence}}",
-          "range": true,
-          "refId": "A"
-        }
-      ],
-      "title": "Scheduler Duration",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "decimals": 0,
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "yellow",
-                "value": 1
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 4
-      },
-      "id": 5,
-      "options": {
-        "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "mode": "single",
-          "sort": "none"
-        }
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "editorMode": "code",
-          "expr": "steam_scheduler_latest_ccu_missing_evidence_records",
-          "legendFormat": "ccu missing evidence",
-          "range": true,
-          "refId": "A"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "editorMode": "code",
-          "expr": "steam_scheduler_latest_daily_reviews_skipped_records",
-          "legendFormat": "daily reviews skipped",
-          "range": true,
-          "refId": "B"
-        }
-      ],
-      "title": "Partial-Success Triage",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "s"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 7,
-        "w": 12,
-        "x": 0,
-        "y": 12
-      },
-      "id": 6,
-      "options": {
-        "showHeader": true
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "editorMode": "code",
-          "expr": "steam_db_dataset_freshness_age_seconds",
-          "format": "table",
-          "instant": true,
-          "legendFormat": "{{dataset}}",
-          "range": false,
-          "refId": "A"
-        }
-      ],
-      "title": "DB Freshness Age",
-      "transformations": [
-        {
-          "id": "organize",
-          "options": {
-            "excludeByName": {
-              "Time": true,
-              "__name__": true
-            },
-            "indexByName": {},
-            "renameByName": {
-              "Value": "age seconds",
-              "dataset": "dataset"
-            }
-          }
-        }
-      ],
-      "type": "table"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "mappings": [
-            {
-              "options": {
-                "0": {
-                  "color": "yellow",
-                  "text": "missing"
-                },
-                "1": {
-                  "color": "green",
-                  "text": "exists"
-                }
-              },
-              "type": "value"
-            }
-          ]
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 7,
-        "w": 12,
-        "x": 12,
-        "y": 12
-      },
-      "id": 7,
       "options": {
         "colorMode": "value",
         "graphMode": "none",
@@ -444,9 +254,9 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "steam_app_catalog_latest_summary_exists",
+          "expr": "chzzk_guarded_write_scheduler_recent_missing_intervals",
           "instant": true,
-          "legendFormat": "latest summary",
+          "legendFormat": "missing intervals",
           "range": false,
           "refId": "A"
         },
@@ -456,22 +266,122 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "steam_app_catalog_latest_summary_status == 1",
+          "expr": "chzzk_guarded_write_scheduler_recent_new_instance_ignored_events",
           "instant": true,
-          "legendFormat": "{{status}}",
+          "legendFormat": "event 322",
           "range": false,
           "refId": "B"
         }
-            ],
-            "title": "App Catalog Summary",
-            "type": "stat"
+      ],
+      "title": "Scheduler Triage",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 16,
+        "x": 8,
+        "y": 4
+      },
+      "id": 5,
+      "options": {
+        "showHeader": true
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "chzzk_guarded_write_wrapper_latest_run_status == 1",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "{{status}}",
+          "range": false,
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "chzzk_guarded_write_wrapper_latest_committed_rows",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "{{dataset}} committed rows",
+          "range": false,
+          "refId": "B"
         }
-    ],
+      ],
+      "title": "Wrapper Latest",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 24,
+        "x": 0,
+        "y": 11
+      },
+      "id": 6,
+      "options": {
+        "showHeader": true
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "chzzk_db_dataset_freshness_age_seconds",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "{{dataset}} age",
+          "range": false,
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "chzzk_db_latest_bucket_rows",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "{{dataset}} rows",
+          "range": false,
+          "refId": "B"
+        }
+      ],
+      "title": "DB Freshness and Latest Rows",
+      "type": "table"
+    }
+  ],
   "refresh": "30s",
   "schemaVersion": 39,
   "tags": [
     "pmts",
-    "steam",
+    "chzzk",
     "observability",
     "detail"
   ],
@@ -484,8 +394,8 @@
   },
   "timepicker": {},
   "timezone": "browser",
-  "title": "Steam Detail",
-  "uid": "steam-observability",
+  "title": "Chzzk Detail",
+  "uid": "chzzk-observability-detail",
   "version": 1,
   "weekStart": ""
 }

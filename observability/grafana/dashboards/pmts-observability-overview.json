@@ -33,10 +33,22 @@
       "keepTime": true,
       "tags": [],
       "targetBlank": false,
-      "title": "Detail dashboard",
-      "tooltip": "Open the existing detail dashboard for root-cause analysis",
+      "title": "Steam Detail",
+      "tooltip": "Open Steam Detail for root-cause analysis",
       "type": "link",
       "url": "/d/steam-observability"
+    },
+    {
+      "asDropdown": false,
+      "icon": "external link",
+      "includeVars": false,
+      "keepTime": true,
+      "tags": [],
+      "targetBlank": false,
+      "title": "Chzzk Detail",
+      "tooltip": "Open Chzzk Detail for guarded-write operational detail",
+      "type": "link",
+      "url": "/d/chzzk-observability-detail"
     }
   ],
   "liveNow": false,
@@ -1244,7 +1256,7 @@
           "showLineNumbers": false,
           "showMiniMap": false
         },
-        "content": "This overview is a status board. For root-cause analysis and full Steam/Chzzk metric detail, open the existing detail dashboard: [Steam Observability](/d/steam-observability).",
+        "content": "This overview is a status board. For root-cause analysis and provider detail, open [Steam Detail](/d/steam-observability) or [Chzzk Detail](/d/chzzk-observability-detail).",
         "mode": "markdown"
       },
       "pluginVersion": "11.4.0",
@@ -1256,10 +1268,10 @@
   "schemaVersion": 39,
   "tags": [
     "pmts",
-    "steam",
-    "chzzk",
+    "overview",
     "observability",
-    "overview"
+    "steam",
+    "chzzk"
   ],
   "templating": {
     "list": []
@@ -1270,7 +1282,7 @@
   },
   "timepicker": {},
   "timezone": "browser",
-  "title": "PMTS Observability Overview",
+  "title": "Overview",
   "uid": "pmts-observability-overview",
   "version": 1,
   "weekStart": ""
