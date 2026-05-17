@@ -11,6 +11,8 @@ PR 범위는 분명히 적는다.
 PR 본문은 한국어로 작성한다.
 설명 문장은 간결한 한국어로 쓰고, 객체명 / endpoint / route / loader / table / view / CLI 명령은 번역하지 않고 실제 코드 표기를 유지한다.
 docs-only PR이면 Validation section은 남기고 `- Not run (docs-only change)`라고 적는다.
+Ticket / Spec reference, Human Gate Required, Risk / Assumptions, Required Checks / CI result는 짧게 적는다.
+해당하지 않으면 `- N/A`로 두거나 section을 지운다.
 
 PR title guidance:
 PR 전체를 한 줄로 요약하는 짧고 읽기 쉬운 제목으로 쓴다.
@@ -37,6 +39,7 @@ Avoid:
 - 변경 사항
 - 변경 이유
 - 필요하면 범위 경계
+- Ticket / Spec: 링크 또는 ID
 
 ---
 
@@ -66,18 +69,33 @@ view, table, endpoint, file path 같은 실제 객체명을 우선 쓴다.
 
 ---
 
+## Risk / Human Gate
+
+<!--
+Human Gate Required는 Yes / No로 적는다.
+위험한 가정, runtime/schema/API/scheduler/DB/deploy 관련 caveat가 있으면 한 줄로 적는다.
+없으면 `- Human Gate Required: No`와 `- Risk / Assumptions: N/A` 정도로 짧게 둔다.
+-->
+
+- Human Gate Required: Yes / No
+- Risk / Assumptions: N/A
+
+---
+
 ## Validation
 
 <!--
 기본은 `command: result` 한 줄 형식으로 쓴다.
 명령 목록과 결과를 따로 반복하지 않는다.
 `pytest`는 가능하면 passed count / time까지 적는다.
+CI가 돌았다면 Required Checks / CI result도 짧게 적는다.
 추가 caveat나 skip 이유가 있으면 같은 bullet에 짧게 적고,
 더 긴 설명이 필요할 때만 Notes로 보낸다.
 -->
 
 - `command 1`: result
 - `command 2`: result
+- Required Checks / CI: result
 
 ---
 

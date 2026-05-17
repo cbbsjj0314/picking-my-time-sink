@@ -11,6 +11,13 @@
 - Use `docs/local/NEXT.md` as the current execution priority board when it is present locally and applies.
 - If a task changes current status or closes a Now/Next item, update `docs/local/NEXT.md` in the same slice when that local board is present.
 - If a change alters schema, API, or data semantics, update the related durable doc and regression tests in the same slice.
+- Follow the default delivery flow: Spec -> Ticket -> Agent implementation -> PR -> CI -> Review -> Human Gate -> Release.
+- Treat ChatGPT/planning sessions as the place to define product specs and tickets.
+- Treat Codex implementation sessions as one-ticket-at-a-time execution toward a PR-ready diff.
+- Leave risky scope approval, merge decisions, and release decisions to humans.
+- Local docs, checkpoints, and `docs/local/NEXT.md` cleanup are not default deliverables.
+- Create local checkpoints only for large slice completion, risky operational evidence, or explicit user request.
+- Do not propose checkpoint index sync or NEXT hygiene as default follow-up work.
 - After making changes, summarize:
   - files changed
   - what was implemented
@@ -31,7 +38,9 @@
 - Do not claim a slice is complete just because code changed; completion requires the relevant docs, tests, or smoke evidence expected by the slice.
 
 ## Validation
-- After code changes, run:
+- After code changes, run the default full local check from the repo root:
+  - `./scripts/check.sh`
+- `./scripts/check.sh` currently runs:
   - `poetry run ruff check .`
   - `poetry run pytest`
 - If the current Codex exec environment cannot run plain `poetry run pytest`
