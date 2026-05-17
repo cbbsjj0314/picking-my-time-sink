@@ -27,10 +27,16 @@ def test_chzzk_view_model_maps_new_api_fields_directly() -> None:
     assert "latestViewersLabel: formatOptionalInteger(row.latest_viewers_observed)" in source
     assert "latestViewersTitle: formatKstDateTime(row.latest_bucket_time)" in source
     assert "viewersPerChannelLabel: formatDecimal(row.viewer_per_channel_observed)" in source
-    assert "viewersPerChannelSupport: getNullableChannelMetricSupport(row.viewer_per_channel_observed)" in source
+    assert (
+        "viewersPerChannelSupport: getNullableChannelMetricSupport(row.viewer_per_channel_observed)"
+        in source
+    )
     assert "viewersPerChannel: finiteNumberOrNull(row.viewer_per_channel_observed)" in source
     assert "uniqueChannelsLabel: formatOptionalInteger(row.unique_channels_observed)" in source
-    assert "uniqueChannelsSupport: getNullableChannelMetricSupport(row.unique_channels_observed)" in source
+    assert (
+        "uniqueChannelsSupport: getNullableChannelMetricSupport(row.unique_channels_observed)"
+        in source
+    )
     assert "uniqueChannels: finiteNumberOrNull(row.unique_channels_observed)" in source
     assert "Channel evidence unavailable" in source
     assert "matching category-channel evidence is unavailable" in source
