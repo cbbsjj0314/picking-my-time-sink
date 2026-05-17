@@ -84,6 +84,8 @@ const getUniformEvidenceLabel = (
   return `${label} mixed evidence`
 }
 
+const formatObservedCategoryRowCount = (count: number) => `${count.toLocaleString('en-US')} observed category row${count === 1 ? '' : 's'}`
+
 export function ChzzkCategoryTable({
   rows,
   totalRowCount,
@@ -98,6 +100,9 @@ export function ChzzkCategoryTable({
     getUniformEvidenceLabel(rows, (row) => row.observedWindowLabel, 'Window'),
     getUniformEvidenceLabel(rows, (row) => row.coverageLabel, 'Coverage'),
   ].filter((value): value is string => value !== null)
+  const resultCountLabel = hasSearch
+    ? `${rows.length.toLocaleString('en-US')} of ${formatObservedCategoryRowCount(totalRowCount)} match current search`
+    : formatObservedCategoryRowCount(totalRowCount)
 
   return (
     <section className="surface-low panel-worn ghost-outline rounded-[24px] px-4 py-4 lg:col-span-2 sm:px-5 sm:py-5">
@@ -125,6 +130,7 @@ export function ChzzkCategoryTable({
       <div className="mt-4 flex flex-wrap items-center gap-2 text-xs text-[var(--text-muted)]">
         <CaveatBadge label="Category-only" title="Chzzk category evidence only; no game mapping." />
         <CaveatBadge label="Bounded sample" title="Bounded pagination/live-list sample; not full population." />
+        <span>{resultCountLabel}</span>
         {evidenceLabels.map((label) => (
           <span key={label}>{label}</span>
         ))}
