@@ -78,6 +78,18 @@ def test_chzzk_table_uses_observed_sample_context_without_period_label() -> None
     assert "coverage_status" not in table_source
 
 
+def test_chzzk_table_includes_bounded_result_count_context() -> None:
+    table_source = CHZZK_TABLE_PATH.read_text(encoding="utf-8")
+
+    assert "formatObservedCategoryRowCount(totalRowCount)" in table_source
+    assert "observed category row" in table_source
+    assert "rows.length.toLocaleString('en-US')" in table_source
+    assert (
+        "of ${formatObservedCategoryRowCount(totalRowCount)} match current search"
+        in table_source
+    )
+
+
 def test_chzzk_table_uses_nullable_channel_metric_support_from_view_model() -> None:
     table_source = CHZZK_TABLE_PATH.read_text(encoding="utf-8")
 
