@@ -90,6 +90,21 @@ def test_chzzk_table_includes_bounded_result_count_context() -> None:
     )
 
 
+def test_chzzk_table_non_table_states_preserve_observed_source_boundary() -> None:
+    table_source = CHZZK_TABLE_PATH.read_text(encoding="utf-8")
+
+    assert "Read-only observed Chzzk category source-view unavailable: {error}" in table_source
+    assert "Loading Chzzk category observed evidence for this source-view." in table_source
+    assert "No observed Chzzk category rows match the current search." in table_source
+    assert (
+        "No bounded observed Chzzk category rows are available in this source-view."
+        in table_source
+    )
+    assert "Loading Chzzk category evidence." not in table_source
+    assert "No Chzzk category rows match the current search." not in table_source
+    assert "No Chzzk category rows are available." not in table_source
+
+
 def test_chzzk_table_uses_nullable_channel_metric_support_from_view_model() -> None:
     table_source = CHZZK_TABLE_PATH.read_text(encoding="utf-8")
 
