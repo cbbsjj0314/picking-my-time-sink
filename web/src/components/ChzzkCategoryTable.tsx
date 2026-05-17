@@ -33,7 +33,7 @@ function CategoryMetricCell({ value, support = null, title = null }: CategoryCel
       <div className="metric-text min-h-5 whitespace-nowrap text-sm font-semibold text-[var(--text-primary)]">
         {value}
       </div>
-      {support ? <div className="mt-1 whitespace-nowrap text-xs text-[var(--text-muted)]">{support}</div> : null}
+      {support ? <div className="mt-1 max-w-[12rem] text-xs leading-snug text-[var(--text-muted)]">{support}</div> : null}
     </td>
   )
 }
@@ -109,6 +109,8 @@ export function ChzzkCategoryTable({
           <h2 className="type-display mt-2 text-[1.65rem] font-bold text-[var(--text-primary)]">Explore</h2>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--text-secondary)]">
             Category-only observed evidence from the Chzzk category overview API. Values remain bounded samples.
+            Channel-derived metrics are nullable observed values and may be absent when matching category-channel
+            evidence is unavailable.
           </p>
         </div>
 
@@ -181,8 +183,16 @@ export function ChzzkCategoryTable({
                   <CategoryMetricCell support={row.coverageLabel} value={row.peakViewersLabel} />
                   <CategoryMetricCell title={row.avgChannelsTitle} value={row.avgChannelsLabel} />
                   <CategoryMetricCell title={row.peakChannelsTitle} value={row.peakChannelsLabel} />
-                  <CategoryMetricCell title={row.viewersPerChannelTitle} value={row.viewersPerChannelLabel} />
-                  <CategoryMetricCell title={row.uniqueChannelsTitle} value={row.uniqueChannelsLabel} />
+                  <CategoryMetricCell
+                    support={row.viewersPerChannelSupport}
+                    title={row.viewersPerChannelTitle}
+                    value={row.viewersPerChannelLabel}
+                  />
+                  <CategoryMetricCell
+                    support={row.uniqueChannelsSupport}
+                    title={row.uniqueChannelsTitle}
+                    value={row.uniqueChannelsLabel}
+                  />
                 </tr>
               ))}
             </tbody>

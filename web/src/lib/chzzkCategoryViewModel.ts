@@ -37,8 +37,10 @@ export interface ChzzkCategoryTableRow {
   peakChannelsLabel: string
   peakChannelsTitle: string
   viewersPerChannelLabel: string
+  viewersPerChannelSupport: string
   viewersPerChannelTitle: string
   uniqueChannelsLabel: string
+  uniqueChannelsSupport: string
   uniqueChannelsTitle: string
   coverageLabel: string
   boundedSampleLabel: string | null
@@ -126,6 +128,14 @@ const getBoundedSampleTitle = (row: ChzzkCategoryOverview) =>
     ? 'Bounded pagination/live-list sample; not a full population claim.'
     : null
 
+const getNullableChannelMetricSupport = (value: number | null) =>
+  finiteNumberOrNull(value) === null ? 'Channel evidence unavailable' : 'Observed channel metric'
+
+const getNullableChannelMetricTitle = (value: number | null, metricDescription: string) =>
+  finiteNumberOrNull(value) === null
+    ? `${metricDescription} is absent when matching category-channel evidence is unavailable; observed nullable metric, not a full-population claim.`
+    : `${metricDescription} from matching observed category-channel evidence; nullable metric, not a full-population claim.`
+
 const buildSortValues = (row: ChzzkCategoryOverview): ChzzkCategorySortValueMap => ({
   category: row.category_name.toLocaleLowerCase('en-US'),
   latestViewers: finiteNumberOrNull(row.latest_viewers_observed),
@@ -152,9 +162,14 @@ const buildChzzkCategoryTableRow = (row: ChzzkCategoryOverview): ChzzkCategoryTa
   peakChannelsLabel: formatOptionalInteger(row.peak_channels_observed),
   peakChannelsTitle: 'Maximum observed bucket live_count; not unique channels.',
   viewersPerChannelLabel: formatDecimal(row.viewer_per_channel_observed),
-  viewersPerChannelTitle: 'API field viewer_per_channel_observed; observed live_count ratio.',
+  viewersPerChannelSupport: getNullableChannelMetricSupport(row.viewer_per_channel_observed),
+  viewersPerChannelTitle: getNullableChannelMetricTitle(
+    row.viewer_per_channel_observed,
+    'Observed viewers-per-channel metric',
+  ),
   uniqueChannelsLabel: formatOptionalInteger(row.unique_channels_observed),
-  uniqueChannelsTitle: 'Distinct observed channel_id count from matching category-channel buckets.',
+  uniqueChannelsSupport: getNullableChannelMetricSupport(row.unique_channels_observed),
+  uniqueChannelsTitle: getNullableChannelMetricTitle(row.unique_channels_observed, 'Observed unique-channel metric'),
   coverageLabel: formatCoverageLabel(row),
   boundedSampleLabel: getBoundedSampleLabel(row),
   boundedSampleTitle: getBoundedSampleTitle(row),
