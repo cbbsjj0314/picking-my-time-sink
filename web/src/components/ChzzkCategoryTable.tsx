@@ -138,16 +138,18 @@ export function ChzzkCategoryTable({
 
       <div className="mt-4 overflow-x-auto rounded-[18px] outline outline-1 outline-[var(--ghost-border)]">
         {error ? (
-          <div className="surface-etched px-5 py-8 text-sm leading-6 text-[var(--text-secondary)]">{error}</div>
+          <div className="surface-etched px-5 py-8 text-sm leading-6 text-[var(--text-secondary)]">
+            Read-only observed Chzzk category source-view unavailable: {error}
+          </div>
         ) : loading && rows.length === 0 ? (
           <div className="surface-etched px-5 py-8 text-sm text-[var(--text-secondary)]">
-            Loading Chzzk category evidence.
+            Loading Chzzk category observed evidence for this source-view.
           </div>
         ) : rows.length === 0 ? (
           <div className="surface-etched px-5 py-8 text-sm text-[var(--text-secondary)]">
             {hasSearch && totalRowCount > 0
-              ? 'No Chzzk category rows match the current search.'
-              : 'No Chzzk category rows are available.'}
+              ? 'No observed Chzzk category rows match the current search.'
+              : 'No bounded observed Chzzk category rows are available in this source-view.'}
           </div>
         ) : (
           <table className="min-w-[1200px] w-full border-collapse bg-[rgba(255,249,239,0.34)] text-left">
