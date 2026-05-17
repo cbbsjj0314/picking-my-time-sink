@@ -27,9 +27,15 @@ def test_chzzk_view_model_maps_new_api_fields_directly() -> None:
     assert "latestViewersLabel: formatOptionalInteger(row.latest_viewers_observed)" in source
     assert "latestViewersTitle: formatKstDateTime(row.latest_bucket_time)" in source
     assert "viewersPerChannelLabel: formatDecimal(row.viewer_per_channel_observed)" in source
+    assert "viewersPerChannelSupport: getNullableChannelMetricSupport(row.viewer_per_channel_observed)" in source
     assert "viewersPerChannel: finiteNumberOrNull(row.viewer_per_channel_observed)" in source
     assert "uniqueChannelsLabel: formatOptionalInteger(row.unique_channels_observed)" in source
+    assert "uniqueChannelsSupport: getNullableChannelMetricSupport(row.unique_channels_observed)" in source
     assert "uniqueChannels: finiteNumberOrNull(row.unique_channels_observed)" in source
+    assert "Channel evidence unavailable" in source
+    assert "matching category-channel evidence is unavailable" in source
+    assert "observed nullable metric, not a full-population claim" in source
+    assert "No channel evidence" not in source
     assert "viewer_hours_observed / 0.5" not in source
     assert "viewer_hours_observed /" not in source
     assert "/ 0.5" not in source
@@ -56,12 +62,22 @@ def test_chzzk_table_uses_observed_sample_context_without_period_label() -> None
 
     assert "Observed Sample · KR / KST" in table_source
     assert "API context label only. Observed buckets; no full-window claim." in table_source
+    assert "Channel-derived metrics are nullable observed values" in table_source
+    assert "matching category-channel" in table_source
     assert "Latest Viewers" in table_source
     assert "Current Viewers" not in table_source
     assert "Last 7 Days" not in table_source
     assert "Category-only" in table_source
     assert "Bounded sample" in table_source
     assert "coverage_status" not in table_source
+
+
+def test_chzzk_table_uses_nullable_channel_metric_support_from_view_model() -> None:
+    table_source = CHZZK_TABLE_PATH.read_text(encoding="utf-8")
+
+    assert "support={row.viewersPerChannelSupport}" in table_source
+    assert "support={row.uniqueChannelsSupport}" in table_source
+    assert "No channel evidence" not in table_source
 
 
 def test_chzzk_category_cell_stays_name_only() -> None:
