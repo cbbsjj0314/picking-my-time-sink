@@ -2,4 +2,4 @@
 set -euo pipefail
 
 poetry run ruff check .
-poetry run pytest
+poetry run pytest --capture=no
