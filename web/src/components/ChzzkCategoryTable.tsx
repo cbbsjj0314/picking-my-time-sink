@@ -18,8 +18,11 @@ interface CategoryCellProps {
 }
 
 function CaveatBadge({ label, title }: { label: string; title?: string | null }) {
+  const accessibleLabel = title ? `${label}: ${title}` : label
+
   return (
     <span
+      aria-label={accessibleLabel}
       className="inline-flex h-5 shrink-0 items-center rounded border border-[var(--ghost-border-strong)] bg-[rgba(255,244,226,0.78)] px-1.5 text-[0.64rem] font-bold uppercase leading-none text-[var(--amber)]"
       title={title ?? undefined}
     >
@@ -182,6 +185,7 @@ export function ChzzkCategoryTable({
                   <td className="min-w-[220px] px-4 py-3 align-top">
                     <div className="font-semibold leading-snug text-[var(--text-primary)]">{row.categoryName}</div>
                     <div
+                      aria-label={`${row.categoryTypeLabel}: ${row.categoryTypeTitle}`}
                       className="mt-1 inline-flex items-center rounded border border-[var(--ghost-border)] bg-[rgba(255,249,239,0.58)] px-1.5 py-0.5 text-[0.65rem] font-semibold uppercase leading-none text-[var(--text-muted)]"
                       title={row.categoryTypeTitle}
                     >
