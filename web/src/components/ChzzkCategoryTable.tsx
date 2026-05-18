@@ -32,13 +32,19 @@ function CaveatBadge({ label, title }: { label: string; title?: string | null })
 }
 
 function CategoryMetricCell({ value, support = null, supportTitle = null, title = null }: CategoryCellProps) {
+  const supportAccessibleLabel = support && supportTitle ? `${support}: ${supportTitle}` : support
+
   return (
     <td className="px-4 py-3 align-top" title={title ?? undefined}>
       <div className="metric-text min-h-5 whitespace-nowrap text-sm font-semibold text-[var(--text-primary)]">
         {value}
       </div>
       {support ? (
-        <div className="mt-1 max-w-[12rem] text-xs leading-snug text-[var(--text-muted)]" title={supportTitle ?? undefined}>
+        <div
+          aria-label={supportAccessibleLabel ?? undefined}
+          className="mt-1 max-w-[12rem] text-xs leading-snug text-[var(--text-muted)]"
+          title={supportTitle ?? undefined}
+        >
           {support}
         </div>
       ) : null}

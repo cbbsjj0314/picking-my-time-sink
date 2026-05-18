@@ -164,6 +164,13 @@ def test_chzzk_table_uses_nullable_channel_metric_support_from_view_model() -> N
 def test_chzzk_table_uses_readable_coverage_support_from_view_model() -> None:
     table_source = CHZZK_TABLE_PATH.read_text(encoding="utf-8")
 
+    assert (
+        "const supportAccessibleLabel = support && supportTitle ? "
+        "`${support}: ${supportTitle}` : support"
+        in table_source
+    )
+    assert "aria-label={supportAccessibleLabel ?? undefined}" in table_source
+    assert "title={supportTitle ?? undefined}" in table_source
     assert "support={row.observedBucketLabel}" in table_source
     assert "supportTitle={row.observedBucketTitle}" in table_source
     assert "title={row.latestViewersTitle}" in table_source
