@@ -10,6 +10,7 @@ STEAM_OVERVIEW_HOOK_PATH = Path("web/src/hooks/useSteamOverview.ts")
 STEAM_DISCOVER_MODE_ROW_PATH = Path("web/src/components/SteamDiscoverModeRow.tsx")
 STEAM_EXPLORE_VIEW_MODEL_PATH = Path("web/src/lib/steamExploreViewModel.ts")
 STEAM_EXPLORE_TABLE_PATH = Path("web/src/components/SteamExploreTable.tsx")
+STEAM_RANKING_LIST_PATH = Path("web/src/components/SteamRankingList.tsx")
 
 
 def test_steam_detail_view_surfaces_latest_evidence_timestamps() -> None:
@@ -223,3 +224,56 @@ def test_top_selling_detail_history_keeps_fixed_daily_90d_read() -> None:
     assert "gamesApi.getGameCcuDaily90d(canonicalGameId, controller.signal)" in overview_hook_source
     assert "'30D': buildTimelinePoints(historyRows, '30D')" in view_model_source
     assert "'90D': buildTimelinePoints(historyRows, '90D')" in view_model_source
+
+
+def test_top_selling_expansion_limit_lives_in_overview_hook() -> None:
+    app_source = APP_PATH.read_text(encoding="utf-8")
+    overview_hook_source = STEAM_OVERVIEW_HOOK_PATH.read_text(encoding="utf-8")
+    view_model_source = STEAM_VIEW_MODEL_PATH.read_text(encoding="utf-8")
+
+    build_steam_games_source = view_model_source.split(
+        "export function buildSteamGames",
+        maxsplit=1,
+    )[1]
+
+    assert ".slice(0, 4)" not in build_steam_games_source
+    assert (
+        "const baseRows = mode === 'Explore' ? [] : buildTopSellingRows(data)"
+        in view_model_source
+    )
+    assert (
+        "const games = rankingCardLimit === null ? allGames : allGames.slice(0, rankingCardLimit)"
+        in overview_hook_source
+    )
+    assert "totalGameCount: allGames.length" in overview_hook_source
+    assert "const DEFAULT_LIMIT = 12" in overview_hook_source
+    assert "rankingCardLimit: showExpandedRanking ? null : 4" in app_source
+    assert "canExpand={steamTotalGameCount > steamGames.length}" in app_source
+
+
+def test_top_selling_list_includes_loaded_count_search_context() -> None:
+    app_source = APP_PATH.read_text(encoding="utf-8")
+    ranking_list_source = STEAM_RANKING_LIST_PATH.read_text(encoding="utf-8")
+
+    assert "totalGameCount?: number" in ranking_list_source
+    assert "searchQuery?: string" in ranking_list_source
+    assert "const totalCount = totalGameCount ?? games.length" in ranking_list_source
+    assert "const hasSearch = searchQuery.trim().length > 0" in ranking_list_source
+    assert "loaded weekly top sellers match current search" in ranking_list_source
+    assert "loaded weekly top sellers" in ranking_list_source
+    assert "Showing all ${totalCountLabel} loaded weekly top sellers" in ranking_list_source
+    assert (
+        "Showing ${shownCountLabel} of ${totalCountLabel} loaded weekly top sellers"
+        in ranking_list_source
+    )
+    assert "totalGameCount={steamTotalGameCount}" in app_source
+    assert "searchQuery={deferredSearch}" in app_source
+
+    forbidden_claims = [
+        "full Steam catalog",
+        "all Steam games",
+        "complete Steam catalog",
+        "full sales universe",
+    ]
+    for forbidden_claim in forbidden_claims:
+        assert forbidden_claim not in ranking_list_source

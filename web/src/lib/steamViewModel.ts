@@ -472,7 +472,6 @@ export function buildSteamGames({
 
   return baseRows
     .filter((row) => (normalizedSearch.length > 0 ? row.title.toLowerCase().includes(normalizedSearch) : true))
-    .slice(0, 4)
     .map((row) => {
       const historyRows = row.canonicalGameId !== null ? historyByCanonicalGameId[row.canonicalGameId] : undefined
       const cardStates = getCardStates(row, historyRows, historyLoadingCanonicalGameId)
