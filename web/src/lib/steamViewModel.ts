@@ -46,9 +46,15 @@ interface SteamBaseRow {
   reviews: GameLatestReviews | null
 }
 
-const PENDING_TOOLTIP = '데이터를 준비 중입니다.'
-const PARTIAL_TOOLTIP = '일부 데이터가 아직 반영되지 않았습니다.'
-const DELAYED_MESSAGE = '현재 데이터 업데이트가 지연되고 있습니다.'
+const CCU_PENDING_TOOLTIP = 'CCU evidence is still loading or unavailable for this ranked game.'
+const CCU_PARTIAL_TOOLTIP = 'CCU evidence is partial until the selected game has enough 7D history.'
+const REVIEWS_PENDING_TOOLTIP = 'Review snapshot evidence is still loading or unavailable for this ranked game.'
+const REVIEWS_PARTIAL_TOOLTIP = 'Review delta evidence is partial for the current snapshot.'
+const PRICE_PENDING_TOOLTIP = 'Price snapshot evidence is still loading or unavailable for this ranked game.'
+const CHART_HISTORY_LOADING_MESSAGE = '선택한 게임의 CCU history evidence를 불러오는 중입니다.'
+const CHART_HISTORY_EMPTY_MESSAGE = '선택한 게임의 CCU history evidence가 아직 없습니다.'
+const CHART_HISTORY_ERROR_MESSAGE = '선택한 게임의 CCU history evidence를 불러오지 못했습니다.'
+const CHART_HISTORY_UNMAPPED_MESSAGE = '이 ranked Steam row는 CCU history evidence와 연결되지 않았습니다.'
 
 const KST_DATE_TIME_FORMATTER = new Intl.DateTimeFormat('en-US', {
   month: 'short',
@@ -207,34 +213,34 @@ const getCardStates = (
   const states: Partial<Record<SteamDataStateTarget, SteamDataState>> = {}
 
   if (row.canonicalGameId === null) {
-    states.CCU = buildCardState('CCU', 'Pending', PENDING_TOOLTIP)
-    states.Reviews = buildCardState('Reviews', 'Pending', PENDING_TOOLTIP)
-    states.Price = buildCardState('Price', 'Pending', PENDING_TOOLTIP)
+    states.CCU = buildCardState('CCU', 'Pending', CCU_PENDING_TOOLTIP)
+    states.Reviews = buildCardState('Reviews', 'Pending', REVIEWS_PENDING_TOOLTIP)
+    states.Price = buildCardState('Price', 'Pending', PRICE_PENDING_TOOLTIP)
     return states
   }
 
   if (!row.ccu) {
-    states.CCU = buildCardState('CCU', 'Pending', PENDING_TOOLTIP)
+    states.CCU = buildCardState('CCU', 'Pending', CCU_PENDING_TOOLTIP)
   } else if (historyLoadingCanonicalGameId === row.canonicalGameId && historyRows === undefined) {
-    states.CCU = buildCardState('CCU', 'Pending', PENDING_TOOLTIP)
+    states.CCU = buildCardState('CCU', 'Pending', CCU_PENDING_TOOLTIP)
   } else if (row.ccu.missing_flag) {
-    states.CCU = buildCardState('CCU', 'Partial', PARTIAL_TOOLTIP)
+    states.CCU = buildCardState('CCU', 'Partial', CCU_PARTIAL_TOOLTIP)
   } else if (!historyRows || historyRows.length < HISTORY_POINT_LIMITS['7D']) {
-    states.CCU = buildCardState('CCU', 'Partial', PARTIAL_TOOLTIP)
+    states.CCU = buildCardState('CCU', 'Partial', CCU_PARTIAL_TOOLTIP)
   }
 
   if (!row.reviews) {
-    states.Reviews = buildCardState('Reviews', 'Pending', PENDING_TOOLTIP)
+    states.Reviews = buildCardState('Reviews', 'Pending', REVIEWS_PENDING_TOOLTIP)
   } else if (
     row.reviews.missing_flag ||
     row.reviews.delta_total_reviews === null ||
     row.reviews.delta_positive_ratio === null
   ) {
-    states.Reviews = buildCardState('Reviews', 'Partial', PARTIAL_TOOLTIP)
+    states.Reviews = buildCardState('Reviews', 'Partial', REVIEWS_PARTIAL_TOOLTIP)
   }
 
   if (!row.price) {
-    states.Price = buildCardState('Price', 'Pending', PENDING_TOOLTIP)
+    states.Price = buildCardState('Price', 'Pending', PRICE_PENDING_TOOLTIP)
   }
 
   return states
@@ -267,35 +273,35 @@ const getChartState = (
   if (row.canonicalGameId === null) {
     return {
       kind: 'empty',
-      message: DELAYED_MESSAGE,
+      message: CHART_HISTORY_UNMAPPED_MESSAGE,
     }
   }
 
   if (historyErrorCanonicalGameIds[row.canonicalGameId]) {
     return {
       kind: 'error',
-      message: DELAYED_MESSAGE,
+      message: CHART_HISTORY_ERROR_MESSAGE,
     }
   }
 
   if (historyLoadingCanonicalGameId === row.canonicalGameId && historyRows === undefined) {
     return {
       kind: 'loading',
-      message: '데이터를 불러오는 중입니다.',
+      message: CHART_HISTORY_LOADING_MESSAGE,
     }
   }
 
   if (historyRows === undefined) {
     return {
       kind: 'loading',
-      message: '데이터를 불러오는 중입니다.',
+      message: CHART_HISTORY_LOADING_MESSAGE,
     }
   }
 
   if (historyRows.length === 0) {
     return {
       kind: 'empty',
-      message: DELAYED_MESSAGE,
+      message: CHART_HISTORY_EMPTY_MESSAGE,
     }
   }
 
