@@ -244,6 +244,132 @@ def test_top_selling_detail_7d_average_waits_for_full_history_window() -> None:
     assert average_row in source
 
 
+def test_top_selling_detail_uses_target_aware_evidence_copy() -> None:
+    source = STEAM_VIEW_MODEL_PATH.read_text(encoding="utf-8")
+    types_source = STEAM_TYPES_PATH.read_text(encoding="utf-8")
+    card_states_source = source.split("const getCardStates", maxsplit=1)[1].split(
+        "const getStatusBadge",
+        maxsplit=1,
+    )[0]
+
+    assert (
+        "export const steamDataStateKinds = ['Pending', 'Partial', 'Stale'] as const"
+        in types_source
+    )
+    assert (
+        "export const steamDataStateTargets = ['CCU', 'Reviews', 'Price'] as const"
+        in types_source
+    )
+    assert "export interface SteamDataState {" in types_source
+    assert "kind: SteamDataStateKind" in types_source
+    assert "target: SteamDataStateTarget" in types_source
+    assert "tooltip: string" in types_source
+
+    assert (
+        "const CCU_PENDING_TOOLTIP = "
+        "'CCU evidence is still loading or unavailable for this ranked game.'"
+        in source
+    )
+    assert (
+        "const CCU_PARTIAL_TOOLTIP = "
+        "'CCU evidence is partial until the selected game has enough 7D history.'"
+        in source
+    )
+    assert (
+        "const REVIEWS_PENDING_TOOLTIP = "
+        "'Review snapshot evidence is still loading or unavailable for this ranked game.'"
+        in source
+    )
+    assert (
+        "const REVIEWS_PARTIAL_TOOLTIP = "
+        "'Review delta evidence is partial for the current snapshot.'"
+        in source
+    )
+    assert (
+        "const PRICE_PENDING_TOOLTIP = "
+        "'Price snapshot evidence is still loading or unavailable for this ranked game.'"
+        in source
+    )
+
+    assert "buildCardState('CCU', 'Pending', CCU_PENDING_TOOLTIP)" in card_states_source
+    assert "buildCardState('CCU', 'Partial', CCU_PARTIAL_TOOLTIP)" in card_states_source
+    assert "buildCardState('Reviews', 'Pending', REVIEWS_PENDING_TOOLTIP)" in card_states_source
+    assert "buildCardState('Reviews', 'Partial', REVIEWS_PARTIAL_TOOLTIP)" in card_states_source
+    assert "buildCardState('Price', 'Pending', PRICE_PENDING_TOOLTIP)" in card_states_source
+    assert "buildCardState('CCU', 'Pending', PENDING_TOOLTIP)" not in card_states_source
+    assert "buildCardState('CCU', 'Partial', PARTIAL_TOOLTIP)" not in card_states_source
+    assert "buildCardState('Reviews', 'Pending', PENDING_TOOLTIP)" not in card_states_source
+    assert "buildCardState('Reviews', 'Partial', PARTIAL_TOOLTIP)" not in card_states_source
+    assert "buildCardState('Price', 'Pending', PENDING_TOOLTIP)" not in card_states_source
+
+    forbidden_claims = [
+        "full Steam catalog",
+        "complete Steam catalog",
+        "recommendation score",
+        "Combined",
+        "category-to-game",
+        "scheduler",
+        "live fetch",
+        "DB write",
+    ]
+    for forbidden_claim in forbidden_claims:
+        assert forbidden_claim not in card_states_source
+
+
+def test_top_selling_chart_fallback_copy_stays_history_evidence_bounded() -> None:
+    source = STEAM_VIEW_MODEL_PATH.read_text(encoding="utf-8")
+    chart_state_source = source.split("const getChartState", maxsplit=1)[1].split(
+        "const getSevenDayAverage",
+        maxsplit=1,
+    )[0]
+
+    assert (
+        "const CHART_HISTORY_LOADING_MESSAGE = "
+        "'선택한 게임의 CCU history evidence를 불러오는 중입니다.'"
+        in source
+    )
+    assert (
+        "const CHART_HISTORY_EMPTY_MESSAGE = "
+        "'선택한 게임의 CCU history evidence가 아직 없습니다.'"
+        in source
+    )
+    assert (
+        "const CHART_HISTORY_ERROR_MESSAGE = "
+        "'선택한 게임의 CCU history evidence를 불러오지 못했습니다.'"
+        in source
+    )
+    assert (
+        "const CHART_HISTORY_UNMAPPED_MESSAGE = "
+        "'이 ranked Steam row는 CCU history evidence와 연결되지 않았습니다.'"
+        in source
+    )
+
+    assert "row.canonicalGameId === null" in chart_state_source
+    assert "message: CHART_HISTORY_UNMAPPED_MESSAGE" in chart_state_source
+    assert "historyErrorCanonicalGameIds[row.canonicalGameId]" in chart_state_source
+    assert "message: CHART_HISTORY_ERROR_MESSAGE" in chart_state_source
+    assert (
+        "historyLoadingCanonicalGameId === row.canonicalGameId && historyRows === undefined"
+        in chart_state_source
+    )
+    assert "message: CHART_HISTORY_LOADING_MESSAGE" in chart_state_source
+    assert "historyRows === undefined" in chart_state_source
+    assert "historyRows.length === 0" in chart_state_source
+    assert "message: CHART_HISTORY_EMPTY_MESSAGE" in chart_state_source
+    assert "DELAYED_MESSAGE" not in chart_state_source
+
+    forbidden_claims = [
+        "trusted mapping",
+        "Combined",
+        "category-to-game",
+        "scheduler",
+        "live fetch",
+        "DB write",
+    ]
+    for forbidden_claim in forbidden_claims:
+        assert forbidden_claim not in chart_state_source
+
+
 def test_top_selling_detail_history_keeps_fixed_daily_90d_read() -> None:
     api_source = GAMES_API_PATH.read_text(encoding="utf-8")
     overview_hook_source = STEAM_OVERVIEW_HOOK_PATH.read_text(encoding="utf-8")
