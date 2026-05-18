@@ -1,19 +1,14 @@
 import type { SourceTab } from '../types'
 
 interface PendingSourcePanelProps {
-  sourceTab: Exclude<SourceTab, 'Steam'>
+  sourceTab: Extract<SourceTab, 'Combined'>
 }
 
-const copyBySource: Record<Exclude<SourceTab, 'Steam'>, { title: string; body: string; note: string }> = {
+const copyBySource: Record<Extract<SourceTab, 'Combined'>, { title: string; body: string; note: string }> = {
   Combined: {
     title: 'Combined 소스는 아직 준비 중',
-    body: '셸의 소스 탐색 구조를 유지하기 위해 탭은 계속 보이지만, Combined 실데이터 경로는 아직 연결되지 않음.',
-    note: '현재는 Steam만 실제 데이터로 연결되어 있음.',
-  },
-  Chzzk: {
-    title: 'Chzzk 소스는 아직 준비 중',
-    body: '셸의 소스 탐색 구조를 유지하기 위해 탭은 계속 보이지만, Chzzk 실데이터 경로는 아직 연결되지 않음.',
-    note: '현재는 Steam만 실제 데이터로 연결되어 있음.',
+    body: 'Steam과 Chzzk 관측 데이터를 하나의 판단 화면으로 합치는 기능은 아직 준비 중이다.',
+    note: '현재는 Steam source view와 Chzzk observed source view를 각각 분리해서 제공한다.',
   },
 }
 
