@@ -339,7 +339,11 @@ const buildPriceLine = (price: GameLatestPrice | null) => {
     return currentPrice
   }
 
-  return `${currentPrice} · ${price.discount_percent !== null && price.discount_percent > 0 ? `-${price.discount_percent}%` : 'No sale'}`
+  if (price.discount_percent !== null && price.discount_percent > 0) {
+    return `${currentPrice} · -${price.discount_percent}%`
+  }
+
+  return currentPrice
 }
 
 const formatDiscountValue = (price: GameLatestPrice | null) => {
@@ -355,7 +359,7 @@ const formatDiscountValue = (price: GameLatestPrice | null) => {
     return 'Pending'
   }
 
-  return price.discount_percent > 0 ? `-${price.discount_percent}%` : 'No sale'
+  return price.discount_percent > 0 ? `-${price.discount_percent}%` : '-'
 }
 
 const buildReviewSummary = (reviews: GameLatestReviews | null) => {
