@@ -16,6 +16,17 @@ A ticket should name the goal, scope, out of scope, requirements, acceptance cri
 
 One ticket normally maps to one PR. Split work before implementation when a ticket mixes unrelated runtime, schema, API, web, or operations changes.
 
+## Ticket Types
+
+Use explicit ticket types so planning, review, and execution boundaries are clear:
+
+- `Atomic ticket`: the default unit; normally maps to one PR.
+- `Bounded polish batch`: multiple related low/medium-risk items in one PR when they share the same screen/user flow/product boundary and can be reviewed under the same validation scope.
+- `Read-only review`: review-only work that must not be expanded into implementation in the same ticket.
+- `Planning-contract ticket`: planning-only work to lock scope/acceptance/validation that must not be expanded into implementation in the same ticket.
+
+High-risk work should usually start as a `Planning-contract ticket` or `Read-only review`. Do not convert high-risk work directly into implementation unless the approved ticket explicitly defines implementation scope and Human Gate approval.
+
 ## Codex Boundaries
 
 Codex should:
@@ -25,6 +36,14 @@ Codex should:
 - State assumptions when implementation depends on interpretation.
 - Run `./scripts/check.sh` from the repo root for code changes.
 - Create a branch, commit, push, and open a PR when the ticket is approved for PR-native execution.
+
+### Codex Preflight
+
+Before editing:
+
+- Confirm repo/branch.
+- Run `git status --short`.
+- Stop if unrelated dirty changes are present.
 
 Codex should not:
 
