@@ -108,6 +108,9 @@ def test_chzzk_source_view_is_connected_without_steam_or_combined_semantics() ->
 def test_chzzk_table_uses_observed_sample_context_without_period_label() -> None:
     table_source = CHZZK_TABLE_PATH.read_text(encoding="utf-8")
 
+    assert "const accessibleLabel = title ? `${label}: ${title}` : label" in table_source
+    assert "aria-label={accessibleLabel}" in table_source
+    assert "title={title ?? undefined}" in table_source
     assert "Observed Sample · KR / KST" in table_source
     assert "API context label only. Observed buckets; no full-window claim." in table_source
     assert "Channel-derived metrics are nullable observed values" in table_source
@@ -117,6 +120,8 @@ def test_chzzk_table_uses_observed_sample_context_without_period_label() -> None
     assert "Last 7 Days" not in table_source
     assert "Category-only" in table_source
     assert "Bounded sample" in table_source
+    assert 'CaveatBadge label="Category-only"' in table_source
+    assert 'CaveatBadge label="Bounded sample"' in table_source
     assert "coverage_status" not in table_source
     assert "Coverage state:" not in table_source
 
@@ -181,6 +186,7 @@ def test_chzzk_category_cell_shows_provider_category_type_evidence() -> None:
     assert "categoryTypeLabel" in view_model_source
     assert "categoryTypeTitle" in view_model_source
     assert "row.categoryTypeLabel" in table_source
+    assert "aria-label={`${row.categoryTypeLabel}: ${row.categoryTypeTitle}`}" in table_source
     assert "title={row.categoryTypeTitle}" in table_source
     assert "canonical_game_id" not in table_source
     assert "canonicalGame" not in table_source
