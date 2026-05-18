@@ -139,7 +139,14 @@ Combined 소스 및 KPI 체계 구축은 예정된 작업으로 분리해 두었
 
 ## 검증과 품질 관리
 
-주요 변경은 성격에 따라 `poetry run ruff check .`, `poetry run pytest`, `cd web && npm run build` 같은 명령으로 확인한다.
+주요 변경의 기본 검증은 repo root에서 `./scripts/check.sh`를 실행해 확인한다.
+
+`./scripts/check.sh`는 focused checks를 순서대로 실행한다.
+
+* `./scripts/check-python.sh`: Ruff와 Pytest 기반 Python 검증
+* `./scripts/check-web.sh`: Web TypeScript/Vite build 검증 (`npm --prefix web run build`)
+
+작업 성격에 따라 focused check를 먼저 실행할 수 있지만, code 변경의 최종 검증은 `./scripts/check.sh`를 기준으로 한다.
 
 운영 관련 확인은 local read-only smoke와 checkpoint 중심으로 수행하며, public README에는 raw payload, private runtime detail, credential, scheduler XML/stdout, row-level UGC를 남기지 않는다.
 
