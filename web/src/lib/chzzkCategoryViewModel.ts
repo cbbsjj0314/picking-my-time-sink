@@ -48,6 +48,7 @@ export interface ChzzkCategoryTableRow {
   boundedSampleLabel: string | null
   boundedSampleTitle: string | null
   observedBucketLabel: string
+  observedBucketTitle: string
   observedWindowLabel: string | null
   sortValues: ChzzkCategorySortValueMap
 }
@@ -122,6 +123,41 @@ const formatObservedWindow = (row: ChzzkCategoryOverview) => {
 const formatCoverageLabel = (row: ChzzkCategoryOverview) =>
   `${formatInteger(row.observed_bucket_count)} observed ${row.observed_bucket_count === 1 ? 'bucket' : 'buckets'}`
 
+const formatCoverageStatusLabel = (value: string) => {
+  switch (value) {
+    case 'observed_bucket_only':
+      return 'Observed bucket only'
+    case 'partial_window':
+      return 'Partial bucket window'
+    case 'full_1d_candidate_available':
+      return '1d bucket coverage candidate'
+    case 'full_7d_candidate_available':
+      return '7d bucket coverage candidate'
+    default:
+      return 'Bucket coverage status unavailable'
+  }
+}
+
+const formatCoverageStatusTitle = (row: ChzzkCategoryOverview) => {
+  const baseTitle = 'Bucket coverage status from observed category buckets; not a full live-list population claim.'
+
+  if (
+    row.coverage_status === 'full_1d_candidate_available' ||
+    row.coverage_status === 'full_7d_candidate_available'
+  ) {
+    return `${baseTitle} Missing 1d buckets: ${formatInteger(row.missing_1d_bucket_count)}; missing 7d buckets: ${formatInteger(row.missing_7d_bucket_count)}. Coverage candidate only.`
+  }
+
+  return baseTitle
+}
+
+const composeLatestViewersTitle = (row: ChzzkCategoryOverview) => {
+  const latestBucketTitle = formatKstDateTime(row.latest_bucket_time)
+  const coverageTitle = formatCoverageStatusTitle(row)
+
+  return latestBucketTitle === null ? coverageTitle : `${latestBucketTitle}. ${coverageTitle}`
+}
+
 const getBoundedSampleLabel = (row: ChzzkCategoryOverview) =>
   row.bounded_sample_caveat === 'bounded_sample' ? 'Bounded sample' : null
 
@@ -163,7 +199,7 @@ const buildChzzkCategoryTableRow = (row: ChzzkCategoryOverview): ChzzkCategoryTa
   categoryTypeTitle:
     'Chzzk provider category type evidence; not canonical game identity or trusted Steam mapping.',
   latestViewersLabel: formatOptionalInteger(row.latest_viewers_observed),
-  latestViewersTitle: formatKstDateTime(row.latest_bucket_time),
+  latestViewersTitle: composeLatestViewersTitle(row),
   viewerHoursLabel: formatDecimal(row.viewer_hours_observed),
   avgViewersLabel: formatDecimal(row.avg_viewers_observed),
   peakViewersLabel: formatOptionalInteger(row.peak_viewers_observed),
@@ -183,7 +219,8 @@ const buildChzzkCategoryTableRow = (row: ChzzkCategoryOverview): ChzzkCategoryTa
   coverageLabel: formatCoverageLabel(row),
   boundedSampleLabel: getBoundedSampleLabel(row),
   boundedSampleTitle: getBoundedSampleTitle(row),
-  observedBucketLabel: `Coverage state: ${row.coverage_status}`,
+  observedBucketLabel: formatCoverageStatusLabel(row.coverage_status),
+  observedBucketTitle: formatCoverageStatusTitle(row),
   observedWindowLabel: formatObservedWindow(row),
   sortValues: buildSortValues(row),
 })

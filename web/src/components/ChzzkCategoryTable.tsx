@@ -13,6 +13,7 @@ interface ChzzkCategoryTableProps {
 interface CategoryCellProps {
   value: string
   support?: string | null
+  supportTitle?: string | null
   title?: string | null
 }
 
@@ -27,13 +28,17 @@ function CaveatBadge({ label, title }: { label: string; title?: string | null })
   )
 }
 
-function CategoryMetricCell({ value, support = null, title = null }: CategoryCellProps) {
+function CategoryMetricCell({ value, support = null, supportTitle = null, title = null }: CategoryCellProps) {
   return (
     <td className="px-4 py-3 align-top" title={title ?? undefined}>
       <div className="metric-text min-h-5 whitespace-nowrap text-sm font-semibold text-[var(--text-primary)]">
         {value}
       </div>
-      {support ? <div className="mt-1 max-w-[12rem] text-xs leading-snug text-[var(--text-muted)]">{support}</div> : null}
+      {support ? (
+        <div className="mt-1 max-w-[12rem] text-xs leading-snug text-[var(--text-muted)]" title={supportTitle ?? undefined}>
+          {support}
+        </div>
+      ) : null}
     </td>
   )
 }
@@ -185,6 +190,7 @@ export function ChzzkCategoryTable({
                   </td>
                   <CategoryMetricCell
                     support={row.observedBucketLabel}
+                    supportTitle={row.observedBucketTitle}
                     title={row.latestViewersTitle}
                     value={row.latestViewersLabel}
                   />

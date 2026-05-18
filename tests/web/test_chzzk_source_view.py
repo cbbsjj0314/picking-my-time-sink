@@ -25,7 +25,8 @@ def test_chzzk_view_model_maps_new_api_fields_directly() -> None:
     source = CHZZK_VIEW_MODEL_PATH.read_text(encoding="utf-8")
 
     assert "latestViewersLabel: formatOptionalInteger(row.latest_viewers_observed)" in source
-    assert "latestViewersTitle: formatKstDateTime(row.latest_bucket_time)" in source
+    assert "latestViewersTitle: composeLatestViewersTitle(row)" in source
+    assert "const latestBucketTitle = formatKstDateTime(row.latest_bucket_time)" in source
     assert "viewersPerChannelLabel: formatDecimal(row.viewer_per_channel_observed)" in source
     assert (
         "viewersPerChannelSupport: getNullableChannelMetricSupport(row.viewer_per_channel_observed)"
@@ -45,6 +46,43 @@ def test_chzzk_view_model_maps_new_api_fields_directly() -> None:
     assert "viewer_hours_observed / 0.5" not in source
     assert "viewer_hours_observed /" not in source
     assert "/ 0.5" not in source
+
+
+def test_chzzk_view_model_humanizes_bucket_coverage_copy() -> None:
+    source = CHZZK_VIEW_MODEL_PATH.read_text(encoding="utf-8")
+
+    assert "observedBucketLabel: formatCoverageStatusLabel(row.coverage_status)" in source
+    assert "observedBucketTitle: formatCoverageStatusTitle(row)" in source
+    assert "Coverage state: ${row.coverage_status}" not in source
+    assert "Observed bucket only" in source
+    assert "Partial bucket window" in source
+    assert "1d bucket coverage candidate" in source
+    assert "7d bucket coverage candidate" in source
+    assert "Bucket coverage status unavailable" in source
+    assert (
+        "Bucket coverage status from observed category buckets; "
+        "not a full live-list population claim."
+        in source
+    )
+    assert "Missing 1d buckets:" in source
+    assert "missing 7d buckets:" in source
+    assert "Coverage candidate only." in source
+    assert "full product metric" not in source
+    assert "full 1d" not in source
+    assert "full 7d" not in source
+
+
+def test_chzzk_view_model_preserves_latest_bucket_timestamp_title() -> None:
+    source = CHZZK_VIEW_MODEL_PATH.read_text(encoding="utf-8")
+
+    assert "const composeLatestViewersTitle = (row: ChzzkCategoryOverview)" in source
+    assert "const latestBucketTitle = formatKstDateTime(row.latest_bucket_time)" in source
+    assert "const coverageTitle = formatCoverageStatusTitle(row)" in source
+    assert (
+        "latestBucketTitle === null ? coverageTitle : "
+        "`${latestBucketTitle}. ${coverageTitle}`"
+        in source
+    )
 
 
 def test_chzzk_source_view_is_connected_without_steam_or_combined_semantics() -> None:
@@ -80,6 +118,7 @@ def test_chzzk_table_uses_observed_sample_context_without_period_label() -> None
     assert "Category-only" in table_source
     assert "Bounded sample" in table_source
     assert "coverage_status" not in table_source
+    assert "Coverage state:" not in table_source
 
 
 def test_chzzk_table_includes_bounded_result_count_context() -> None:
@@ -117,6 +156,15 @@ def test_chzzk_table_uses_nullable_channel_metric_support_from_view_model() -> N
     assert "No channel evidence" not in table_source
 
 
+def test_chzzk_table_uses_readable_coverage_support_from_view_model() -> None:
+    table_source = CHZZK_TABLE_PATH.read_text(encoding="utf-8")
+
+    assert "support={row.observedBucketLabel}" in table_source
+    assert "supportTitle={row.observedBucketTitle}" in table_source
+    assert "title={row.latestViewersTitle}" in table_source
+    assert "Coverage state:" not in table_source
+
+
 def test_chzzk_category_cell_shows_provider_category_type_evidence() -> None:
     view_model_source = CHZZK_VIEW_MODEL_PATH.read_text(encoding="utf-8")
     table_source = CHZZK_TABLE_PATH.read_text(encoding="utf-8")
@@ -137,3 +185,4 @@ def test_chzzk_category_cell_shows_provider_category_type_evidence() -> None:
     assert "canonical_game_id" not in table_source
     assert "canonicalGame" not in table_source
     assert "Combined" not in table_source
+}
