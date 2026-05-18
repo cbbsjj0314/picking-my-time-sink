@@ -5,6 +5,7 @@ import headerWordmark from '../assets/ui/brand/header-wordmark.png'
 interface StickyShellProps {
   searchApplied: boolean
   searchDirty: boolean
+  searchPlaceholder: string
   searchValue: string
   searchPending: boolean
   onReset: () => void
@@ -29,6 +30,7 @@ function SearchIcon() {
 export function StickyShell({
   searchApplied,
   searchDirty,
+  searchPlaceholder,
   searchValue,
   searchPending,
   onReset,
@@ -137,6 +139,7 @@ export function StickyShell({
               </button>
 
               <input
+                aria-label={searchPlaceholder}
                 autoFocus={searchOpen}
                 className={`h-full min-w-0 bg-transparent text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)] transition-[width,opacity,padding] duration-200 ${
                   searchOpen ? 'w-full pr-3 pl-1 opacity-100' : 'w-0 px-0 opacity-0'
@@ -151,7 +154,7 @@ export function StickyShell({
                     setSearchOpen(false)
                   }
                 }}
-                placeholder="Search"
+                placeholder={searchPlaceholder}
                 tabIndex={searchOpen ? 0 : -1}
                 value={searchValue}
               />

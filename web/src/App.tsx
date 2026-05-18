@@ -27,6 +27,18 @@ const getInitialSourceTab = (): SourceTab => {
   return DEFAULT_SOURCE_TAB
 }
 
+const getSearchPlaceholder = (sourceTab: SourceTab, steamDiscoverMode: SteamDiscoverMode) => {
+  if (sourceTab === 'Steam') {
+    return steamDiscoverMode === 'Explore' ? 'Search Steam games' : 'Search Steam top sellers'
+  }
+
+  if (sourceTab === 'Chzzk') {
+    return 'Search Chzzk observed categories'
+  }
+
+  return 'Search current source'
+}
+
 function App() {
   const [sourceTab, setSourceTab] = useState<SourceTab>(getInitialSourceTab())
   const [steamDiscoverMode, setSteamDiscoverMode] = useState<SteamDiscoverMode>(DEFAULT_STEAM_DISCOVER_MODE)
@@ -72,6 +84,7 @@ function App() {
     searchQuery: deferredSearch,
   })
   const activeGames = steamGames
+  const searchPlaceholder = getSearchPlaceholder(sourceTab, steamDiscoverMode)
 
   useEffect(() => {
     const firstVisibleId = activeGames[0]?.id ?? null
@@ -117,6 +130,7 @@ function App() {
         searchApplied={searchQuery.length > 0}
         searchDirty={searchDraft !== searchQuery}
         searchPending={searchQuery !== deferredSearch}
+        searchPlaceholder={searchPlaceholder}
         searchValue={searchDraft}
       />
 
