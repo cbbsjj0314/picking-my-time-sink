@@ -57,7 +57,11 @@ def test_chzzk_source_view_is_connected_without_steam_or_combined_semantics() ->
     assert "<ChzzkCategoryTable" in app_source
     assert "chzzkApi.listCategoryOverview({ limit, signal: controller.signal })" in hook_source
     assert "Combined" not in table_source
-    assert "Steam game mapping" not in table_source
+    assert "<Steam" not in table_source
+    assert "canonicalGame" not in table_source
+    assert "canonical_game_id" not in table_source
+    assert "mappingStatus" not in table_source
+    assert "mappedSteam" not in table_source
     assert "Unique Channels" in table_source
     assert "channel_id" not in table_source
     assert "channel_name" not in table_source
@@ -113,7 +117,8 @@ def test_chzzk_table_uses_nullable_channel_metric_support_from_view_model() -> N
     assert "No channel evidence" not in table_source
 
 
-def test_chzzk_category_cell_stays_name_only() -> None:
+def test_chzzk_category_cell_shows_provider_category_type_evidence() -> None:
+    view_model_source = CHZZK_VIEW_MODEL_PATH.read_text(encoding="utf-8")
     table_source = CHZZK_TABLE_PATH.read_text(encoding="utf-8")
     category_cell = (
         '<div className="font-semibold leading-snug text-[var(--text-primary)]">'
@@ -121,4 +126,14 @@ def test_chzzk_category_cell_stays_name_only() -> None:
     )
 
     assert category_cell in table_source
-    assert "category_type" not in table_source
+    assert "categoryTypeLabel: formatCategoryTypeLabel(row.category_type)" in view_model_source
+    assert "categoryTypeTitle:" in view_model_source
+    assert "Chzzk provider category type evidence" in view_model_source
+    assert "not canonical game identity or trusted Steam mapping" in view_model_source
+    assert "categoryTypeLabel" in view_model_source
+    assert "categoryTypeTitle" in view_model_source
+    assert "row.categoryTypeLabel" in table_source
+    assert "title={row.categoryTypeTitle}" in table_source
+    assert "canonical_game_id" not in table_source
+    assert "canonicalGame" not in table_source
+    assert "Combined" not in table_source
