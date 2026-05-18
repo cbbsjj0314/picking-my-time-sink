@@ -171,7 +171,7 @@ export function SteamRankingList({
         {canExpand || isExpanded ? (
           <>
             <button
-              className="text-sm text-[var(--text-secondary)] transition hover:text-[var(--text-primary)]"
+              className="cursor-pointer text-sm text-[var(--text-secondary)] transition hover:text-[var(--text-primary)]"
               onClick={onToggleExpanded}
               type="button"
             >

@@ -266,6 +266,7 @@ def test_top_selling_list_includes_loaded_count_search_context() -> None:
         "Showing ${shownCountLabel} of ${totalCountLabel} loaded weekly top sellers"
         in ranking_list_source
     )
+    assert "cursor-pointer text-sm text-[var(--text-secondary)]" in ranking_list_source
     assert "totalGameCount={steamTotalGameCount}" in app_source
     assert "searchQuery={deferredSearch}" in app_source
 
