@@ -17,7 +17,6 @@ SENSITIVE_CHANNEL_ID = "sensitive-channel-id"
 SENSITIVE_LIVE_TITLE = "Sensitive Live Title"
 SENSITIVE_THUMBNAIL = "https://example.invalid/sensitive-thumbnail.jpg"
 SENSITIVE_CREDENTIAL = "credential-like-sentinel-secret"
-SENSITIVE_CREDENTIAL_LENGTH = str(len(SENSITIVE_CREDENTIAL))
 SENSITIVE_DB_VALUE = "postgres-secret-sentinel"
 SENSITIVE_CONNINFO = "host=private-host dbname=private-db user=private-user"
 SENSITIVE_PRIVATE_PATH = "/tmp/private/chzzk/raw/page-001.json"
@@ -259,7 +258,6 @@ def assert_no_sensitive_leak(result: dict[str, Any], tmp_path: Path) -> None:
         SENSITIVE_LIVE_TITLE,
         SENSITIVE_THUMBNAIL,
         SENSITIVE_CREDENTIAL,
-        SENSITIVE_CREDENTIAL_LENGTH,
         SENSITIVE_DB_VALUE,
         SENSITIVE_CONNINFO,
         SENSITIVE_PRIVATE_PATH,
@@ -273,6 +271,20 @@ def assert_no_sensitive_leak(result: dict[str, Any], tmp_path: Path) -> None:
     ]
     for value in forbidden:
         assert value not in result_text
+
+
+def test_assert_no_sensitive_leak_allows_harmless_numeric_metadata(
+    tmp_path: Path,
+) -> None:
+    result = {
+        "duration_ms": 31,
+        "finished_at_utc": "2026-05-17T13:31:05Z",
+        "run_id": "safe-run-31",
+        "started_at_utc": "2026-05-17T13:31:04Z",
+        "status": "success",
+    }
+
+    assert_no_sensitive_leak(result, tmp_path)
 
 
 def test_first_invocation_checks_credentials_db_relations_before_one_fetch(
