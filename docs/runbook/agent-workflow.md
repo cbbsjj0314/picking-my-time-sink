@@ -58,6 +58,8 @@ This is the full gate and runs the focused Python and web checks in order. Codex
 ./scripts/check-web.sh
 ```
 
+`./scripts/check-web.sh` runs web ESLint lint and then the TypeScript/Vite build.
+
 In Codex, run `./scripts/check.sh` with sandbox escalation/approval. Restricted sandbox execution has previously stalled during FastAPI/Starlette TestClient pytest cases, while approved `./scripts/check.sh` and GitHub Actions CI passed. If the approved run or CI fails, treat it as a real validation failure.
 
 ## Local Docs And Checkpoints

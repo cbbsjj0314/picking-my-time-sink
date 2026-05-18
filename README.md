@@ -144,7 +144,7 @@ Combined 소스 및 KPI 체계 구축은 예정된 작업으로 분리해 두었
 `./scripts/check.sh`는 focused checks를 순서대로 실행한다.
 
 * `./scripts/check-python.sh`: Ruff와 Pytest 기반 Python 검증
-* `./scripts/check-web.sh`: Web TypeScript/Vite build 검증 (`npm --prefix web run build`)
+* `./scripts/check-web.sh`: Web lint 및 TypeScript/Vite build 검증 (`npm --prefix web run lint`, `npm --prefix web run build`)
 
 작업 성격에 따라 focused check를 먼저 실행할 수 있지만, code 변경의 최종 검증은 `./scripts/check.sh`를 기준으로 한다.
 

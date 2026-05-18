@@ -43,7 +43,7 @@
   - `./scripts/check.sh`
 - `./scripts/check.sh` runs the focused checks in order:
   - `./scripts/check-python.sh`
-  - `./scripts/check-web.sh`
+  - `./scripts/check-web.sh` (web lint + TypeScript/Vite build)
 - Codex may run a ticket-relevant focused check first, but must run `./scripts/check.sh` before finishing code changes.
 - In Codex, run the exact repo-root command `./scripts/check.sh` with sandbox escalation/approval.
 - Restricted sandbox execution has previously stalled during FastAPI/Starlette TestClient pytest cases, while approved `./scripts/check.sh` and GitHub Actions CI passed.
