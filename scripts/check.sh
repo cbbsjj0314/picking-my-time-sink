@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-poetry run ruff check .
-poetry run pytest --capture=no
+./scripts/check-python.sh
+./scripts/check-web.sh
