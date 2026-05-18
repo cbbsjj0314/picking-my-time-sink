@@ -20,6 +20,7 @@ export function ModeShellRow<T extends string>({ items, selected, onChange }: Mo
           return (
             <button
               key={item.value}
+              aria-pressed={isSelected}
               className={`flex-1 rounded-[20px] px-5 py-3.5 text-left transition sm:px-6 sm:py-4 ${
                 isSelected
                   ? 'bg-[#E8639B] shadow-[inset_0_0_0_1px_rgba(255,224,237,0.28),inset_0_0_0_5px_rgba(22,12,18,0.7),0_10px_24px_rgba(125,43,79,0.12)]'
