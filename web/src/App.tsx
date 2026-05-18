@@ -178,6 +178,8 @@ function App() {
                 loading={loading}
                 isExpanded={showExpandedRanking}
                 canExpand={steamTotalGameCount > steamGames.length}
+                totalGameCount={steamTotalGameCount}
+                searchQuery={deferredSearch}
                 onRangeChange={() => undefined}
                 onSelect={setSelectedId}
                 onToggleExpanded={() => {

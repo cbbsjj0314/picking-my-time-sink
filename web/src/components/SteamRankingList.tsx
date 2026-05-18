@@ -10,6 +10,8 @@ interface SteamRankingListProps {
   range: RangeOption
   selectedId: string | null
   rangeControlOptions: ReadonlyArray<RangeControlOption>
+  totalGameCount?: number
+  searchQuery?: string
   isExpanded?: boolean
   canExpand?: boolean
   onRangeChange: (range: RangeOption) => void
@@ -88,6 +90,8 @@ export function SteamRankingList({
   range,
   selectedId,
   rangeControlOptions,
+  totalGameCount,
+  searchQuery = '',
   isExpanded = false,
   canExpand = false,
   onRangeChange,
@@ -98,6 +102,15 @@ export function SteamRankingList({
   rangeStatusText,
 }: SteamRankingListProps) {
   const hasFixedRange = rangeControlOptions.length === 1
+  const totalCount = totalGameCount ?? games.length
+  const hasSearch = searchQuery.trim().length > 0
+  const shownCountLabel = games.length.toLocaleString('en-US')
+  const totalCountLabel = totalCount.toLocaleString('en-US')
+  const countContext = hasSearch
+    ? `${shownCountLabel} of ${totalCountLabel} loaded weekly top sellers match current search`
+    : games.length === totalCount
+      ? `Showing all ${totalCountLabel} loaded weekly top sellers`
+      : `Showing ${shownCountLabel} of ${totalCountLabel} loaded weekly top sellers`
 
   return (
     <section className="surface-low panel-worn ghost-outline self-start rounded-[24px] px-4 py-3.5 sm:px-5 sm:py-4">
@@ -132,6 +145,8 @@ export function SteamRankingList({
         )}
       </div>
 
+      <p className="mt-4 px-1 text-xs text-[var(--text-muted)]">{countContext}</p>
+
       <div className="mt-4 space-y-2.5">
         {error ? (
           <div className="surface-etched panel-worn rounded-[24px] px-5 py-7 text-sm leading-6 text-[var(--text-secondary)]">
@@ -156,7 +171,7 @@ export function SteamRankingList({
         {canExpand || isExpanded ? (
           <>
             <button
-              className="text-sm text-[var(--text-secondary)] transition hover:text-[var(--text-primary)]"
+              className="cursor-pointer text-sm text-[var(--text-secondary)] transition hover:text-[var(--text-primary)]"
               onClick={onToggleExpanded}
               type="button"
             >
