@@ -128,6 +128,9 @@ def test_explore_period_null_state_uses_history_collection_copy() -> None:
 
     assert "getPeriodHistoryCollectingNotice" in table_source
     assert "getCommonEstimatedPlayerHoursCaveatTitle" in table_source
+    assert "const accessibleLabel = title ? `${label}: ${title}` : label" in table_source
+    assert "aria-label={accessibleLabel}" in table_source
+    assert "title={title ?? undefined}" in table_source
     assert '<CaveatBadge label="Observed"' in table_source
     assert "rows.some((row) => !row.periodMetricsCollecting)" in table_source
     assert "Period metrics appear after the full window is available." in table_source

@@ -19,8 +19,11 @@ interface ExploreCellProps {
 }
 
 function CaveatBadge({ label, title }: { label: string; title?: string | null }) {
+  const accessibleLabel = title ? `${label}: ${title}` : label
+
   return (
     <span
+      aria-label={accessibleLabel}
       className="inline-flex h-5 shrink-0 items-center rounded border border-[var(--ghost-border-strong)] bg-[rgba(255,244,226,0.78)] px-1.5 text-[0.64rem] font-bold uppercase leading-none text-[var(--amber)]"
       title={title ?? undefined}
     >
