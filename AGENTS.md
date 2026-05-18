@@ -41,9 +41,10 @@
 ## Validation
 - After code changes, run the default full local check from the repo root:
   - `./scripts/check.sh`
-- `./scripts/check.sh` currently runs:
-  - `poetry run ruff check .`
-  - `poetry run pytest --capture=no`
+- `./scripts/check.sh` runs the focused checks in order:
+  - `./scripts/check-python.sh`
+  - `./scripts/check-web.sh`
+- Codex may run a ticket-relevant focused check first, but must run `./scripts/check.sh` before finishing code changes.
 - In Codex, run the exact repo-root command `./scripts/check.sh` with sandbox escalation/approval.
 - Restricted sandbox execution has previously stalled during FastAPI/Starlette TestClient pytest cases, while approved `./scripts/check.sh` and GitHub Actions CI passed.
 - Use escalation/approval only for this validation command, not for unrelated commands.
