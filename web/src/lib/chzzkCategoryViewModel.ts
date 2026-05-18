@@ -27,6 +27,8 @@ export interface ChzzkCategoryTableRow {
   id: string
   categoryId: string
   categoryName: string
+  categoryTypeLabel: string
+  categoryTypeTitle: string
   latestViewersLabel: string
   latestViewersTitle: string | null
   viewerHoursLabel: string
@@ -128,6 +130,11 @@ const getBoundedSampleTitle = (row: ChzzkCategoryOverview) =>
     ? 'Bounded pagination/live-list sample; not a full population claim.'
     : null
 
+const formatCategoryTypeLabel = (value: string) => {
+  const trimmedValue = value.trim()
+  return trimmedValue.length === 0 ? EMPTY_CELL : trimmedValue
+}
+
 const getNullableChannelMetricSupport = (value: number | null) =>
   finiteNumberOrNull(value) === null ? 'Channel evidence unavailable' : 'Observed channel metric'
 
@@ -152,6 +159,9 @@ const buildChzzkCategoryTableRow = (row: ChzzkCategoryOverview): ChzzkCategoryTa
   id: `chzzk:${row.chzzk_category_id}`,
   categoryId: row.chzzk_category_id,
   categoryName: row.category_name,
+  categoryTypeLabel: formatCategoryTypeLabel(row.category_type),
+  categoryTypeTitle:
+    'Chzzk provider category type evidence; not canonical game identity or trusted Steam mapping.',
   latestViewersLabel: formatOptionalInteger(row.latest_viewers_observed),
   latestViewersTitle: formatKstDateTime(row.latest_bucket_time),
   viewerHoursLabel: formatDecimal(row.viewer_hours_observed),

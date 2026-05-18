@@ -176,6 +176,12 @@ export function ChzzkCategoryTable({
                 <tr key={row.id} className="transition hover:bg-[rgba(255,249,239,0.42)]">
                   <td className="min-w-[220px] px-4 py-3 align-top">
                     <div className="font-semibold leading-snug text-[var(--text-primary)]">{row.categoryName}</div>
+                    <div
+                      className="mt-1 inline-flex items-center rounded border border-[var(--ghost-border)] bg-[rgba(255,249,239,0.58)] px-1.5 py-0.5 text-[0.65rem] font-semibold uppercase leading-none text-[var(--text-muted)]"
+                      title={row.categoryTypeTitle}
+                    >
+                      {row.categoryTypeLabel}
+                    </div>
                   </td>
                   <CategoryMetricCell
                     support={row.observedBucketLabel}
