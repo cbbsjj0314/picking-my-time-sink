@@ -185,4 +185,3 @@ def test_chzzk_category_cell_shows_provider_category_type_evidence() -> None:
     assert "canonical_game_id" not in table_source
     assert "canonicalGame" not in table_source
     assert "Combined" not in table_source
-}
