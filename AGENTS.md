@@ -13,7 +13,8 @@
 - If a change alters schema, API, or data semantics, update the related durable doc and regression tests in the same slice.
 - Follow the default delivery flow: Spec -> Ticket -> Agent implementation -> PR -> CI -> Review -> Human Gate -> Release.
 - Treat ChatGPT/planning sessions as the place to define product specs and tickets.
-- Treat Codex implementation sessions as one-ticket-at-a-time execution toward a PR-ready diff.
+- Treat Codex implementation sessions as one-ticket-at-a-time execution toward a focused branch/commit and PR when the ticket is approved for PR-native execution.
+- Codex must not merge PRs, create releases/tags, force-push, or push directly to `main`; humans own those decisions unless the user explicitly overrides this for a specific task.
 - Leave risky scope approval, merge decisions, and release decisions to humans.
 - Local docs, checkpoints, and `docs/local/NEXT.md` cleanup are not default deliverables.
 - Create local checkpoints only for large slice completion, risky operational evidence, or explicit user request.
@@ -42,12 +43,15 @@
   - `./scripts/check.sh`
 - `./scripts/check.sh` currently runs:
   - `poetry run ruff check .`
-  - `poetry run pytest`
-- If the current Codex exec environment cannot run plain `poetry run pytest`
-  due to PATH or pytest capture issues, use the available Poetry path and/or
-  `pytest --capture=no`, and report the exact command used.
+  - `poetry run pytest --capture=no`
+- In Codex, run the exact repo-root command `./scripts/check.sh` with sandbox escalation/approval.
+- Restricted sandbox execution has previously stalled during FastAPI/Starlette TestClient pytest cases, while approved `./scripts/check.sh` and GitHub Actions CI passed.
+- Use escalation/approval only for this validation command, not for unrelated commands.
+- If approved `./scripts/check.sh` or GitHub Actions CI fails, treat it as a real validation failure and investigate.
+- If the current Codex exec environment cannot run validation because of PATH, Poetry, or sandbox issues, use the closest equivalent Ruff/Pytest command and report the exact command used.
 - For docs-only changes, validation may be skipped if no runtime/code path changed.
 - Fix validation failures before finishing when they are caused by your changes.
+- Report the exact command, whether escalation/approval was used, and the exact result.
 
 ## Project structure
 - Follow the existing `src/` and `tests/` layout.
@@ -118,4 +122,4 @@
 - Prefer follow-up slices on top of the current baseline, such as App Catalog, tracked_universe, and Price/Reviews wiring.
 - For streaming expansion, start from provider-specific probe/ingest work instead of generalizing Steam service/API layers first.
 - Prefer end-to-end progress over broad platform expansion.
-- Do not implement real Chzzk integration unless explicitly requested.
+- Do not expand Chzzk beyond approved observed source-view / guarded-write / observability boundaries unless explicitly requested.

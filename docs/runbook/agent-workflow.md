@@ -7,7 +7,7 @@ Spec -> Ticket -> Agent implementation -> PR -> CI -> Review -> Human Gate -> Re
 ## Roles
 
 - ChatGPT/planning sessions define product specs, split work into tickets, and clarify acceptance criteria.
-- Codex implements one ticket at a time and prepares a small PR-ready diff.
+- Codex implements one ticket at a time, prepares a focused branch/commit, and opens a small PR when the ticket is approved for PR-native execution.
 - Humans approve risky scope, review PRs, decide merges, and control releases.
 
 ## Ticket Contents
@@ -24,6 +24,7 @@ Codex should:
 - Preserve existing MVP, security, and validation guardrails.
 - State assumptions when implementation depends on interpretation.
 - Run `./scripts/check.sh` from the repo root for code changes.
+- Create a branch, commit, push, and open a PR when the ticket is approved for PR-native execution.
 
 Codex should not:
 
@@ -51,6 +52,8 @@ For code changes, the default repo-root local check is:
 ```
 
 This runs Ruff and Pytest only. Add heavier checks only when a ticket explicitly requires them.
+
+In Codex, run `./scripts/check.sh` with sandbox escalation/approval. Restricted sandbox execution has previously stalled during FastAPI/Starlette TestClient pytest cases, while approved `./scripts/check.sh` and GitHub Actions CI passed. If the approved run or CI fails, treat it as a real validation failure.
 
 ## Local Docs And Checkpoints
 
