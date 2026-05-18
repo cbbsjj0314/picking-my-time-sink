@@ -64,6 +64,7 @@ export function SteamCcuChart({ points, selectedRange, onRangeChange, state }: S
             return (
               <button
                 key={control.value}
+                aria-pressed={selected}
                 className={`rounded-full px-3 py-2 text-xs font-semibold transition ${
                   selected ? 'paper-chip' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
                 }`}

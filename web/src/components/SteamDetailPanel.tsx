@@ -35,6 +35,9 @@ function SteamSupportingCard({
 }) {
   const cardTarget = card.label as SteamDataStateTarget
   const cardDataState = cardStates?.[cardTarget] ?? null
+  const caveatAccessibleLabel = cardDataState
+    ? `${cardDataState.target} ${cardDataState.kind}: ${cardDataState.tooltip}`
+    : null
 
   return (
     <div className="surface-high panel-worn rounded-[24px] p-4 shadow-[inset_0_0_0_1px_rgba(255,248,238,0.03)]">
@@ -42,7 +45,7 @@ function SteamSupportingCard({
         <h3 className="type-display text-[1rem] font-bold text-[var(--paper)]">{card.label}</h3>
         {cardDataState ? (
           <span
-            aria-label={`${cardDataState.kind} data caveat`}
+            aria-label={caveatAccessibleLabel}
             className="inline-flex h-5 w-5 shrink-0 items-center justify-center overflow-hidden"
             title={cardDataState.tooltip}
           >

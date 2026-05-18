@@ -12,6 +12,8 @@ STEAM_DISCOVER_MODE_ROW_PATH = Path("web/src/components/SteamDiscoverModeRow.tsx
 STEAM_EXPLORE_VIEW_MODEL_PATH = Path("web/src/lib/steamExploreViewModel.ts")
 STEAM_EXPLORE_TABLE_PATH = Path("web/src/components/SteamExploreTable.tsx")
 STEAM_RANKING_LIST_PATH = Path("web/src/components/SteamRankingList.tsx")
+STEAM_DETAIL_PANEL_PATH = Path("web/src/components/SteamDetailPanel.tsx")
+STEAM_CCU_CHART_PATH = Path("web/src/components/SteamCcuChart.tsx")
 
 
 def test_steam_detail_view_surfaces_latest_evidence_timestamps() -> None:
@@ -70,6 +72,33 @@ def test_mode_shell_row_exposes_selected_state_semantics() -> None:
         "Steam weekly top sellers snapshot 기준으로 Top Selling 게임 보기"
         in steam_mode_row_source
     )
+
+
+def test_steam_detail_panel_caveat_icon_includes_target_aware_accessible_label() -> None:
+    detail_source = STEAM_DETAIL_PANEL_PATH.read_text(encoding="utf-8")
+
+    assert "const caveatAccessibleLabel = cardDataState" in detail_source
+    assert (
+        "${cardDataState.target} ${cardDataState.kind}: ${cardDataState.tooltip}"
+        in detail_source
+    )
+    assert "aria-label={caveatAccessibleLabel}" in detail_source
+    assert "title={cardDataState.tooltip}" in detail_source
+    assert 'alt=""' in detail_source
+    assert "aria-label={`${cardDataState.kind} data caveat`}" not in detail_source
+
+
+def test_steam_ccu_chart_range_controls_expose_selected_state_semantics() -> None:
+    chart_source = STEAM_CCU_CHART_PATH.read_text(encoding="utf-8")
+
+    assert "const selected = control.value === selectedRange" in chart_source
+    assert "aria-pressed={selected}" in chart_source
+    assert "onClick={() => onRangeChange(control.value)}" in chart_source
+    assert "{ value: '7D', label: '7D' }" in chart_source
+    assert "{ value: '30D', label: '30D' }" in chart_source
+    assert "{ value: '90D', label: '90D' }" in chart_source
+    assert 'role="tablist"' not in chart_source
+    assert 'role="tab"' not in chart_source
 
 
 def test_explore_view_model_keeps_nulls_and_timestamp_fields_grounded() -> None:
