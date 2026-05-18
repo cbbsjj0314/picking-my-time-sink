@@ -159,7 +159,26 @@ def test_explore_table_summarizes_freshness_without_fake_fallback() -> None:
     assert "CCU period anchor" in source
     assert "Reviews anchor" in source
     assert "Price snapshot" in source
-    assert "freshnessLabels.join(' · ')" in source
+    assert "const contextLabels = [resultCountLabel, ...freshnessLabels]" in source
+    assert "contextLabels.join(' · ')" in source
+
+
+def test_explore_table_includes_result_count_search_context() -> None:
+    source = STEAM_EXPLORE_TABLE_PATH.read_text(encoding="utf-8")
+
+    assert "const formatSteamExploreRowCount" in source
+    assert "formatSteamExploreRowCount(totalRowCount)" in source
+    assert "Steam Explore row" in source
+    assert "rows.length.toLocaleString('en-US')" in source
+    assert (
+        "of ${formatSteamExploreRowCount(totalRowCount)} match current search"
+        in source
+    )
+    assert "const contextLabels = [resultCountLabel, ...freshnessLabels]" in source
+    assert "contextLabels.join(' · ')" in source
+    assert "full Steam catalog" not in source
+    assert "all Steam games" not in source
+    assert "complete Steam catalog" not in source
 
 
 def test_explore_hook_routes_sort_state_through_view_model() -> None:

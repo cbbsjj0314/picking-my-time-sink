@@ -86,6 +86,9 @@ const getUniformEvidenceLabel = (
   return `${label} mixed snapshots`
 }
 
+const formatSteamExploreRowCount = (count: number) =>
+  `${count.toLocaleString('en-US')} Steam Explore row${count === 1 ? '' : 's'}`
+
 const getPeriodHistoryCollectingNotice = (rows: SteamExploreTableRow[]) => {
   if (rows.length === 0 || rows.some((row) => !row.periodMetricsCollecting)) {
     return null
@@ -136,6 +139,10 @@ export function SteamExploreTable({
   const periodHistoryCollectingNotice = getPeriodHistoryCollectingNotice(rows)
   const estimatedPlayerHoursHeaderCaveatTitle = getCommonEstimatedPlayerHoursCaveatTitle(rows)
   const hasSearch = searchQuery.trim().length > 0
+  const resultCountLabel = hasSearch
+    ? `${rows.length.toLocaleString('en-US')} of ${formatSteamExploreRowCount(totalRowCount)} match current search`
+    : formatSteamExploreRowCount(totalRowCount)
+  const contextLabels = [resultCountLabel, ...freshnessLabels]
 
   return (
     <section className="surface-low panel-worn ghost-outline rounded-[24px] px-4 py-4 lg:col-span-2 sm:px-5 sm:py-5">
@@ -159,9 +166,9 @@ export function SteamExploreTable({
         </div>
       </div>
 
-      {freshnessLabels.length > 0 ? (
+      {contextLabels.length > 0 ? (
         <p className="mt-4 text-xs text-[var(--text-muted)]">
-          {freshnessLabels.join(' · ')}
+          {contextLabels.join(' · ')}
         </p>
       ) : null}
       {periodHistoryCollectingNotice ? (
