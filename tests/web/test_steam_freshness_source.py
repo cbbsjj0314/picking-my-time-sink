@@ -213,6 +213,30 @@ def test_explore_table_includes_result_count_search_context() -> None:
     assert "complete Steam catalog" not in source
 
 
+def test_explore_table_non_table_states_use_tracked_source_copy() -> None:
+    source = STEAM_EXPLORE_TABLE_PATH.read_text(encoding="utf-8")
+
+    assert "Loading tracked Steam Explore evidence." in source
+    assert "Steam Explore evidence could not be loaded." in source
+    assert "<p>{error}</p>" in source
+    assert "No tracked Steam Explore rows match the current search." in source
+    assert "No tracked Steam Explore rows are available yet." in source
+    assert "hasSearch && totalRowCount > 0" in source
+
+    forbidden_claims = [
+        "full Steam catalog",
+        "all Steam games",
+        "complete Steam catalog",
+        "Combined",
+        "category-to-game",
+        "scheduler",
+        "live fetch",
+        "DB write",
+    ]
+    for forbidden_claim in forbidden_claims:
+        assert forbidden_claim not in source
+
+
 def test_explore_hook_routes_sort_state_through_view_model() -> None:
     app_source = APP_PATH.read_text(encoding="utf-8")
     hook_source = Path("web/src/hooks/useSteamExploreOverview.ts").read_text(encoding="utf-8")

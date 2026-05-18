@@ -177,16 +177,19 @@ export function SteamExploreTable({
 
       <div className="mt-4 overflow-x-auto rounded-[18px] outline outline-1 outline-[var(--ghost-border)]">
         {error ? (
-          <div className="surface-etched px-5 py-8 text-sm leading-6 text-[var(--text-secondary)]">{error}</div>
+          <div className="surface-etched px-5 py-8 text-sm leading-6 text-[var(--text-secondary)]">
+            <p>Steam Explore evidence could not be loaded.</p>
+            <p>{error}</p>
+          </div>
         ) : loading && rows.length === 0 ? (
           <div className="surface-etched px-5 py-8 text-sm text-[var(--text-secondary)]">
-            Loading Steam Explore evidence.
+            Loading tracked Steam Explore evidence.
           </div>
         ) : rows.length === 0 ? (
           <div className="surface-etched px-5 py-8 text-sm text-[var(--text-secondary)]">
             {hasSearch && totalRowCount > 0
-              ? 'No Steam Explore rows match the current search.'
-              : 'No Steam Explore rows are available.'}
+              ? 'No tracked Steam Explore rows match the current search.'
+              : 'No tracked Steam Explore rows are available yet.'}
           </div>
         ) : (
           <table className="min-w-[1120px] w-full border-collapse bg-[rgba(255,249,239,0.34)] text-left">
