@@ -145,6 +145,37 @@ def test_detail_price_display_uses_free_without_discount_support() -> None:
     assert "return `${currentPrice} · Free`" not in source
 
 
+def test_top_selling_price_copy_omits_no_sale_label() -> None:
+    source = STEAM_VIEW_MODEL_PATH.read_text(encoding="utf-8")
+    price_line_source = source.split("const buildPriceLine", maxsplit=1)[1].split(
+        "const formatDiscountValue",
+        maxsplit=1,
+    )[0]
+    discount_value_source = source.split("const formatDiscountValue", maxsplit=1)[1].split(
+        "const buildReviewSummary",
+        maxsplit=1,
+    )[0]
+
+    assert "if (!price)" in price_line_source
+    assert "return 'Pending'" in price_line_source
+    assert "if (price.is_free === true || currentPrice === 'Pending')" in price_line_source
+    assert "return currentPrice" in price_line_source
+    assert "price.discount_percent !== null && price.discount_percent > 0" in price_line_source
+    assert "return `${currentPrice} · -${price.discount_percent}%`" in price_line_source
+    assert "No sale" not in price_line_source
+
+    assert "if (!price)" in discount_value_source
+    assert "return 'Pending'" in discount_value_source
+    assert "if (price.is_free === true)" in discount_value_source
+    assert "return '-'" in discount_value_source
+    assert "if (price.discount_percent === null)" in discount_value_source
+    assert (
+        "return price.discount_percent > 0 ? `-${price.discount_percent}%` : '-'"
+        in discount_value_source
+    )
+    assert "No sale" not in discount_value_source
+
+
 def test_explore_table_summarizes_freshness_without_fake_fallback() -> None:
     source = STEAM_EXPLORE_TABLE_PATH.read_text(encoding="utf-8")
 
