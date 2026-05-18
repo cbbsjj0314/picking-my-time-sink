@@ -23,6 +23,7 @@ export function SourceTabsRow({ sourceTab, onChange }: SourceTabsRowProps) {
             <button
               key={tab}
               aria-label={boundaryCopy}
+              aria-pressed={selected}
               className={`type-display rounded-full px-4 py-2.5 text-sm font-semibold transition sm:px-5 ${
                 selected
                   ? 'bg-[#E8639B] text-[#2d1820] shadow-[inset_0_0_0_1px_rgba(255,224,237,0.28),inset_0_0_0_2.5px_rgba(22,12,18,0.7),0_8px_18px_rgba(125,43,79,0.18)]'

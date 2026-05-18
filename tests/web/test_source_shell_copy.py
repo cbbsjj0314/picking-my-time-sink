@@ -58,6 +58,20 @@ def test_source_tabs_explain_current_source_boundaries() -> None:
     assert "title={boundaryCopy}" in source
 
 
+def test_source_tabs_expose_selected_state_semantics() -> None:
+    source = SOURCE_TABS_ROW_PATH.read_text(encoding="utf-8")
+
+    assert "const selected = tab === sourceTab" in source
+    assert "aria-pressed={selected}" in source
+    assert "aria-label={boundaryCopy}" in source
+    assert "title={boundaryCopy}" in source
+    assert "onClick={() => onChange(tab)}" in source
+    assert "{tab}" in source
+    assert "selected\n                  ? 'bg-[#E8639B]" in source
+    assert 'role="tablist"' not in source
+    assert 'role="tab"' not in source
+
+
 def test_source_shell_copy_does_not_claim_deferred_work_is_implemented() -> None:
     shell_source = "\n".join(
         [

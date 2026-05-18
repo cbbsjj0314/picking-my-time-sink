@@ -7,6 +7,7 @@ STEAM_TYPES_PATH = Path("web/src/types.ts")
 STEAM_VIEW_MODEL_PATH = Path("web/src/lib/steamViewModel.ts")
 GAMES_API_PATH = Path("web/src/api/games.ts")
 STEAM_OVERVIEW_HOOK_PATH = Path("web/src/hooks/useSteamOverview.ts")
+MODE_SHELL_ROW_PATH = Path("web/src/components/ModeShellRow.tsx")
 STEAM_DISCOVER_MODE_ROW_PATH = Path("web/src/components/SteamDiscoverModeRow.tsx")
 STEAM_EXPLORE_VIEW_MODEL_PATH = Path("web/src/lib/steamExploreViewModel.ts")
 STEAM_EXPLORE_TABLE_PATH = Path("web/src/components/SteamExploreTable.tsx")
@@ -46,6 +47,29 @@ def test_steam_source_view_is_fixed_to_explore_and_top_selling_modes() -> None:
     assert "API_WINDOW_BY_RANGE" not in overview_hook_source
     assert "window: API_WINDOW_BY_RANGE" not in overview_hook_source
     assert "window: '7d'" in overview_hook_source
+
+
+def test_mode_shell_row_exposes_selected_state_semantics() -> None:
+    mode_shell_source = MODE_SHELL_ROW_PATH.read_text(encoding="utf-8")
+    steam_mode_row_source = STEAM_DISCOVER_MODE_ROW_PATH.read_text(encoding="utf-8")
+
+    assert "export function ModeShellRow<T extends string>" in mode_shell_source
+    assert "const isSelected = item.value === selected" in mode_shell_source
+    assert "aria-pressed={isSelected}" in mode_shell_source
+    assert "onClick={() => onChange(item.value)}" in mode_shell_source
+    assert "isSelected\n                  ? 'bg-[#E8639B]" in mode_shell_source
+    assert "item.description" in mode_shell_source
+    assert 'role="tablist"' not in mode_shell_source
+    assert 'role="tab"' not in mode_shell_source
+
+    assert (
+        "active tracked Steam universe를 7D 플레이, 리뷰, KR 가격 근거 테이블로 보기"
+        in steam_mode_row_source
+    )
+    assert (
+        "Steam weekly top sellers snapshot 기준으로 Top Selling 게임 보기"
+        in steam_mode_row_source
+    )
 
 
 def test_explore_view_model_keeps_nulls_and_timestamp_fields_grounded() -> None:
