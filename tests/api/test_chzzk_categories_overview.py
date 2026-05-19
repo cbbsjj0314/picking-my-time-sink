@@ -7,7 +7,12 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from api.app import app as api_app
-from api.routers.chzzk import router as chzzk_router
+from api.routers.chzzk import (
+    ChzzkCategoryOverviewResponse,
+)
+from api.routers.chzzk import (
+    router as chzzk_router,
+)
 from api.services import chzzk_service
 
 KST = ZoneInfo("Asia/Seoul")
@@ -204,6 +209,12 @@ def test_response_omits_private_raw_and_mapping_fields(monkeypatch) -> None:
     forbidden_keys = {
         "canonical_game_id",
         "steam_appid",
+        "mapped_steam_game",
+        "mapping_status",
+        "mapping_method",
+        "mapping_confidence",
+        "trusted",
+        "approved",
         "top_channel_id",
         "top_channel_name",
         "top_channel_concurrent",
@@ -216,6 +227,26 @@ def test_response_omits_private_raw_and_mapping_fields(monkeypatch) -> None:
     }
     assert keys.isdisjoint(forbidden_keys)
     assert "unique_channels_observed" in keys
+    assert "full_1d_candidate_available" in keys
+    assert "full_7d_candidate_available" in keys
+
+
+def test_response_model_omits_category_to_game_mapping_fields() -> None:
+    fields = set(ChzzkCategoryOverviewResponse.model_fields)
+
+    forbidden_fields = {
+        "canonical_game_id",
+        "steam_appid",
+        "mapped_steam_game",
+        "mapping_status",
+        "mapping_method",
+        "mapping_confidence",
+        "trusted",
+        "approved",
+    }
+    assert fields.isdisjoint(forbidden_fields)
+    assert "full_1d_candidate_available" in fields
+    assert "full_7d_candidate_available" in fields
 
 
 def test_service_category_only_sql_reads_chzzk_category_fact_only() -> None:

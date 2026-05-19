@@ -93,3 +93,30 @@ def test_source_shell_copy_does_not_claim_deferred_work_is_implemented() -> None
     ]
     for claim in forbidden_claims:
         assert claim not in shell_source
+
+
+def test_combined_pending_shell_does_not_gain_mapping_fields() -> None:
+    source = "\n".join(
+        [
+            APP_PATH.read_text(encoding="utf-8"),
+            PENDING_SOURCE_PANEL_PATH.read_text(encoding="utf-8"),
+            SOURCE_TABS_ROW_PATH.read_text(encoding="utf-8"),
+        ]
+    )
+
+    assert "<PendingSourcePanel sourceTab={sourceTab} />" in source
+    assert "sourceTab: Extract<SourceTab, 'Combined'>" in source
+    for needle in [
+        "canonical_game_id",
+        "steam_appid",
+        "mapped_steam_game",
+        "mapping_status",
+        "mapping_method",
+        "mapping_confidence",
+        "canonicalGame",
+        "mappedSteamGame",
+        "mappingStatus",
+        "mappingMethod",
+        "mappingConfidence",
+    ]:
+        assert needle not in source
