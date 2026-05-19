@@ -103,6 +103,22 @@ def test_steam_ccu_chart_range_controls_expose_selected_state_semantics() -> Non
 
 def test_explore_view_model_keeps_nulls_and_timestamp_fields_grounded() -> None:
     source = STEAM_EXPLORE_VIEW_MODEL_PATH.read_text(encoding="utf-8")
+    partial_observed_source = source.split(
+        "const hasPartialObservedPlayerHoursValue",
+        maxsplit=1,
+    )[1].split("const getEstimatedPlayerHoursDisplay", maxsplit=1)[0]
+    display_source = source.split(
+        "const getEstimatedPlayerHoursDisplay",
+        maxsplit=1,
+    )[1].split("const getEstimatedPlayerHoursSortValue", maxsplit=1)[0]
+    sort_value_source = source.split(
+        "const getEstimatedPlayerHoursSortValue",
+        maxsplit=1,
+    )[1].split("const DEFAULT_SORT_DIRECTION_BY_KEY", maxsplit=1)[0]
+    sort_values_source = source.split("const buildSortValues", maxsplit=1)[1].split(
+        "const buildSteamExploreTableRow",
+        maxsplit=1,
+    )[0]
 
     assert "const EMPTY_CELL = '-'" in source
     assert "export const DEFAULT_STEAM_EXPLORE_SORT_STATE" in source
@@ -114,11 +130,39 @@ def test_explore_view_model_keeps_nulls_and_timestamp_fields_grounded() -> None:
     assert "reviewAnchorLabel: formatKstDate(row.reviews_snapshot_date)" in source
     assert "priceTitle: formatKstDateTime(row.price_bucket_time)" in source
     assert "sortValues: buildSortValues(row)" in source
-    assert "currentCcu: finiteNumberOrNull(row.current_ccu)" in source
-    assert "estimatedPlayerHours: finiteNumberOrNull(row.estimated_player_hours_7d)" in source
+
+    assert "strictPlayerHours === null" in partial_observed_source
+    assert "observedPlayerHours !== null" in partial_observed_source
+    assert "observedCount > 0" in partial_observed_source
+    assert "observedCount < expectedCount" in partial_observed_source
+    assert "if (hasPartialObservedPlayerHoursValue(row))" in display_source
+    assert "observedCount > 0" not in display_source
+    assert "observedCount < expectedCount" not in display_source
+    assert (
+        sort_value_source.index("if (strictPlayerHours !== null)")
+        < sort_value_source.index("return strictPlayerHours")
+        < sort_value_source.index("hasPartialObservedPlayerHoursValue(row)")
+    )
+    assert (
+        "return hasPartialObservedPlayerHoursValue(row) "
+        "? row.observed_player_hours_7d : null"
+        in sort_value_source
+    )
+    assert "return 0" not in sort_value_source
+
+    assert "currentCcu: finiteNumberOrNull(row.current_ccu)" in sort_values_source
+    assert "estimatedPlayerHours: getEstimatedPlayerHoursSortValue(row)" in sort_values_source
+    assert "avgCcu: finiteNumberOrNull(row.period_avg_ccu_7d)" in sort_values_source
+    assert "peakCcu: finiteNumberOrNull(row.period_peak_ccu_7d)" in sort_values_source
+    assert "reviewsAdded: finiteNumberOrNull(row.reviews_added_7d)" in sort_values_source
+    assert "positiveShare: finiteNumberOrNull(row.period_positive_ratio_7d)" in sort_values_source
+    assert "price: finiteNumberOrNull(row.final_price_minor)" in sort_values_source
+    assert (
+        "estimatedPlayerHours: finiteNumberOrNull(row.estimated_player_hours_7d)"
+        not in sort_values_source
+    )
     assert "observed_player_hours_7d" in source
     assert "estimatedPlayerHoursCaveatLabel" in source
-    assert "price: finiteNumberOrNull(row.final_price_minor)" in source
 
 
 def test_explore_period_null_state_uses_history_collection_copy() -> None:
