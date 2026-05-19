@@ -269,18 +269,26 @@ const getPartialEstimatedPlayerHoursCaveatTitle = (row: GameExploreOverview) => 
   )} buckets. Strict 7D estimate pending.`
 }
 
-const getEstimatedPlayerHoursDisplay = (row: GameExploreOverview) => {
+const hasPartialObservedPlayerHoursValue = (
+  row: GameExploreOverview,
+): row is GameExploreOverview & { observed_player_hours_7d: number } => {
   const strictPlayerHours = finiteNumberOrNull(row.estimated_player_hours_7d)
   const observedPlayerHours = finiteNumberOrNull(row.observed_player_hours_7d)
   const observedCount = finiteNumberOrNull(row.estimated_player_hours_7d_observed_bucket_count)
   const expectedCount = finiteNumberOrNull(row.estimated_player_hours_7d_expected_bucket_count)
-  const hasPartialObservedValue =
+
+  return (
     strictPlayerHours === null &&
     observedPlayerHours !== null &&
     observedCount !== null &&
     expectedCount !== null &&
     observedCount > 0 &&
     observedCount < expectedCount
+  )
+}
+
+const getEstimatedPlayerHoursDisplay = (row: GameExploreOverview) => {
+  const strictPlayerHours = finiteNumberOrNull(row.estimated_player_hours_7d)
 
   if (strictPlayerHours !== null) {
     return {
@@ -291,9 +299,9 @@ const getEstimatedPlayerHoursDisplay = (row: GameExploreOverview) => {
     }
   }
 
-  if (hasPartialObservedValue) {
+  if (hasPartialObservedPlayerHoursValue(row)) {
     return {
-      label: formatInteger(observedPlayerHours),
+      label: formatInteger(row.observed_player_hours_7d),
       supportLabel: 'Strict 7D estimate pending.',
       caveatLabel: 'Observed',
       caveatTitle: getPartialEstimatedPlayerHoursCaveatTitle(row),
@@ -306,6 +314,16 @@ const getEstimatedPlayerHoursDisplay = (row: GameExploreOverview) => {
     caveatLabel: null,
     caveatTitle: null,
   }
+}
+
+const getEstimatedPlayerHoursSortValue = (row: GameExploreOverview) => {
+  const strictPlayerHours = finiteNumberOrNull(row.estimated_player_hours_7d)
+
+  if (strictPlayerHours !== null) {
+    return strictPlayerHours
+  }
+
+  return hasPartialObservedPlayerHoursValue(row) ? row.observed_player_hours_7d : null
 }
 
 const DEFAULT_SORT_DIRECTION_BY_KEY: Record<SteamExploreSortKey, SteamExploreSortDirection> = {
@@ -334,7 +352,7 @@ const buildSortValues = (row: GameExploreOverview): SteamExploreSortValueMap => 
   return {
     game: row.canonical_name.toLocaleLowerCase('en-US'),
     currentCcu: finiteNumberOrNull(row.current_ccu),
-    estimatedPlayerHours: finiteNumberOrNull(row.estimated_player_hours_7d),
+    estimatedPlayerHours: getEstimatedPlayerHoursSortValue(row),
     avgCcu: finiteNumberOrNull(row.period_avg_ccu_7d),
     peakCcu: finiteNumberOrNull(row.period_peak_ccu_7d),
     reviewsAdded: finiteNumberOrNull(row.reviews_added_7d),
