@@ -20,6 +20,23 @@ def test_chzzk_api_client_reads_category_overview() -> None:
     assert "function listCategoryOverview" in source
     assert "withQuery('/chzzk/categories/overview', { limit: options.limit ?? 50 })" in source
 
+    mapping_field_needles = [
+        "canonical_game_id",
+        "steam_appid",
+        "mapped_steam_game",
+        "mapping_status",
+        "mapping_method",
+        "mapping_confidence",
+        "mappedSteamGame",
+        "mappingStatus",
+        "mappingMethod",
+        "mappingConfidence",
+        "trusted:",
+        "approved:",
+    ]
+    for needle in mapping_field_needles:
+        assert needle not in source
+
 
 def test_chzzk_view_model_maps_new_api_fields_directly() -> None:
     source = CHZZK_VIEW_MODEL_PATH.read_text(encoding="utf-8")
@@ -96,9 +113,17 @@ def test_chzzk_source_view_is_connected_without_steam_or_combined_semantics() ->
     assert "chzzkApi.listCategoryOverview({ limit, signal: controller.signal })" in hook_source
     assert "Combined" not in table_source
     assert "<Steam" not in table_source
+    assert "steam_appid" not in table_source
+    assert "mapped_steam_game" not in table_source
     assert "canonicalGame" not in table_source
     assert "canonical_game_id" not in table_source
+    assert "mappedSteamGame" not in table_source
     assert "mappingStatus" not in table_source
+    assert "mappingMethod" not in table_source
+    assert "mappingConfidence" not in table_source
+    assert "mapping_status" not in table_source
+    assert "mapping_method" not in table_source
+    assert "mapping_confidence" not in table_source
     assert "mappedSteam" not in table_source
     assert "Unique Channels" in table_source
     assert "channel_id" not in table_source
@@ -198,3 +223,30 @@ def test_chzzk_category_cell_shows_provider_category_type_evidence() -> None:
     assert "canonical_game_id" not in table_source
     assert "canonicalGame" not in table_source
     assert "Combined" not in table_source
+
+
+def test_chzzk_web_source_view_stays_free_of_mapping_fields() -> None:
+    source = "\n".join(
+        [
+            CHZZK_API_PATH.read_text(encoding="utf-8"),
+            CHZZK_HOOK_PATH.read_text(encoding="utf-8"),
+            CHZZK_VIEW_MODEL_PATH.read_text(encoding="utf-8"),
+            CHZZK_TABLE_PATH.read_text(encoding="utf-8"),
+        ]
+    )
+
+    mapping_field_needles = [
+        "canonical_game_id",
+        "steam_appid",
+        "mapped_steam_game",
+        "mapping_status",
+        "mapping_method",
+        "mapping_confidence",
+        "canonicalGame",
+        "mappedSteamGame",
+        "mappingStatus",
+        "mappingMethod",
+        "mappingConfidence",
+    ]
+    for needle in mapping_field_needles:
+        assert needle not in source
