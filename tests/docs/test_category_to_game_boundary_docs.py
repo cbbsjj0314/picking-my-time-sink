@@ -123,7 +123,6 @@ def test_candidate_storage_foundation_remains_untrusted_and_non_serving() -> Non
 def test_candidate_generation_gate_allows_only_synthetic_dry_run_builder() -> None:
     text = _read_lower(CANDIDATE_GENERATION_GATE)
 
-    decision_context = _near(text, "first implementation may proceed", span=900)
     category_type_context = _near(text, "`category_type=game`", span=720)
     normalization_context = _near(text, "allowed normalization", span=720)
     next_ticket_context = _near(
