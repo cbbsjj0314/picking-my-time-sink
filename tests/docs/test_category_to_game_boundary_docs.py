@@ -3,6 +3,9 @@ from __future__ import annotations
 from pathlib import Path
 
 CATEGORY_MAPPING_CONTRACT = Path("docs/decisions/category-to-game-mapping-contract.md")
+CANDIDATE_GENERATION_GATE = Path(
+    "docs/decisions/category-to-game-candidate-generation-gate.md"
+)
 COMBINED_READINESS_CONTRACT = Path(
     "docs/decisions/combined-source-view-readiness-contract.md"
 )
@@ -115,3 +118,44 @@ def test_candidate_storage_foundation_remains_untrusted_and_non_serving() -> Non
     assert "serving semantics" in context
     assert "combined" in context
     assert "game_external_id" in context
+
+
+def test_candidate_generation_gate_allows_only_synthetic_dry_run_builder() -> None:
+    text = _read_lower(CANDIDATE_GENERATION_GATE)
+
+    category_type_context = _near(text, "`category_type=game`", span=720)
+    normalization_context = _near(text, "allowed normalization", span=720)
+    next_ticket_context = _near(
+        text,
+        "category-mapping-candidate-generation-dry-run-001",
+        span=520,
+    )
+
+    assert "db-write-free synthetic/test-only dry-run proposal builder" in text
+    assert "real observed chzzk data read는 하지 않는다" in text
+    assert "chzzk_category_game_candidate" in text
+    assert "insert하지 않는다" in text
+
+    assert "normalized exact match count가 정확히 1개" in text
+    assert "0개이거나 2개 이상" in text
+    assert "rejected" in text
+    assert "자동 생성하지 않는다" in text
+
+    assert "strip" in text
+    assert "casefold" in text
+    assert "whitespace collapse" in text
+    assert "fuzzy matching" in normalization_context
+    assert "alias matching" in normalization_context
+    assert "partial matching" in normalization_context
+    assert "similarity score" in normalization_context
+    assert "manual hints" in normalization_context
+
+    assert "provider category type evidence" in category_type_context
+    assert "canonical identity" in category_type_context
+    assert "non-identity caveat/counter" in category_type_context
+    assert "조용히 filter" in category_type_context
+
+    assert "api/web response shape를 정의하지 않는다" in text
+    assert "serving semantics를 정의하지 않는다" in text
+    assert "`combined` semantics를 정의하지 않는다" in text
+    assert "synthetic/test-only dry-run proposal builder" in next_ticket_context
