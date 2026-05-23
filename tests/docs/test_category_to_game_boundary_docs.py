@@ -169,7 +169,8 @@ def test_real_data_proposal_smoke_gate_is_read_only_sanitized_and_non_serving() 
 
     decision_context = _near(
         text,
-        "the next implementation may be opened only as a read-only, no-write, sanitized real observed-data proposal smoke",
+        "the next implementation may be opened only as a read-only, no-write, "
+        "sanitized real observed-data proposal smoke",
         span=900,
     )
     future_ticket_context = _near(
