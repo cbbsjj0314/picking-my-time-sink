@@ -1,18 +1,16 @@
 # Chzzk Coverage/Freshness Audit
 
-Status: read-only audit
-Ticket: CHZZK-COVERAGE-FRESHNESS-AUDIT-001
-Date: 2026-05-23 (KST)
+상태: read-only audit (읽기 전용 감사)
+티켓: CHZZK-COVERAGE-FRESHNESS-AUDIT-001
+날짜: 2026-05-23 (KST)
 
-## Purpose
-
-이 문서는 실제 관측된 Chzzk category 데이터를 category-to-game candidate 검토에 사용하기 전에, 현재 public-safe evidence가 coverage/freshness 판단에 충분한지 점검한다.
+이 문서는 실제 관측된 Chzzk category 데이터를 category-to-game candidate 검토에 사용하기 전에, 현재 공개 가능하고 추적된 근거가 coverage/freshness 판단에 충분한지 점검한다.
 
 이 audit는 raw/private material을 대상으로 실행하지 않았다. 또한 mapping implementation, candidate generation, mapping storage, trusted mapping, serving semantics, `Combined`, schema/API/runtime/DB/web 변경을 승인하지 않는다.
 
-## Evidence Sources Reviewed
+## 검토한 근거
 
-Confirmed tracked evidence:
+확인된 tracked 문서와 tests:
 
 - `README.md`
 - `docs/source-inventory.md`
@@ -29,7 +27,7 @@ Confirmed tracked evidence:
 - `tests/web/test_chzzk_source_view.py`
 - `tests/docs/test_category_to_game_boundary_docs.py`
 
-Confirmed local/sanitized evidence available in this checkout:
+현재 checkout에서 존재가 확인된 local/sanitized 근거:
 
 - `docs/local/NEXT.md`
 - `docs/local/checkpoints/README.md`
@@ -38,125 +36,126 @@ Confirmed local/sanitized evidence available in this checkout:
 - `docs/local/checkpoints/2026-05-15_chzzk-api-aggregate-smoke-completion.md`
 - `docs/local/checkpoints/2026-05-16_chzzk-guarded-write-scheduler-observation-rollup.md`
 
-Local evidence was used only as sanitized local/operator category evidence. This audit does not copy raw provider payloads, raw API responses, category/channel/display values, live titles, thumbnails, credentials, `.env` values, private paths, scheduler XML/stdout, raw runtime logs, screenshots, row-level UGC, or raw Grafana/Prometheus responses into public docs.
+local evidence는 sanitized local/operator evidence category 수준으로만 사용했다. 이 audit 문서는 raw provider payload, raw API response, 실제 category/channel/display value, live title, thumbnail, credential, `.env` value, private path, scheduler XML/stdout, raw runtime log, screenshot, row-level UGC, raw Grafana/Prometheus response를 공개 문서로 옮기지 않는다.
 
-## Explicit Non-Goals
+## 명시적 비범위
 
-This audit does not approve or implement:
+이 audit는 아래 항목을 승인하거나 구현하지 않는다.
 
-- schema, SQL, migration, DDL, `game_external_id` modification, or storage shape
-- category-to-game mapping implementation, candidate generation, automatic matching, promotion/demotion, trusted mapping, or `trusted` / `approved` runtime state
-- API endpoint, response shape, API field, UI field, route, table column, sort/filter/search, web behavior, or serving semantics
-- `Combined` semantics, API, UI, KPI, ranking, sorting, relationship interpretation, or trusted Combined usage
-- live Chzzk fetch, Chzzk category search API probe, scheduler mutation, service start/stop/restart, DB write, backfill, reingest, bootstrap, or runtime loader changes
-- fixture/example creation, raw/private evidence promotion, generalized provider abstraction, or broader platform/tooling adoption
+- schema, SQL, migration, DDL, `game_external_id` 변경, storage shape
+- category-to-game mapping implementation, candidate generation, automatic matching, promotion/demotion, trusted mapping, `trusted` / `approved` runtime state
+- API endpoint, response shape, API field, UI field, route, table column, sort/filter/search, web behavior, serving semantics
+- `Combined` semantics, API, UI, KPI, ranking, sorting, relationship interpretation, trusted Combined usage
+- live Chzzk fetch, Chzzk category search API probe, scheduler mutation, service start/stop/restart, DB write, backfill, reingest, bootstrap, runtime loader 변경
+- fixture/example 생성, raw/private evidence promotion, generalized provider abstraction, broader platform/tooling adoption
 
-## Audit Result
+## 감사 결과
 
-- Result: `unknown / insufficient evidence`
-- Reason:
-  - Confirmed tracked docs and tests preserve the current category-only observed evidence boundary, bounded sample caveat, bucket coverage caveat, public/private safety boundary, and `Combined` blocked state.
-  - Available local checkpoint summaries are older local/operator evidence. They are useful as sanitized historical context, but this audit does not treat them as current live scheduler health, current DB freshness, current API freshness, full live-list completeness, pagination exhaustion, or full 1d/7d semantics as of 2026-05-23.
-  - No tracked public-safe current coverage/freshness aggregate was found that is sufficient to judge whether real observed Chzzk category data is ready to seed, store, prioritize, or review category-to-game candidates.
-- Blockers:
-  - Current public-safe Chzzk category coverage/freshness evidence is not available in tracked durable docs.
-  - Current coverage gaps, stale windows, skipped evidence, and pagination state cannot be verified as current from this audit without live fetch, DB reads/writes, scheduler checks, raw/private logs, or service runtime evidence outside this ticket.
-  - Category identity/name stability for the current observed category set is `Unknown` from public-safe tracked evidence alone.
-- Next recommended action: more read-only evidence gathering. Produce a sanitized aggregate summary that can answer current coverage/freshness and category stability questions without raw/private evidence before opening real observed-data candidate implementation planning.
+- 결과(Result): `unknown / insufficient evidence`
+- 사유(Reason):
+  - 확인된 tracked docs와 tests는 현재 category-only observed evidence boundary, bounded sample caveat, bucket coverage caveat, public/private safety boundary, `Combined` blocked state를 보존한다.
+  - 사용 가능한 local checkpoint summary는 오래된 local/operator evidence다. sanitized historical context로는 유용하지만, 이 audit는 이를 2026-05-23 현재 live scheduler health, current DB freshness, current API freshness, full live-list completeness, pagination exhaustion, 또는 full 1d/7d semantics 근거로 취급하지 않는다.
+  - 실제 관측된 Chzzk category 데이터를 category-to-game candidate의 seed, store, prioritize, review에 사용할 준비가 되었는지 판단할 만큼 충분한 tracked public-safe current coverage/freshness aggregate를 찾지 못했다.
+- 필수 blocker:
+  - 현재 공개 가능한 Chzzk category coverage/freshness evidence가 tracked durable docs에 없다.
+  - current coverage gap, stale window, skipped evidence, pagination state는 live fetch, DB read/write, scheduler check, raw/private log, service runtime evidence 없이 현재 상태로 검증할 수 없다.
+  - 현재 관측된 category set의 identity/name stability는 public-safe tracked evidence만으로는 `Unknown`이다.
+- 권장되는 다음 조치:
+  - real observed-data candidate implementation 전에, raw/private evidence를 공개하지 않는 current sanitized aggregate summary를 read-only로 추가 수집한다.
 
-## Coverage / Freshness
+## 커버리지 / 신선도 (Coverage/Freshness)
 
-Confirmed:
+확인된 근거:
 
-- Tracked docs define Chzzk as bounded category observed evidence, not a Steam-equivalent baseline.
-- `/chzzk/categories/overview` is documented and tested as category-only observed evidence.
-- Existing docs/tests preserve the distinction between bucket coverage and bounded live-list completeness. `bounded_sample_caveat="bounded_sample"` remains a bounded pagination/live-list completeness caveat, while `coverage_status` remains bucket coverage evidence.
-- Existing docs state that full Chzzk 1d/7d semantics require category-level distinct KST half-hour bucket coverage, and bounded samples must not be presented as full live-list population or pagination exhaustion.
+- tracked docs는 Chzzk를 bounded category observed evidence로 정의하며, Steam-equivalent baseline으로 보지 않는다.
+- `/chzzk/categories/overview` 는 category-only observed evidence로 문서화되어 있고 tests도 이 boundary를 확인한다.
+- existing docs/tests는 bucket coverage와 bounded live-list completeness를 분리한다. `bounded_sample_caveat="bounded_sample"` 은 bounded pagination/live-list completeness caveat이고, `coverage_status` 는 bucket coverage evidence다.
+- existing docs는 Chzzk full 1d/7d semantics에 category-level distinct KST half-hour bucket coverage가 필요하다고 설명한다. bounded sample은 full live-list population 또는 pagination exhaustion으로 표현할 수 없다.
 
-Inferred interpretation:
+해석:
 
-- The current public contract is strong enough to prevent overclaiming completeness in docs/API/web boundary language.
-- It is not strong enough to prove that current observed category evidence is fresh or broad enough for real observed-data candidate review.
-
-Unknown:
-
-- Current Chzzk category coverage/freshness as of 2026-05-23.
-- Current stale windows, skipped evidence distribution, missing category evidence, current bucket coverage distribution, and current pagination state.
-- Whether currently observed categories are representative enough for candidate-only category-to-game review.
-
-## Category Stability
-
-Confirmed:
-
-- `categoryType=GAME` is preserved as Chzzk provider category type evidence, not canonical game identity.
-- Tracked docs and tests state that `categoryType=GAME` must not create Steam mapping, canonical game semantics, `Combined` rows, ranking/sorting/KPI, or trusted mapping.
-- Existing boundary docs keep category evidence separate from `dim_game`, `game_external_id`, trusted mapping, and `Combined`.
+- 현재 public contract는 docs/API/web boundary language가 completeness를 과장하지 못하게 막는 데 충분하다.
+- 그러나 current observed category evidence가 real observed-data candidate review에 충분히 fresh하고 넓은지 증명하기에는 부족하다.
 
 Unknown:
 
-- Whether current observed Chzzk category identity/type/name signals are stable enough for candidate-only review.
-- Whether current observed category names include rename, alias, regional title, same-name collision, franchise collision, or ambiguity patterns that would affect candidate review.
+- 2026-05-23 현재 Chzzk category coverage/freshness
+- 현재 stale window, skipped evidence distribution, missing category evidence, bucket coverage distribution, pagination state
+- 현재 관측된 category가 candidate-only category-to-game review에 충분히 representative한지 여부
 
-## Caveat Preservation
+## 카테고리 안정성 (Category Stability)
 
-Confirmed:
+확인된 근거:
 
-- Tracked docs preserve bounded sample, bucket coverage, missing evidence, skipped evidence, failure, and pagination caveats.
-- Existing API/web tests check that Chzzk source-view copy avoids full 1d/7d product metric claims and keeps observed evidence wording.
-- Existing boundary docs keep `candidate`, `unresolved`, and `rejected` as untrusted review evidence states.
-
-Risk:
-
-- If future candidate review imports real observed category data without carrying the same caveats, review output could imply stronger completeness than actually observed.
-- If a future workflow hides skipped evidence or pagination caveats, reviewers could mistake candidate evidence for full live-list coverage.
+- `categoryType=GAME` 은 Chzzk provider category type evidence이며 canonical game identity가 아니다.
+- tracked docs와 tests는 `categoryType=GAME` 이 Steam mapping, canonical game semantics, `Combined` row, ranking/sorting/KPI, trusted mapping을 만들 수 없다고 고정한다.
+- existing boundary docs는 category evidence를 `dim_game`, `game_external_id`, trusted mapping, `Combined` 와 분리한다.
 
 Unknown:
 
-- Whether a current sanitized evidence package exists that preserves all caveats for the exact category set that would feed candidate review.
+- 현재 관측된 Chzzk category identity/type/name signal이 candidate-only review에 충분히 stable한지 여부
+- 현재 관측 category name에 renamed category, ambiguous alias, regional title, same-name collision, franchise collision 같은 review ambiguity가 얼마나 포함되는지 여부
 
-## Public / Private Safety
+## 경고 보존 (Caveat Preservation)
 
-Confirmed:
+확인된 근거:
 
-- Public docs allow only durable contracts and sanitized evidence categories.
-- Raw provider payloads, raw API responses, row-level UGC, credentials, `.env` values, private paths, scheduler XML/stdout, raw runtime logs, screenshots, category/channel/display values, live titles, thumbnails, and raw Grafana/Prometheus responses remain outside public docs and PR text.
-- Candidate review evidence can be discussed as sanitized categories only, such as provider category identity category, candidate canonical game reference category, normalized comparison hint category, ambiguity reason category, reviewer/operator note category, and timestamp category.
+- tracked docs는 bounded sample, bucket coverage, missing evidence, skipped evidence, failure, pagination caveat를 보존한다.
+- existing API/web tests는 Chzzk source-view copy가 full 1d/7d product metric claim을 피하고 observed evidence wording을 유지하는지 확인한다.
+- existing boundary docs는 `candidate`, `unresolved`, `rejected` 를 untrusted review evidence state로 유지한다.
 
-Unknown:
+위험:
 
-- Whether current real observed Chzzk category evidence has already been transformed into a public-safe aggregate that is complete enough for review.
-
-## Serving Separation
-
-Confirmed:
-
-- `/chzzk/categories/overview` remains category-only observed evidence.
-- Existing tests verify that the endpoint/model/web path omits Steam mapping, canonical game identity, mapping status, trusted/approved fields, raw provider fields, and private evidence fields.
-- Current docs keep candidate evidence out of trusted mapping, canonical game semantics, ranking/sorting/KPI, serving semantics, and `Combined`.
-- `Combined` remains blocked/pending until trusted mapping, serving semantics, API response shape, regression expectations, and Human Gate are separately approved.
+- future candidate review가 실제 관측 category data를 가져오면서 같은 caveat를 함께 보존하지 않으면, review output이 실제보다 더 강한 completeness를 암시할 수 있다.
+- future workflow가 skipped evidence 또는 pagination caveat를 숨기면, reviewer가 candidate evidence를 full live-list coverage처럼 오해할 수 있다.
 
 Unknown:
 
-- No current candidate implementation path was reviewed because this ticket is read-only and no candidate implementation exists in scope.
+- candidate review input이 될 exact category set에 대해 모든 caveat를 보존한 current sanitized evidence package가 존재하는지 여부
 
-## Mapping Implementation Implication
+## 공개 / 비공개 안전성 (Public/Private Safety)
 
-This audit does not approve real observed-data category-to-game candidate implementation.
+확인된 근거:
 
-Before real observed Chzzk category data is used to seed, store, prioritize, or review category-to-game candidates, a future ticket needs current public-safe evidence that answers:
+- public docs에는 durable contract와 sanitized evidence category만 남길 수 있다.
+- raw provider payload, raw API response, row-level UGC, credential, `.env` value, private path, scheduler XML/stdout, raw runtime log, screenshot, 실제 category/channel/display value, live title, thumbnail, raw Grafana/Prometheus response는 public docs 및 PR text 밖에 둔다.
+- candidate review evidence는 provider category identity category, candidate canonical game reference category, normalized comparison hint category, ambiguity reason category, reviewer/operator note category, timestamp category 같은 sanitized category로만 논의할 수 있다.
 
-- current category coverage/freshness and stale-window status
-- current bucket coverage distribution and missing evidence boundaries
-- current pagination caveat state without claiming pagination exhaustion
-- current category identity/type/name stability at sanitized category level
-- how skipped/failure evidence stays attached to candidate review input
-- how raw/private evidence stays out of public docs, fixtures, PR text, API/UI semantics, and durable decision records
+Unknown:
 
-Until then, candidate-only implementation planning may discuss boundaries, but implementation using real observed category data remains blocked by insufficient current evidence.
+- 현재 실제 관측된 Chzzk category evidence가 review에 충분한 public-safe aggregate로 이미 변환되어 있는지 여부
 
-## Deferred Items
+## Serving 분리
 
-- real observed-data candidate implementation planning after sanitized current evidence exists
-- test-only guardrail for candidate evidence if a later approved implementation ticket opens
-- docs-only guardrail update if future evidence changes current coverage/freshness judgment
-- trusted mapping, `approved` / `trusted` promotion, serving semantics, and `Combined` readiness, all under future Human Gate
+확인된 근거:
+
+- `/chzzk/categories/overview` 는 category-only observed evidence로 남아 있다.
+- existing tests는 endpoint/model/web path가 Steam mapping, canonical game identity, mapping status, trusted/approved field, raw provider field, private evidence field를 노출하지 않음을 확인한다.
+- current docs는 candidate evidence를 trusted mapping, canonical game semantics, ranking/sorting/KPI, serving semantics, `Combined` 에 사용하지 못하게 한다.
+- `Combined` 는 trusted mapping, serving semantics, API response shape, regression expectation, Human Gate가 별도 승인될 때까지 blocked/pending 상태로 남는다.
+
+Unknown:
+
+- 이 ticket은 read-only audit이며 candidate implementation이 scope 밖이므로, 현재 candidate implementation path는 검토하지 않았다.
+
+## Mapping Implementation 영향
+
+이 audit는 real observed-data category-to-game candidate implementation을 승인하지 않는다.
+
+실제 관측된 Chzzk category data를 category-to-game candidate의 seed, store, prioritize, review에 사용하려면, future ticket에서 최소한 아래 질문에 답할 수 있는 current public-safe evidence가 필요하다.
+
+- current category coverage/freshness 및 stale-window 상태
+- current bucket coverage distribution 및 missing evidence boundary
+- pagination exhaustion을 주장하지 않는 current pagination caveat state
+- sanitized category level에서의 current category identity/type/name stability
+- skipped/failure evidence가 candidate review input에 함께 보존되는 방식
+- raw/private evidence가 public docs, fixture, PR text, API/UI semantics, durable decision record에 들어가지 않는 방식
+
+그 전까지는 candidate-only implementation planning에서 boundary를 논의할 수는 있지만, real observed category data를 사용하는 implementation은 insufficient current evidence 때문에 blocked 상태로 둔다.
+
+## 보류 항목 (Deferred Items)
+
+- current sanitized evidence가 확보된 뒤 real observed-data candidate implementation planning
+- later approved implementation ticket이 열릴 경우 candidate evidence test-only guardrail
+- future evidence가 current coverage/freshness 판단을 바꿀 경우 docs-only guardrail update
+- trusted mapping, `approved` / `trusted` promotion, serving semantics, `Combined` readiness는 모두 future Human Gate 대상으로 유지
