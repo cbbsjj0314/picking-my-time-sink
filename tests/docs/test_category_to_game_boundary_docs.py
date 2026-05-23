@@ -6,6 +6,9 @@ CATEGORY_MAPPING_CONTRACT = Path("docs/decisions/category-to-game-mapping-contra
 CANDIDATE_GENERATION_GATE = Path(
     "docs/decisions/category-to-game-candidate-generation-gate.md"
 )
+REAL_DATA_PROPOSAL_SMOKE_GATE = Path(
+    "docs/decisions/category-to-game-real-data-proposal-smoke-gate.md"
+)
 COMBINED_READINESS_CONTRACT = Path(
     "docs/decisions/combined-source-view-readiness-contract.md"
 )
@@ -159,3 +162,75 @@ def test_candidate_generation_gate_allows_only_synthetic_dry_run_builder() -> No
     assert "serving semantics를 정의하지 않는다" in text
     assert "`combined` semantics를 정의하지 않는다" in text
     assert "synthetic/test-only dry-run proposal builder" in next_ticket_context
+
+
+def test_real_data_proposal_smoke_gate_is_read_only_sanitized_and_non_serving() -> None:
+    text = _read_lower(REAL_DATA_PROPOSAL_SMOKE_GATE)
+
+    decision_context = _near(
+        text,
+        "the next implementation may be opened only as a read-only, no-write, sanitized real observed-data proposal smoke",
+        span=900,
+    )
+    future_ticket_context = _near(
+        text,
+        "category-mapping-candidate-real-data-proposal-smoke-001",
+        span=1400,
+    )
+    matching_context = _near(text, "allowed normalization", span=1200)
+    output_context = _near(text, "future smoke output은 아래 항목을 포함할 수 없다", span=1200)
+
+    assert "이 gate는 실제 smoke를 실행하지 않는다" in text
+    assert "api call" in text
+    assert "db query" in text
+    assert "data capture" in text
+
+    assert "read-only" in decision_context
+    assert "no-write" in decision_context
+    assert "sanitized" in decision_context
+    assert "arbitrary local data access를 승인하지 않는다" in decision_context
+    assert "read-only command" in decision_context
+    assert "read-only path" in decision_context
+
+    assert "future ticket에 명시된 read-only command" in future_ticket_context
+    assert "already 실행 중인 read-only `/chzzk/categories/overview`" not in text
+    assert "이미 실행 중인 read-only `/chzzk/categories/overview`" in text
+    assert "service를 새로 시작하거나 변경하지 않는다" in text
+    assert "sanitized aggregate proposal summary only" in text
+
+    assert "db write" in text
+    assert "insert into `chzzk_category_game_candidate`" in text
+    assert "trusted mapping" in text
+    assert "`game_external_id`" in text
+    assert "tracked_universe" in text
+    assert "app catalog" in text
+    assert "api/web/serving exposure" in text
+    assert "`combined`" in text
+    assert "live fetch" in text
+    assert "scheduler mutation" in text
+    assert "schema/ddl changes" in text
+
+    assert "raw category names" in output_context
+    assert "raw game names" in output_context
+    assert "channel names" in output_context
+    assert "display names" in output_context
+    assert "live titles" in output_context
+    assert "thumbnails" in output_context
+    assert "raw provider payloads" in output_context
+    assert "raw api response" in output_context
+    assert "raw sql output" in output_context
+    assert "credentials or `.env` values" in output_context
+
+    assert "strip" in matching_context
+    assert "casefold" in matching_context
+    assert "whitespace collapse" in matching_context
+    assert "fuzzy matching" in matching_context
+    assert "alias matching" in matching_context
+    assert "partial matching" in matching_context
+    assert "punctuation-insensitive matching" in matching_context
+    assert "similarity score" in matching_context
+    assert "manual hints" in matching_context
+    assert "`candidate`: exactly one normalized exact match" in text
+    assert "`unresolved`: zero matches or two or more matches" in text
+    assert "`rejected`: not generated automatically" in text
+    assert "`category_type=game`은 provider category type evidence only" in text
