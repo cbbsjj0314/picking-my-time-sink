@@ -1,8 +1,8 @@
 # 데이터 거버넌스
 
 문서 목적: Steam-only MVP의 데이터 의미, 품질, freshness, lineage, public/local 경계를 최소 거버넌스 기준으로 고정한다.  
-버전: v0.5 (Chzzk probe result contract hardening boundary)  
-작성일: 2026-04-20 (KST)
+버전: v0.6 (Chzzk candidate storage foundation boundary)
+작성일: 2026-05-23 (KST)
 
 ## 0. 현재 범위
 
@@ -169,6 +169,13 @@ Per-category bucket coverage 상태는 별도 `coverage_status` 로 표현한다
 `bucket_time_max` 는 observed aggregate window의 max bucket이다.
 `viewer_per_channel_observed` 는 observed `live_count` 기반 ratio이며 unique channel
 count가 아니다.
+
+`chzzk_category_game_candidate` 는 candidate-only review storage foundation이다.
+이 table은 현재 lineage map의 serving object가 아니며 `/chzzk/categories/overview`,
+web source view, ranking/sorting/KPI, or `Combined` 에 쓰지 않는다. Persisted status는
+`candidate`, `unresolved`, `rejected` 로 제한하고, 모두 untrusted review state로 유지한다.
+이 foundation은 `game_external_id` 를 바꾸지 않으며 candidate generation, automatic
+matching, promotion/demotion, trusted mapping, or serving semantics를 승인하지 않는다.
 
 새 chart 또는 API surface를 추가하면 implementation 전 또는 같은 slice 안에서 lineage row를 최소 1개 추가한다.
 
