@@ -2,6 +2,7 @@
 
 Status: docs-only public-safe checkpoint
 Ticket: CHZZK-CURRENT-AGGREGATE-EVIDENCE-SMOKE-001
+후속 티켓: CHZZK-CURRENT-AGGREGATE-EVIDENCE-SMOKE-001-FOLLOWUP
 Date: 2026-05-23 (KST)
 
 ## Purpose
