@@ -48,15 +48,11 @@ def _normalize_status(value: str) -> CandidateStatus:
 def _normalize_canonical_game_id(value: int | None) -> int | None:
     if value is None:
         return None
-    if isinstance(value, bool):
+    if isinstance(value, bool) or not isinstance(value, int):
         raise ValueError("invalid_canonical_game_id")
-    try:
-        normalized = int(value)
-    except (TypeError, ValueError) as exc:
-        raise ValueError("invalid_canonical_game_id") from exc
-    if normalized <= 0:
+    if value <= 0:
         raise ValueError("invalid_canonical_game_id")
-    return normalized
+    return value
 
 
 def build_chzzk_category_game_candidate_row(

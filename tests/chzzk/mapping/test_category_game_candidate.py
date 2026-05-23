@@ -101,6 +101,11 @@ def test_build_candidate_row_accepts_specific_and_category_level_unresolved() ->
         ({"status": "mapped"}, "invalid_candidate_status"),
         ({"canonical_game_id": 0}, "invalid_canonical_game_id"),
         ({"canonical_game_id": -1}, "invalid_canonical_game_id"),
+        ({"canonical_game_id": True}, "invalid_canonical_game_id"),
+        ({"canonical_game_id": "1001"}, "invalid_canonical_game_id"),
+        ({"canonical_game_id": " 1001 "}, "invalid_canonical_game_id"),
+        ({"canonical_game_id": 1001.0}, "invalid_canonical_game_id"),
+        ({"canonical_game_id": 1001.9}, "invalid_canonical_game_id"),
         (
             {"status": "candidate", "canonical_game_id": None},
             "specific_candidate_requires_canonical_game_id",
