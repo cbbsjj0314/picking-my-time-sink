@@ -1,6 +1,6 @@
 문서 목적: 테이블/파일 목록, 그레인(1행 키), 적재 규칙, 보존 기준, provider 확장 경계 기록
-버전: v0.23 (public 한국어 톤 정리)
-최종 수정일: 2026-04-24 (KST)
+버전: v0.24 (Chzzk candidate storage foundation)
+최종 수정일: 2026-05-23 (KST)
 
 ## 0. 레이어 개요
 
@@ -230,6 +230,30 @@
     - category-to-game mapping workflow를 별도 schema/code slice로 고정
 - 명시적 비범위:
     - Twitch fallback, generalized provider abstraction, `gold_stream_game_30m`, broader streaming serving API, Combined/relationship KPI
+
+### 4.2.1 Chzzk category-to-game candidate storage foundation
+
+- table: `chzzk_category_game_candidate`
+- 목적: Chzzk category와 `dim_game.canonical_game_id` 사이의 review-only 후보를
+  저장하는 provider-specific candidate-only storage foundation이다.
+- 그레인/키:
+    - PK는 surrogate `candidate_id` 이다.
+    - `canonical_game_id IS NOT NULL` row는 특정 category-to-game review candidate다.
+    - `status = 'unresolved' AND canonical_game_id IS NULL` row는 category-level unresolved review row다.
+    - specific candidate 중복은 `(chzzk_category_id, canonical_game_id)` partial unique index로 막는다.
+    - category-level unresolved-without-game 중복은 `chzzk_category_id` partial unique index로 막는다.
+- 상태:
+    - persisted `status` 값은 `candidate`, `unresolved`, `rejected` 만 허용한다.
+    - `candidate`, `unresolved`, `rejected` 는 모두 untrusted review state다.
+    - `rejected` 는 `canonical_game_id` 가 있는 specific category-to-game candidate에만 쓴다.
+- boundary:
+    - 이 table은 trusted mapping이 아니며 현재 API/web/source-view path에서 읽지 않는다.
+    - 이 table은 `game_external_id` schema나 behavior를 바꾸지 않는다.
+    - 이 storage foundation은 candidate generation, automatic matching, promotion/demotion,
+      trusted mapping, serving semantics, or `Combined` semantics를 승인하지 않는다.
+    - raw provider payload, real category/channel/display values, live titles, thumbnails,
+      row-level UGC, credentials, and private runtime evidence는 이 table과 public docs에
+      넣지 않는다.
 
 ### 4.3 Steam Price (1시간)
 

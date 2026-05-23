@@ -208,6 +208,9 @@ def test_response_omits_private_raw_and_mapping_fields(monkeypatch) -> None:
     keys = set(response.json()[0])
     forbidden_keys = {
         "canonical_game_id",
+        "candidate_id",
+        "candidate_status",
+        "category_game_candidate_status",
         "steam_appid",
         "mapped_steam_game",
         "mapping_status",
@@ -224,6 +227,7 @@ def test_response_omits_private_raw_and_mapping_fields(monkeypatch) -> None:
         "raw_provider_payload",
         "credential",
         "local_path",
+        "chzzk_category_game_candidate",
     }
     assert keys.isdisjoint(forbidden_keys)
     assert "unique_channels_observed" in keys
@@ -236,6 +240,9 @@ def test_response_model_omits_category_to_game_mapping_fields() -> None:
 
     forbidden_fields = {
         "canonical_game_id",
+        "candidate_id",
+        "candidate_status",
+        "category_game_candidate_status",
         "steam_appid",
         "mapped_steam_game",
         "mapping_status",
@@ -257,8 +264,11 @@ def test_service_category_only_sql_reads_chzzk_category_fact_only() -> None:
     assert "srv_" not in sql
     assert "fact_steam" not in sql
     assert "game_external_id" not in sql
+    assert "chzzk_category_game_candidate" not in sql
     assert "canonical_game_id" not in sql
     assert "combined" not in sql
+    assert "unresolved" not in sql
+    assert "rejected" not in sql
     assert "null::integer as unique_channels_observed" in sql
     assert "top_channel" not in sql
 
@@ -276,8 +286,11 @@ def test_service_channel_sql_counts_matching_category_observed_bucket_channels()
     assert "srv_" not in sql
     assert "fact_steam" not in sql
     assert "game_external_id" not in sql
+    assert "chzzk_category_game_candidate" not in sql
     assert "canonical_game_id" not in sql
     assert "combined" not in sql
+    assert "unresolved" not in sql
+    assert "rejected" not in sql
     assert "top_channel" not in sql
 
 

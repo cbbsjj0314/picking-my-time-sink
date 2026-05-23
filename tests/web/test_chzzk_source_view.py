@@ -22,6 +22,10 @@ def test_chzzk_api_client_reads_category_overview() -> None:
 
     mapping_field_needles = [
         "canonical_game_id",
+        "candidate_id",
+        "candidate_status",
+        "category_game_candidate_status",
+        "chzzk_category_game_candidate",
         "steam_appid",
         "mapped_steam_game",
         "mapping_status",
@@ -31,8 +35,11 @@ def test_chzzk_api_client_reads_category_overview() -> None:
         "mappingStatus",
         "mappingMethod",
         "mappingConfidence",
+        "candidateStatus",
         "trusted:",
         "approved:",
+        "unresolved:",
+        "rejected:",
     ]
     for needle in mapping_field_needles:
         assert needle not in source
@@ -114,6 +121,9 @@ def test_chzzk_source_view_is_connected_without_steam_or_combined_semantics() ->
     assert "Combined" not in table_source
     assert "<Steam" not in table_source
     assert "steam_appid" not in table_source
+    assert "candidate_id" not in table_source
+    assert "candidate_status" not in table_source
+    assert "chzzk_category_game_candidate" not in table_source
     assert "mapped_steam_game" not in table_source
     assert "canonicalGame" not in table_source
     assert "canonical_game_id" not in table_source
@@ -237,6 +247,10 @@ def test_chzzk_web_source_view_stays_free_of_mapping_fields() -> None:
 
     mapping_field_needles = [
         "canonical_game_id",
+        "candidate_id",
+        "candidate_status",
+        "category_game_candidate_status",
+        "chzzk_category_game_candidate",
         "steam_appid",
         "mapped_steam_game",
         "mapping_status",
@@ -247,6 +261,9 @@ def test_chzzk_web_source_view_stays_free_of_mapping_fields() -> None:
         "mappingStatus",
         "mappingMethod",
         "mappingConfidence",
+        "candidateStatus",
+        "unresolved",
+        "rejected",
     ]
     for needle in mapping_field_needles:
         assert needle not in source

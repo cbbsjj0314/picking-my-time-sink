@@ -1,14 +1,21 @@
 # Category-To-Game Storage Contract Planning
 
-Status: docs-only planning boundary
+Status: docs-only planning boundary with implemented candidate-only foundation note
 Ticket: PLAN-C2G-STORAGE-CONTRACT-001
-Date: 2026-05-19 (KST)
+Date: 2026-05-23 (KST)
 
 이 문서는 category-to-game 후보 evidence를 나중에 어디에 둘 수 있는지 비교하는 planning contract다.
 이 결정은 schema, SQL, migration, API, runtime, loader, scheduler, web behavior, DB write, backfill, reingest, automatic matching, trusted mapping usage, 또는 `Combined` semantics 구현 승인이 아니다.
 
-최종 storage shape는 아직 선택하지 않는다. 이 문서는 final table grain, column name, JSON shape, persisted status enum, API field, UI field, operational workflow를 정의하지 않는다.
-최종 선택과 구현은 별도 Human Gate / implementation ticket으로 미룬다.
+`CATEGORY-MAPPING-CANDIDATE-STORAGE-001` 이후 repo에는 `chzzk_category_game_candidate`
+candidate-only storage foundation이 있다. 이 foundation은 provider-specific
+review 후보 저장소이며 trusted mapping, automatic matching, API field, UI field,
+serving semantics, `Combined`, promotion/demotion workflow, or operational workflow를
+정의하지 않는다.
+
+Trusted mapping storage shape, promotion workflow, serving shape, API/UI exposure,
+and `Combined` semantics는 아직 선택하지 않는다. 이 문서는 JSON shape, trusted
+mapping metadata, API field, UI field, or operational workflow를 정의하지 않는다.
 
 현재 durable context는 `docs/data-governance.md`, `docs/data-model-spec.md`, `docs/source-inventory.md`, `docs/decisions/category-to-game-mapping-contract.md`, `docs/decisions/category-to-game-implementation-surface-review.md`, `docs/decisions/combined-source-view-readiness-contract.md` 를 따른다.
 
@@ -21,6 +28,7 @@ Date: 2026-05-19 (KST)
 - `candidate`, `unresolved`, and `rejected` evidence cannot power trusted mapping, canonical game semantics, serving semantics, ranking/sorting/KPI, or `Combined`.
 - `trusted` / `approved` remain future Human Gate / promotion gate terminology only. This document does not define them as persisted state, schema value, API field, UI field, or runtime behavior.
 - `Combined` remains blocked/pending until separate trusted mapping and serving semantics gates are approved.
+- `chzzk_category_game_candidate` stores only untrusted review candidates. It does not alter `game_external_id` and is not read by current API/web/source-view paths.
 
 ## Candidate Storage Directions
 

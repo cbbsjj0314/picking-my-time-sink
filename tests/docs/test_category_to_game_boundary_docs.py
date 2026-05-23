@@ -7,9 +7,11 @@ COMBINED_READINESS_CONTRACT = Path(
     "docs/decisions/combined-source-view-readiness-contract.md"
 )
 DATA_GOVERNANCE = Path("docs/data-governance.md")
+DATA_MODEL_SPEC = Path("docs/data-model-spec.md")
 IMPLEMENTATION_SURFACE_REVIEW = Path(
     "docs/decisions/category-to-game-implementation-surface-review.md"
 )
+STORAGE_CONTRACT = Path("docs/decisions/category-to-game-storage-contract-planning.md")
 
 
 def _read_lower(path: Path) -> str:
@@ -88,3 +90,28 @@ def test_public_docs_keep_raw_runtime_evidence_out_of_contract_boundary() -> Non
     assert "credentials" in text
     assert "private runtime" in text
     assert "row-level ugc" in text
+
+
+def test_candidate_storage_foundation_remains_untrusted_and_non_serving() -> None:
+    text = "\n".join(
+        [
+            _read_lower(DATA_MODEL_SPEC),
+            _read_lower(DATA_GOVERNANCE),
+            _read_lower(STORAGE_CONTRACT),
+        ]
+    )
+
+    context = _near(text, "chzzk_category_game_candidate", span=1200)
+
+    assert "candidate-only" in context
+    assert "review" in context
+    assert "candidate" in context
+    assert "unresolved" in context
+    assert "rejected" in context
+    assert "untrusted" in context
+    assert "trusted mapping" in context
+    assert "automatic matching" in context
+    assert "promotion/demotion" in context
+    assert "serving semantics" in context
+    assert "combined" in context
+    assert "game_external_id" in context
