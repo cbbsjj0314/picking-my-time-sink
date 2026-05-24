@@ -18,6 +18,9 @@ ALIAS_HINT_CONTRACT_GATE = Path(
 ALIAS_HINT_REAL_DATA_GATE = Path(
     "docs/decisions/category-to-game-alias-hint-real-data-gate.md"
 )
+ALIAS_HINT_SEEDING_ASSIST_GATE = Path(
+    "docs/decisions/category-to-game-alias-hint-seeding-assist-gate.md"
+)
 COMBINED_READINESS_CONTRACT = Path(
     "docs/decisions/combined-source-view-readiness-contract.md"
 )
@@ -534,3 +537,126 @@ def test_alias_hint_real_data_gate_allows_only_read_only_sanitized_smoke() -> No
     assert "no api/web/serving/`combined`" in next_ticket_context
     assert "fuzzy matching forbidden" in next_ticket_context
     assert "automatic alias discovery forbidden" in next_ticket_context
+
+
+def test_alias_hint_seeding_assist_gate_keeps_review_seeds_private_untrusted() -> None:
+    text = _read_lower(ALIAS_HINT_SEEDING_ASSIST_GATE)
+
+    decision_context = _near(
+        text,
+        "private/local review seeding assist may be considered only as a future",
+        span=1100,
+    )
+    seed_boundary_context = _near(text, "review seed ≠ alias/manual_hint", span=1200)
+    allowed_context = _near(text, "## allowed future assist direction", span=1700)
+    forbidden_context = _near(text, "## forbidden interpretation", span=1200)
+    public_context = _near(text, "## public artifact boundary", span=1800)
+    private_context = _near(text, "## private / local evidence boundary", span=1200)
+    alias_context = _near(text, "## relationship to alias / manual hint", span=1600)
+    storage_context = _near(text, "## relationship to candidate storage", span=1500)
+    stop_context = _near(text, "## stop conditions for future work", span=1500)
+    next_ticket_context = _near(
+        text,
+        "category-mapping-review-seeding-assist-gate-001",
+        span=1200,
+    )
+
+    assert "이 gate는 review seeding assist를 구현하지 않는다" in text
+    assert "alias/manual hint source: absent" in text
+    assert "result status: unknown / insufficient approved source" in text
+    assert "db write performed: false" in text
+    assert "candidate insert performed: false" in text
+    assert "raw values printed: false" in text
+
+    assert "read-only" in decision_context
+    assert "no-write" in decision_context
+    assert "human-review aid" in decision_context
+    assert "`alias`" in decision_context
+    assert "`manual_hint`" in decision_context
+    assert "`candidate`" in decision_context
+    assert "`trusted`" in decision_context
+    assert "`approved`" in decision_context
+    assert "serving truth" in decision_context
+    assert "human curation" in decision_context
+
+    assert "review seed ≠ alias/manual_hint" in seed_boundary_context
+    assert "review seed ≠ candidate" in seed_boundary_context
+    assert "review seed ≠ trusted mapping" in seed_boundary_context
+    assert "review seed ≠ serving truth" in seed_boundary_context
+    assert "review seed is not an alias" in seed_boundary_context
+    assert "review seed is not a manual hint" in seed_boundary_context
+    assert "review seed is not a candidate proposal" in seed_boundary_context
+    assert "review seed is not `combined`" in seed_boundary_context
+    assert "human adoption is required" in seed_boundary_context
+
+    assert "normalized token overlap" in allowed_context
+    assert "substring containment" in allowed_context
+    assert "punctuation/spacing normalization" in allowed_context
+    assert "casefold/whitespace normalization" in allowed_context
+    assert "known suffix/prefix trimming" in allowed_context
+    assert "top-n private/local review seed report" in allowed_context
+    assert "aggregate-only public completion report" in allowed_context
+    assert "these methods are not implemented by this ticket" in allowed_context
+    assert "automatic matching" in allowed_context
+    assert "fuzzy matching" in allowed_context
+    assert "automatic alias discovery" in allowed_context
+    assert "candidate generation for storage" in allowed_context
+
+    assert "fuzzy matching" in forbidden_context
+    assert "automatic alias discovery" in forbidden_context
+    assert "automatic matching" in forbidden_context
+    assert "trusted mapping" in forbidden_context
+    assert "automatic candidate generation for storage" in forbidden_context
+    assert "automatic `alias` generation" in forbidden_context
+    assert "automatic `manual_hint` generation" in forbidden_context
+    assert "promotion/demotion workflow" in forbidden_context
+    assert "api/web/serving change" in forbidden_context
+    assert "`combined`" in forbidden_context
+
+    assert "public artifacts include" in public_context
+    assert "sanitized aggregate output" in public_context
+    assert "review seed row count" in public_context
+    assert "real category names" in public_context
+    assert "real game names" in public_context
+    assert "real review seed rows" in public_context
+    assert "raw provider payloads" in public_context
+    assert "raw api responses" in public_context
+    assert "raw sql output" in public_context
+    assert "credentials" in public_context
+    assert "`.env` values" in public_context
+
+    assert "private/local seed rows must not be copied" in private_context
+    assert "source class, not by value" in private_context
+    assert "aggregate counts only" in private_context
+    assert "aggregate-only reporting cannot be guaranteed" in private_context
+
+    assert "review seed output is neither of these" in alias_context
+    assert "human curation" in alias_context
+    assert 'hint_kind = "alias" | "manual_hint"' in alias_context
+    assert "must not be assigned automatically" in alias_context
+
+    assert "no db write" in storage_context
+    assert "no insert into `chzzk_category_game_candidate`" in storage_context
+    assert "no candidate write smoke" in storage_context
+    assert "no durable candidate state" in storage_context
+    assert "no trusted mapping" in storage_context
+    assert "no serving truth" in storage_context
+    assert "no api/web/serving/`combined`" in storage_context
+    assert "separate write policy, audit trail, and human gate" in storage_context
+
+    assert "raw provider payload printing" in stop_context
+    assert "real category/game names in public output" in stop_context
+    assert "credentials or `.env` value inspection" in stop_context
+    assert "db write or candidate insert" in stop_context
+    assert "api/web/serving changes" in stop_context
+    assert "`combined`" in stop_context
+    assert "fuzzy matching or automatic alias discovery" in stop_context
+    assert "row-level output that cannot be sanitized" in stop_context
+    assert "without human curation" in stop_context
+    assert "trusted mapping" in stop_context
+    assert "persisted without a separate write gate" in stop_context
+
+    assert "category-mapping-review-seeding-assist-gate-001" in next_ticket_context
+    assert "review-seed generation, not alias/hint generation" in next_ticket_context
+    assert "docs/decision first" in next_ticket_context
+    assert "generated seed rows are not alias/manual_hint until human curated" in text
