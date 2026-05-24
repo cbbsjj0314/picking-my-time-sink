@@ -12,6 +12,9 @@ REAL_DATA_PROPOSAL_SMOKE_GATE = Path(
 NON_EXACT_MATCHING_GATE = Path(
     "docs/decisions/category-to-game-non-exact-matching-gate.md"
 )
+ALIAS_HINT_CONTRACT_GATE = Path(
+    "docs/decisions/category-to-game-alias-hint-contract-gate.md"
+)
 COMBINED_READINESS_CONTRACT = Path(
     "docs/decisions/combined-source-view-readiness-contract.md"
 )
@@ -322,3 +325,66 @@ def test_non_exact_gate_allows_only_future_synthetic_alias_hint_contract() -> No
     assert "no trusted mapping" in next_ticket_context
     assert "no api/web/serving/`combined`" in next_ticket_context
     assert "do not recommend an implementation ticket" in text
+
+
+def test_alias_hint_contract_gate_keeps_future_work_synthetic_review_only() -> None:
+    text = _read_lower(ALIAS_HINT_CONTRACT_GATE)
+
+    decision_context = _near(
+        text,
+        "alias and manual hint belong to one future synthetic/test-only contract family",
+        span=700,
+    )
+    input_context = _near(text, "synthetic/test-only input contract", span=1400)
+    conflict_context = _near(text, "conflict / ambiguity boundary", span=1200)
+    output_context = _near(text, "proposal output boundary", span=1200)
+    fuzzy_context = _near(text, "fuzzy and automatic alias discovery boundary", span=1200)
+    next_ticket_context = _near(text, "the next implementation must remain", span=900)
+
+    assert 'hint_kind = "alias" | "manual_hint"' in decision_context
+    assert "does not approve implementation" in decision_context
+
+    assert "`hint_kind`" in input_context
+    assert "`synthetic_chzzk_category_label`" in input_context
+    assert "`synthetic_canonical_game_name`" in input_context
+    assert "`reason`" in input_context
+    assert "`source_note`" in input_context
+    assert "storage schema" in input_context
+    assert "api shape" in input_context
+    assert "db table shape" in input_context
+    assert "runtime contract" in input_context
+
+    assert "untrusted review evidence" in text
+    assert "serving truth" in text
+    assert "review를 skip할 수 없다" in text
+    assert "`trusted` / `approved`를 직접 만들 수 없다" in text
+
+    assert "same synthetic category hinting multiple synthetic games" in conflict_context
+    assert "same synthetic alias pointing to multiple synthetic games" in conflict_context
+    assert "must not auto-select a winner" in conflict_context
+    assert "`rejected` is not generated automatically" in conflict_context
+    assert "future human gate terminology only" in conflict_context
+
+    assert "untrusted `candidate` proposals" in output_context
+    assert "untrusted `unresolved` proposals" in output_context
+    assert "`rejected` automatically" in output_context
+    assert "api/web-visible mapping fields" in output_context
+    assert "`combined` rows/kpi/sorting/ranking" in output_context
+
+    assert "fuzzy matching remains forbidden" in fuzzy_context
+    assert "automatic alias discovery remains forbidden" in fuzzy_context
+    assert "approximate matching" in fuzzy_context
+    assert "similarity score" in fuzzy_context
+    assert "phonetic/transliteration matching" in fuzzy_context
+    assert "partial/punctuation-insensitive matching" in fuzzy_context
+
+    assert "candidate proposal count: `0`" in text
+    assert "unresolved proposal count: `200`" in text
+    assert "db write performed: `false`" in text
+    assert "candidate insert performed: `false`" in text
+
+    assert "no real raw values in public artifacts" in next_ticket_context
+    assert "no db write" in next_ticket_context
+    assert "no candidate insert" in next_ticket_context
+    assert "no trusted mapping" in next_ticket_context
+    assert "no api/web/serving/`combined`" in next_ticket_context
