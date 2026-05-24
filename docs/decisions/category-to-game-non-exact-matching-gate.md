@@ -6,18 +6,13 @@ Documented: 2026-05-24 (KST)
 
 ## Purpose
 
-이 문서는 category-to-game candidate generation을 `normalized exact match only` 밖으로
-확장할 수 있는지에 대한 decision boundary를 고정한다.
+이 문서는 category-to-game candidate generation을 `normalized exact match only` 밖으로 확장할 수 있는지에 대한 decision boundary를 고정한다.
 
-이 gate는 non-exact matching 구현을 승인하지 않는다. 목적은 exact match only smoke
-결과를 근거로, 다음에 검토할 수 있는 방향과 여전히 금지되는 matching 방식을 분리하는
-것이다.
+이 gate는 non-exact matching 구현을 승인하지 않는다. 목적은 exact match only smoke 결과를 근거로, 다음에 검토할 수 있는 방향과 여전히 금지되는 matching 방식을 분리하는 것이다.
 
 ## Evidence Basis
 
-최근 read-only smoke는 sanitized aggregate evidence만 제공했다. Public artifact에는 raw
-category name, raw game name, raw API response, raw SQL output, raw command
-transcript, private runtime material을 포함하지 않는다.
+최근 read-only smoke는 sanitized aggregate evidence만 제공했다. Public artifact에는 raw category name, raw game name, raw API response, raw SQL output, raw command transcript, private runtime material을 포함하지 않는다.
 
 Allowed aggregate facts:
 
@@ -35,10 +30,8 @@ Allowed aggregate facts:
 해석:
 
 - 현재 exact normalized matching은 false positive를 만들지 않는 safe baseline이다.
-- 하지만 위 aggregate result는 exact-only 방식이 useful proposal signal을 만들지
-  못했음을 보여준다.
-- 이 evidence는 non-exact implementation, trusted mapping, DB write, API/web exposure,
-  serving semantics, 또는 `Combined` semantics를 승인하지 않는다.
+- 하지만 위 aggregate result는 exact-only 방식이 useful proposal signal을 만들지 못했음을 보여준다.
+- 이 evidence는 non-exact implementation, trusted mapping, DB write, API/web exposure, serving semantics, 또는 `Combined` semantics를 승인하지 않는다.
 
 ## Decision
 
@@ -57,20 +50,15 @@ Exact normalized matching remains safe but insufficient for useful proposal sign
 
 다음 방향은 curated alias/manual hint policy를 문서로 먼저 정의하는 것이다.
 
-Future ticket은 implementation ticket이 아니라 synthetic/test-only contract gate여야 한다.
-그 contract는 public-safe input shape, review-only output meaning, stop condition,
-validation을 먼저 고정해야 한다.
+Future ticket은 implementation ticket이 아니라 synthetic/test-only contract gate여야 한다. 그 contract는 public-safe input shape, review-only output meaning, stop condition, validation을 먼저 고정해야 한다.
 
 ## Alias / Manual Hint Boundary
 
-`alias`는 사람이 curated한 alternate label이다. 이 label은 candidate proposal을 만드는
-데 도움을 줄 수 있는 review-only evidence일 뿐이다.
+`alias`는 사람이 curated한 alternate label이다. 이 label은 candidate proposal을 만드는 데 도움을 줄 수 있는 review-only evidence일 뿐이다.
 
-`manual hint`는 사람이 제공한 review hint다. 이 hint도 candidate proposal을 만드는 데
-도움을 줄 수 있는 review-only evidence일 뿐이다.
+`manual hint`는 사람이 제공한 review hint다. 이 hint도 candidate proposal을 만드는 데 도움을 줄 수 있는 review-only evidence일 뿐이다.
 
-`trusted mapping`은 future Human Gate에서 별도로 승인해야 하는 state다. Alias 또는
-manual hint는 trusted mapping을 만들거나 대체하지 않는다.
+`trusted mapping`은 future Human Gate에서 별도로 승인해야 하는 state다. Alias 또는 manual hint는 trusted mapping을 만들거나 대체하지 않는다.
 
 Future alias/manual hint input contract는 아래 조건을 모두 만족해야 한다.
 
@@ -123,11 +111,9 @@ Automatic alias discovery는 계속 forbidden이다.
 
 - 자동 생성된 alias는 hidden identity assumption을 만들 수 있다.
 - 자동 생성 alias가 provider-to-game mapping evidence처럼 보일 수 있다.
-- alias source, provenance, review status, conflict handling, audit trail이 아직
-  정의되지 않았다.
+- alias source, provenance, review status, conflict handling, audit trail이 아직 정의되지 않았다.
 
-이 gate는 automatic alias discovery 구현을 승인하지 않는다. 허용되는 다음 단계는 오직
-synthetic/test-only alias/manual hint contract gate다.
+이 gate는 automatic alias discovery 구현을 승인하지 않는다. 허용되는 다음 단계는 오직 synthetic/test-only alias/manual hint contract gate다.
 
 ## Proposal Classification Boundary
 
@@ -138,9 +124,7 @@ synthetic/test-only alias/manual hint contract gate다.
 - `rejected`: not generated automatically; reserved for future human review workflow.
 - `trusted` / `approved`: future Human Gate terminology only.
 
-Alias/manual hint가 later gate에서 열리더라도 review를 건너뛰면 안 된다. 어떤 proposal도
-serving truth, canonical game identity, hidden join, ranking/sorting/KPI, API response,
-web UI, 또는 `Combined` semantics에 사용할 수 없다.
+Alias/manual hint가 later gate에서 열리더라도 review를 건너뛰면 안 된다. 어떤 proposal도 serving truth, canonical game identity, hidden join, ranking/sorting/KPI, API response, web UI, 또는 `Combined` semantics에 사용할 수 없다.
 
 ## Matching Semantics To Preserve
 
@@ -216,8 +200,7 @@ Examples가 필요하면 아래처럼 sanitized placeholder만 사용한다.
 Future alias/manual hint contract gate는 최소한 아래를 검증해야 한다.
 
 - input fixture가 synthetic/test-only인지 확인한다.
-- public artifact에 real raw provider payloads, private runtime evidence, raw category
-  values, raw game values가 없는지 확인한다.
+- public artifact에 real raw provider payloads, private runtime evidence, raw category values, raw game values가 없는지 확인한다.
 - alias/manual hint가 untrusted proposal candidate만 만들 수 있는지 확인한다.
 - alias/manual hint가 `trusted` / `approved`로 직접 승격되지 않는지 확인한다.
 - exact normalized matching semantics가 silently changed 되지 않았는지 확인한다.
