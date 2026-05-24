@@ -15,6 +15,9 @@ NON_EXACT_MATCHING_GATE = Path(
 ALIAS_HINT_CONTRACT_GATE = Path(
     "docs/decisions/category-to-game-alias-hint-contract-gate.md"
 )
+ALIAS_HINT_REAL_DATA_GATE = Path(
+    "docs/decisions/category-to-game-alias-hint-real-data-gate.md"
+)
 COMBINED_READINESS_CONTRACT = Path(
     "docs/decisions/combined-source-view-readiness-contract.md"
 )
@@ -388,3 +391,146 @@ def test_alias_hint_contract_gate_keeps_future_work_synthetic_review_only() -> N
     assert "no candidate insert" in next_ticket_context
     assert "no trusted mapping" in next_ticket_context
     assert "no api/web/serving/`combined`" in next_ticket_context
+
+
+def test_alias_hint_real_data_gate_allows_only_read_only_sanitized_smoke() -> None:
+    text = _read_lower(ALIAS_HINT_REAL_DATA_GATE)
+
+    decision_context = _near(
+        text,
+        "real-data alias/manual hint work may be opened only as a future read-only",
+        span=900,
+    )
+    source_context = _near(text, "## real-data source boundary", span=2600)
+    public_context = _near(text, "## public artifact boundary", span=2000)
+    private_context = _near(text, "## private / local evidence boundary", span=2000)
+    alias_context = _near(text, "`alias` is a curated alternate label", span=1200)
+    proposal_context = _near(text, "## proposal output boundary", span=1800)
+    fuzzy_context = _near(text, "## explicit non-goals", span=1500)
+    validation_context = _near(
+        text,
+        "future `category-mapping-alias-hint-real-data-smoke-001` must",
+        span=1300,
+    )
+    stop_context = _near(text, "future smoke must stop if", span=1500)
+    next_ticket_context = _near(
+        text,
+        "recommended next ticket",
+        span=1400,
+    )
+
+    assert "이 gate는 real-data smoke를 실행하지 않는다" in text
+    assert "api call" in text
+    assert "db query" in text
+    assert "service start/stop/restart" in text
+    assert "scheduler action" in text
+    assert "live fetch" in text
+
+    assert "read-only" in decision_context
+    assert "no-write" in decision_context
+    assert "sanitized aggregate smoke" in decision_context
+    assert "real category/game names and real hint rows" in decision_context
+    assert "private/local evidence" in decision_context
+    assert "arbitrary local data access를 승인하지 않는다" in decision_context
+
+    assert "candidate proposal count: `0`" in text
+    assert "unresolved proposal count: `200`" in text
+    assert "db write performed: `false`" in text
+    assert "candidate insert performed: `false`" in text
+
+    assert "local/private operator-controlled evidence" in source_context
+    assert "public fixture" in source_context
+    assert "tracked public docs table" in source_context
+    assert "serving contract" in source_context
+    assert "automatic" in source_context
+    assert "discovery output" in source_context
+    assert "explicitly approved read-only local/private source path" in source_context
+    assert "source shape가 ambiguous하면 smoke를 중단" in source_context
+
+    assert "public artifacts include" in public_context
+    assert "pr body" in public_context
+    assert "public docs" in public_context
+    assert "tests" in public_context
+    assert "fixtures/examples" in public_context
+    assert "codex completion reports" in public_context
+    assert "sanitized aggregate output" in public_context
+    assert "real category names" in public_context
+    assert "real game names" in public_context
+    assert "real alias names" in public_context
+    assert "real manual hint rows" in public_context
+    assert "raw provider payloads" in public_context
+    assert "raw api responses" in public_context
+    assert "raw sql output" in public_context
+    assert "credentials" in public_context
+    assert "`.env` values" in public_context
+
+    assert (
+        "private/local evidence must not be copied into public docs or tests"
+        in private_context
+    )
+    assert "source class, not by" in private_context
+    assert "value" in private_context
+    assert "aggregate counts only" in private_context
+    assert "aggregate-only reporting cannot be guaranteed" in private_context
+
+    assert "manual_hint" in alias_context
+    assert "untrusted review evidence" in alias_context
+    assert "neither creates trusted mapping" in alias_context
+    assert "neither creates serving truth" in alias_context
+    assert "neither bypasses review" in alias_context
+    assert "neither directly produces `trusted` / `approved`" in alias_context
+
+    assert (
+        "future smoke may publicly report only aggregate proposal counts"
+        in proposal_context
+    )
+    assert "db write" in proposal_context
+    assert "insert into `chzzk_category_game_candidate`" in proposal_context
+    assert "trusted mapping" in proposal_context
+    assert "promotion/demotion" in proposal_context
+    assert "api/web exposure" in proposal_context
+    assert "serving changes" in proposal_context
+    assert "`combined`" in proposal_context
+    assert (
+        "writing rows would make private/local evidence look like durable candidate state"
+        in proposal_context
+    )
+
+    assert "fuzzy matching" in fuzzy_context
+    assert "automatic alias discovery" in fuzzy_context
+    assert "automatic matching" in fuzzy_context
+    assert "trusted mapping" in fuzzy_context
+    assert "`game_external_id`" in fuzzy_context
+    assert "tracked_universe" in fuzzy_context
+    assert "app catalog" in fuzzy_context
+    assert "serving semantics" in fuzzy_context
+    assert "`combined`" in fuzzy_context
+
+    assert "be read-only" in validation_context
+    assert "be no-write" in validation_context
+    assert "explicitly approved source commands/paths only" in validation_context
+    assert "not start/stop/restart services" in validation_context
+    assert "not mutate scheduler/runtime" in validation_context
+    assert "not inspect or print credentials/`.env` values" in validation_context
+    assert "sanitized aggregate output only" in validation_context
+
+    assert "raw provider payload printing" in stop_context
+    assert "real category/game names in public output" in stop_context
+    assert "credentials or `.env` value inspection" in stop_context
+    assert "db write or candidate insert" in stop_context
+    assert "api/web/serving changes" in stop_context
+    assert "`combined`" in stop_context
+    assert "fuzzy matching or automatic alias discovery" in stop_context
+    assert "row-level output that cannot be sanitized" in stop_context
+
+    assert "recommended next ticket" in next_ticket_context
+    assert "read-only, no-write, sanitized aggregate smoke" in next_ticket_context
+    assert "useful untrusted candidate proposal signal exists" in next_ticket_context
+    assert "aggregate-only public output" in next_ticket_context
+    assert "no real names in public artifacts" in next_ticket_context
+    assert "no db write" in next_ticket_context
+    assert "no candidate insert" in next_ticket_context
+    assert "no trusted mapping" in next_ticket_context
+    assert "no api/web/serving/`combined`" in next_ticket_context
+    assert "fuzzy matching forbidden" in next_ticket_context
+    assert "automatic alias discovery forbidden" in next_ticket_context
