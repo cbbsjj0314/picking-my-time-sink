@@ -9,6 +9,9 @@ CANDIDATE_GENERATION_GATE = Path(
 REAL_DATA_PROPOSAL_SMOKE_GATE = Path(
     "docs/decisions/category-to-game-real-data-proposal-smoke-gate.md"
 )
+NON_EXACT_MATCHING_GATE = Path(
+    "docs/decisions/category-to-game-non-exact-matching-gate.md"
+)
 COMBINED_READINESS_CONTRACT = Path(
     "docs/decisions/combined-source-view-readiness-contract.md"
 )
@@ -235,3 +238,87 @@ def test_real_data_proposal_smoke_gate_is_read_only_sanitized_and_non_serving() 
     assert "`unresolved`: zero matches or two or more matches" in text
     assert "`rejected`: not generated automatically" in text
     assert "`category_type=game`은 provider category type evidence only" in text
+
+
+def test_non_exact_gate_allows_only_future_synthetic_alias_hint_contract() -> None:
+    text = _read_lower(NON_EXACT_MATCHING_GATE)
+
+    decision_context = _near(
+        text,
+        "exact normalized matching remains safe but insufficient for useful proposal signal",
+        span=900,
+    )
+    alias_context = _near(text, "`alias`는 사람이 curated한 alternate label", span=1200)
+    fuzzy_context = _near(text, "fuzzy matching은 계속 forbidden", span=900)
+    discovery_context = _near(
+        text,
+        "automatic alias discovery는 계속 forbidden",
+        span=900,
+    )
+    classification_context = _near(
+        text,
+        "현재 proposal state semantics는 유지한다",
+        span=1200,
+    )
+    next_ticket_context = _near(
+        text,
+        "category-mapping-alias-hint-contract-gate-001",
+        span=1000,
+    )
+
+    assert "candidate proposal count: `0`" in text
+    assert "unresolved proposal count: `200`" in text
+    assert "db write performed: `false`" in text
+    assert "candidate insert performed: `false`" in text
+
+    assert (
+        "curated alias/manual hint policy only as untrusted review evidence"
+        in decision_context
+    )
+    assert "fuzzy matching and automatic alias discovery remain forbidden" in decision_context
+    assert "automatic trusted mapping은 계속 금지한다" in decision_context
+
+    assert "review-only evidence" in alias_context
+    assert "`manual hint`는 사람이 제공한 review hint" in alias_context
+    assert "`trusted mapping`은 future human gate" in alias_context
+    assert "synthetic/test-first" in alias_context
+    assert "no direct promotion to `trusted` / `approved`" in alias_context
+    assert "no db write" in alias_context
+    assert "no api/web/serving/`combined`" in alias_context
+    assert "alias/manual hint implementation is not approved by this ticket" in text
+
+    assert "false positive" in fuzzy_context
+    assert "score threshold" in fuzzy_context
+    assert "fuzzy matching" in fuzzy_context
+    assert "similarity score" in fuzzy_context
+    assert "punctuation-insensitive matching" in fuzzy_context
+    assert "phonetic matching" in fuzzy_context
+    assert "transliteration" in fuzzy_context
+    assert "approximate string matching" in fuzzy_context
+
+    assert "hidden identity assumption" in discovery_context
+    assert "provider-to-game mapping evidence" in discovery_context
+    assert "provenance" in discovery_context
+    assert "conflict handling" in discovery_context
+    assert "synthetic/test-only alias/manual hint contract gate" in discovery_context
+
+    assert "`candidate`: untrusted review proposal only" in classification_context
+    assert "`unresolved`: untrusted unresolved evidence only" in classification_context
+    assert "`rejected`: not generated automatically" in classification_context
+    assert (
+        "`trusted` / `approved`: future human gate terminology only"
+        in classification_context
+    )
+    assert "serving truth" in classification_context
+    assert "`combined` semantics" in classification_context
+
+    assert "normalization: `strip`, `casefold`, whitespace collapse only" in text
+    assert "must not silently change exact-match behavior" in text
+    assert "insert into `chzzk_category_game_candidate`" in text
+    assert "`game_external_id`" in text
+    assert "tracked_universe" in text
+    assert "app catalog" in text
+    assert "no implementation" in next_ticket_context
+    assert "no trusted mapping" in next_ticket_context
+    assert "no api/web/serving/`combined`" in next_ticket_context
+    assert "do not recommend an implementation ticket" in text
