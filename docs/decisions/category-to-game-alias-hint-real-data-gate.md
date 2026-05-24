@@ -16,13 +16,13 @@ Documented: 2026-05-24 (KST)
 
 이 gate는 아래 prior decision chain을 따른다.
 
-- `CATEGORY-MAPPING-CANDIDATE-GENERATION-DRY-RUN-001` added synthetic exact-match dry-run support.
-- Real-data exact-match smoke produced no useful candidate signal.
-- `CATEGORY-MAPPING-NON-EXACT-MATCHING-GATE-001` kept fuzzy matching and automatic alias discovery forbidden.
-- `CATEGORY-MAPPING-ALIAS-HINT-CONTRACT-GATE-001` defined `hint_kind = "alias" | "manual_hint"` as a synthetic/test-only contract family.
-- `CATEGORY-MAPPING-ALIAS-HINT-DRY-RUN-001` implemented synthetic/test-only alias/manual hint dry-run support.
+- `CATEGORY-MAPPING-CANDIDATE-GENERATION-DRY-RUN-001`은 synthetic exact-match dry-run support를 추가했다.
+- Real-data exact-match smoke는 유용한 candidate signal을 생성하지 못했다.
+- `CATEGORY-MAPPING-NON-EXACT-MATCHING-GATE-001`은 fuzzy matching 및 automatic alias discovery를 금지(forbidden) 상태로 유지했다.
+- `CATEGORY-MAPPING-ALIAS-HINT-CONTRACT-GATE-001`은 `hint_kind = "alias" | "manual_hint"`를 synthetic/test-only contract family로 정의했다.
+- `CATEGORY-MAPPING-ALIAS-HINT-DRY-RUN-001`은 synthetic/test-only alias/manual hint dry-run support를 구현했다.
 
-Allowed aggregate evidence from the exact-match real-data smoke:
+exact-match real-data smoke에서 허용된 aggregate evidence:
 
 - exact-match real-data candidate proposal count: `0`
 - exact-match real-data unresolved proposal count: `200`
@@ -35,15 +35,17 @@ Allowed aggregate evidence from the exact-match real-data smoke:
 
 Real-data alias/manual hint work may be opened only as a future read-only, no-write, sanitized aggregate smoke. Real category/game names and real hint rows remain private/local evidence and must not be added to public artifacts.
 
+즉, real-data alias/manual hint 작업은 오직 향후의 read-only, no-write, sanitized aggregate smoke로서만 오픈될 수 있다. Real category/game names 및 real hint rows는 private/local evidence로 남아야 하며, public artifacts에 추가되어서는 안 된다.
+
 이 결정은 아래를 의미한다.
 
-- real-data alias/manual hint work는 future smoke로만 열 수 있다.
+- real-data alias/manual hint 작업은 future smoke로만 열 수 있다.
 - future smoke는 read-only, no-write, sanitized aggregate output only여야 한다.
 - real category/game names, real alias names, real manual hint rows는 private/local evidence로만 남는다.
 - real alias/manual hint source는 local/private operator-controlled evidence여야 한다.
 - 이 gate는 arbitrary local data access를 승인하지 않는다.
 - 이 gate는 real-data alias/manual hint implementation을 승인하지 않는다.
-- DB write, candidate insert, trusted mapping, API/web/serving, and `Combined`는 계속 future Human Gate 뒤로 deferred 상태를 유지한다.
+- DB write, candidate insert, trusted mapping, API/web/serving, 그리고 `Combined`는 계속 future Human Gate 뒤로 deferred 상태를 유지한다.
 - fuzzy matching, automatic alias discovery, automatic matching은 계속 forbidden이다.
 
 ## Real-Data Source Boundary
@@ -74,14 +76,16 @@ Future smoke는 public output을 만들기 위해 `.env` values, credentials, pr
 
 Public artifacts include:
 
+Public artifacts는 다음을 포함한다.
+
 - PR body
 - public docs
 - tests
 - fixtures/examples
-- logs/reports committed to the repo
-- Codex completion reports that may be copied into public PRs
+- repo에 커밋된 logs/reports
+- public PR에 복사될 수 있는 Codex completion reports
 
-Public artifacts may include only sanitized aggregate output, such as:
+Public artifacts는 다음과 같이 위생화된 집계 출력(sanitized aggregate output)만 포함할 수 있다:
 
 - input category count
 - input game count
@@ -96,7 +100,7 @@ Public artifacts may include only sanitized aggregate output, such as:
 - candidate insert performed: `false`
 - raw values printed: `false`
 
-Public artifacts must not include:
+Public artifacts는 다음을 포함해서는 안 된다:
 
 - real category names
 - real game names
@@ -120,9 +124,9 @@ Public artifacts must not include:
 
 ## Allowed Future Smoke Output
 
-Future smoke may publicly report only sanitized aggregate proposal counts.
+Future smoke는 위생화된 집계 제안 수(sanitized aggregate proposal counts)만 공개적으로 리포트할 수 있다.
 
-Allowed public summary fields are limited to aggregate counters and aggregate timestamps:
+허용되는 public summary fields는 aggregate counters 및 aggregate timestamps로 제한된다:
 
 - input category count
 - input game count
@@ -137,44 +141,44 @@ Allowed public summary fields are limited to aggregate counters and aggregate ti
 - candidate insert performed: `false`
 - raw values printed: `false`
 
-Future smoke must not produce public row-level proposals containing real names.
-Future smoke must not print real category/game names, real alias names, real manual hint rows, channel/display values, live titles, thumbnails, raw provider payloads, raw API responses, raw SQL output, private paths, credentials, `.env` values, scheduler XML/stdout, raw runtime logs, screenshots, row-level UGC, raw command transcript, or raw Grafana/Prometheus responses.
+Future smoke는 실제 이름(real names)을 포함하는 public row-level proposals를 생성해서는 안 된다.
+Future smoke는 real category/game names, real alias names, real manual hint rows, channel/display values, live titles, thumbnails, raw provider payloads, raw API responses, raw SQL output, private paths, credentials, `.env` values, scheduler XML/stdout, raw runtime logs, screenshots, row-level UGC, raw command transcript, 또는 raw Grafana/Prometheus responses를 출력(print)해서는 안 된다.
 
 ## Private / Local Evidence Boundary
 
-Real alias/manual hint evidence may exist only as private/local operator evidence before a future explicit public-safe strategy exists.
+Real alias/manual hint evidence는 향후 명시적인 public-safe strategy가 존재하기 전까지 오직 private/local operator evidence로만 존재할 수 있다.
 
-- Private/local evidence must not be copied into public docs or tests.
-- Public docs may refer to private/local evidence only as a source class, not by value.
-- If future smoke uses private/local evidence, the completion report must summarize aggregate counts only.
-- If aggregate-only reporting cannot be guaranteed, the future smoke must stop.
-- Raw/private evidence must not be promoted into public fixtures, public examples, public docs, PR bodies, or committed reports.
+- Private/local evidence must not be copied into public docs or tests. 즉, private/local evidence는 public docs나 tests에 복사되어서는 안 된다.
+- Public docs는 private/local evidence를 `source class, not by value` 원칙에 따라 value가 아닌 source class로만 참조할 수 있다.
+- Future smoke가 private/local evidence를 사용하는 경우, completion report는 aggregate counts only 원칙에 따라 오직 aggregate counts만 요약해야 한다.
+- If aggregate-only reporting cannot be guaranteed, future smoke는 중단되어야 한다.
+- Raw/private evidence는 public fixtures, public examples, public docs, PR bodies, 또는 커밋된 reports로 승격(promote)되어서는 안 된다.
 
 ## Alias / Manual Hint Boundary
 
-`alias` is a curated alternate label that may help propose a review candidate.
+`alias` is a curated alternate label that may help propose a review candidate. 즉, `alias`는 검토 후보(review candidate)를 제안하는 데 도움이 될 수 있는 curated alternate label이다.
 
-`manual_hint` is a human-provided review hint that may suggest a review candidate.
+`manual_hint`는 사람이 제공한 검토 힌트(human-provided review hint)로서 검토 후보를 제안할 수 있다.
 
-Both remain untrusted review evidence.
+Both remain untrusted review evidence. 즉, 둘 다 신뢰할 수 없는 검토 증거로 남는다.
 
 - Neither creates trusted mapping.
 - Neither creates serving truth.
 - Neither bypasses review.
 - Neither directly produces `trusted` / `approved`.
-- Neither creates canonical game identity.
-- Neither permits DB write or candidate insert.
-- Neither permits API/web/serving/`Combined` exposure.
+- 둘 다 canonical game identity를 생성하지 않는다.
+- 둘 다 DB write 또는 candidate insert를 허용하지 않는다.
+- 둘 다 API/web/serving/`Combined` 노출을 허용하지 않는다.
 
-Future real-data smoke may only test whether alias/manual hint evidence can produce useful untrusted proposal counts.
+Future real-data smoke는 오직 alias/manual hint evidence가 유용한 신뢰할 수 없는 제안 수(untrusted proposal counts)를 생성할 수 있는지 여부만 테스트할 수 있다.
 
 ## Proposal Output Boundary
 
-Future smoke may publicly report only aggregate proposal counts.
+Future smoke may publicly report only aggregate proposal counts. 즉, future smoke는 오직 aggregate proposal counts만 공개적으로 리포트할 수 있다.
 
-Future smoke must not produce public row-level proposals containing real names.
+Future smoke는 실제 이름(real names)을 포함하는 public row-level proposals를 생성해서는 안 된다.
 
-Future smoke must not perform:
+Future smoke는 다음을 수행해서는 안 된다:
 
 - DB write
 - insert into `chzzk_category_game_candidate`
@@ -185,24 +189,22 @@ Future smoke must not perform:
 - `Combined`
 
 Why DB write and candidate insert remain forbidden:
-
-- Real-data alias/manual hint evidence is still untrusted review evidence.
-- The future smoke goal is signal detection, not storage mutation.
-- Candidate storage semantics, write policy, audit trail, and review workflow remain Human Gate controlled.
+- Real-data alias/manual hint evidence는 여전히 신뢰할 수 없는 검토 증거(untrusted review evidence)이다.
+- Future smoke의 목표는 storage mutation이 아닌 signal detection이다.
+- Candidate storage semantics, write policy, audit trail, 그리고 review workflow는 Human Gate 제어 하에 유지된다.
 - Writing rows would make private/local evidence look like durable candidate state before the source and review policy are approved.
+- 즉, row를 작성하는 것은 source 및 review policy가 승인되기 전에 private/local evidence를 영구적인 candidate state처럼 보이게 만들 수 있다.
 
 Why trusted mapping remains forbidden:
-
-- Alias/manual hint evidence may suggest a review candidate, but it is not canonical game identity.
-- There is no approved promotion rule, reviewer workflow, conflict policy, or serving contract.
-- `trusted` / `approved` remain future Human Gate terminology only.
+- Alias/manual hint evidence는 검토 후보를 제안할 수 있지만, canonical game identity는 아니다.
+- 승인된 promotion rule, reviewer workflow, conflict policy, 또는 serving contract가 없다.
+- `trusted` / `approved`는 계속 향후의 Human Gate 용어로만 남는다.
 
 Why API/web/serving/`Combined` remain forbidden:
-
-- Current Chzzk API/web surfaces are category-only observed evidence.
-- Candidate proposals are not serving truth.
-- Exposing candidate proposals could imply Steam-Chzzk mapping, ranking, sorting, KPI, or relationship semantics that have not been approved.
-- `Combined` remains blocked until trusted mapping and serving semantics are separately approved.
+- 현재 Chzzk API/web surfaces는 category-only 관측 증거(observed evidence)이다.
+- Candidate proposals는 serving truth가 아니다.
+- Candidate proposals를 노출하는 것은 승인되지 않은 Steam-Chzzk mapping, ranking, sorting, KPI, 또는 관계 의미론(relationship semantics)을 내포할 수 있다.
+- `Combined`는 trusted mapping 및 serving semantics가 별도로 승인될 때까지 차단된 상태를 유지한다.
 
 ## Explicit Non-Goals
 
@@ -220,7 +222,7 @@ Why API/web/serving/`Combined` remain forbidden:
 - schema/DDL changes
 - SQL migration
 - real-data alias/manual hint implementation
-- public fixture with real names
+- 실제 이름을 포함한 public fixture
 - fuzzy matching
 - automatic alias discovery
 - automatic matching
@@ -229,8 +231,8 @@ Why API/web/serving/`Combined` remain forbidden:
 - `game_external_id`
 - tracked_universe
 - App Catalog
-- API endpoint changes
-- web UI changes
+- API endpoint 변경
+- web UI 변경
 - serving semantics
 - `Combined`
 - backfill/reingest
@@ -254,24 +256,26 @@ Future `CATEGORY-MAPPING-ALIAS-HINT-REAL-DATA-SMOKE-001` must:
 - stop if source shape is ambiguous
 - stop if aggregate-only reporting cannot be maintained
 
-The future smoke validation must also confirm that no public artifact contains real category/game/channel/display values, real alias names, real manual hint rows, live titles, thumbnails, raw provider payloads, raw API responses, raw SQL output, private paths, credentials, `.env` values, scheduler XML/stdout, raw runtime logs, screenshots, row-level UGC, raw command transcript, or raw Grafana/Prometheus responses.
+Future smoke validation은 또한 어떠한 public artifact도 real category/game/channel/display values, real alias names, real manual hint rows, live titles, thumbnails, raw provider payloads, raw API responses, raw SQL output, private paths, credentials, `.env` values, scheduler XML/stdout, raw runtime logs, screenshots, row-level UGC, raw command transcript, 또는 raw Grafana/Prometheus responses를 포함하지 않음을 확인해야 한다.
 
 ## Stop Conditions For Future Smoke
 
 Future smoke must stop if:
+
+Future smoke는 다음과 같은 경우 중단되어야 한다.
 
 - source requires raw provider payload printing
 - source requires real category/game names in public output
 - source requires credentials or `.env` value inspection
 - source requires DB write or candidate insert
 - source requires API/web/serving changes
-- source requires `Combined`
+- source가 `Combined`를 요구하는 경우
 - source requires fuzzy matching or automatic alias discovery
-- source requires automatic matching, approximate matching, similarity score, phonetic/transliteration matching, or partial/punctuation-insensitive matching
-- source requires ambiguous private/local paths that cannot be described safely
+- source가 automatic matching, approximate matching, similarity score, phonetic/transliteration matching, 또는 partial/punctuation-insensitive matching을 요구하는 경우
+- source가 안전하게 기술될 수 없는 모호한(ambiguous) private/local paths를 요구하는 경우
 - source produces row-level output that cannot be sanitized
-- source shape is ambiguous
-- aggregate-only reporting cannot be guaranteed
+- source shape가 ambiguous한 경우
+- aggregate-only reporting이 보장될 수 없는 경우
 
 ## Next Ticket
 
@@ -282,6 +286,7 @@ Recommended next ticket:
 Next ticket goal:
 
 `Run a read-only, no-write, sanitized aggregate smoke using approved local/private real-data alias/manual hint evidence to see whether useful untrusted candidate proposal signal exists.`
+(승인된 local/private real-data alias/manual hint evidence를 사용하여 유용한 신뢰할 수 없는 candidate proposal signal이 존재하는지 확인하기 위해 read-only, no-write, sanitized aggregate smoke를 실행한다.)
 
 The next ticket must remain:
 
@@ -295,7 +300,7 @@ The next ticket must remain:
 - no API/web/serving/`Combined`
 - fuzzy matching forbidden
 - automatic alias discovery forbidden
-- no real-data alias/manual hint implementation beyond the approved smoke boundary
+- 승인된 smoke boundary를 벗어나는 real-data alias/manual hint implementation 금지
 
 ## Deferred Items
 
