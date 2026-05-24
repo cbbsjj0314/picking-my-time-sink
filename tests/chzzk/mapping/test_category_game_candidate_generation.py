@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import fields
 from pathlib import Path
 from typing import get_args
 
@@ -8,6 +9,7 @@ import pytest
 from chzzk.mapping.category_game_candidate_generation import (
     CategoryGameCandidateDryRunProposal,
     ProposalStatus,
+    SyntheticAliasHintInput,
     SyntheticChzzkCategoryInput,
     SyntheticSteamGameInput,
     build_category_game_candidate_dry_run_proposals,
@@ -20,10 +22,29 @@ def build_proposals(
     *,
     categories: list[SyntheticChzzkCategoryInput],
     games: list[SyntheticSteamGameInput],
+    alias_hints: list[SyntheticAliasHintInput] | None = None,
 ) -> list[CategoryGameCandidateDryRunProposal]:
     return build_category_game_candidate_dry_run_proposals(
         categories=categories,
         games=games,
+        alias_hints=alias_hints,
+    )
+
+
+def build_alias_hint(
+    *,
+    hint_kind: str = "alias",
+    category_label: str = "Synthetic Alias A",
+    game_name: str = "Synthetic Game A",
+    reason: str = "Synthetic Reason A",
+    source_note: str = "Synthetic Source Note A",
+) -> SyntheticAliasHintInput:
+    return SyntheticAliasHintInput(
+        hint_kind=hint_kind,
+        synthetic_chzzk_category_label=category_label,
+        synthetic_canonical_game_name=game_name,
+        reason=reason,
+        source_note=source_note,
     )
 
 
@@ -155,6 +176,163 @@ def test_no_fuzzy_alias_partial_or_punctuation_insensitive_matching(
     assert proposals[0].canonical_game_id is None
 
 
+def test_alias_hint_can_emit_untrusted_candidate_with_synthetic_inputs() -> None:
+    proposals = build_proposals(
+        categories=[
+            SyntheticChzzkCategoryInput(
+                chzzk_category_id="synthetic-category-alias-a",
+                category_label="Synthetic Alias A",
+            )
+        ],
+        games=[SyntheticSteamGameInput(1001, "Synthetic Game A")],
+        alias_hints=[build_alias_hint()],
+    )
+
+    assert proposals == [
+        CategoryGameCandidateDryRunProposal(
+            chzzk_category_id="synthetic-category-alias-a",
+            status="candidate",
+            canonical_game_id=1001,
+            match_count=1,
+            normalized_category_label="synthetic alias a",
+            category_type=None,
+            caveats=(),
+        )
+    ]
+
+
+def test_manual_hint_can_emit_untrusted_candidate_with_synthetic_inputs() -> None:
+    proposals = build_proposals(
+        categories=[
+            SyntheticChzzkCategoryInput(
+                chzzk_category_id="synthetic-category-manual-hint-a",
+                category_label="Synthetic Manual Hint A",
+            )
+        ],
+        games=[SyntheticSteamGameInput(1001, "Synthetic Game A")],
+        alias_hints=[
+            build_alias_hint(
+                hint_kind="manual_hint",
+                category_label="Synthetic Manual Hint A",
+            )
+        ],
+    )
+
+    assert proposals[0].status == "candidate"
+    assert proposals[0].canonical_game_id == 1001
+    assert proposals[0].match_count == 1
+
+
+def test_alias_hint_pointing_to_missing_synthetic_game_stays_unresolved() -> None:
+    proposals = build_proposals(
+        categories=[
+            SyntheticChzzkCategoryInput(
+                chzzk_category_id="synthetic-category-alias-a",
+                category_label="Synthetic Alias A",
+            )
+        ],
+        games=[SyntheticSteamGameInput(1001, "Synthetic Game B")],
+        alias_hints=[build_alias_hint(game_name="Synthetic Game A")],
+    )
+
+    assert proposals[0].status == "unresolved"
+    assert proposals[0].canonical_game_id is None
+    assert proposals[0].match_count == 0
+
+
+def test_multiple_distinct_alias_hint_targets_stay_unresolved() -> None:
+    proposals = build_proposals(
+        categories=[
+            SyntheticChzzkCategoryInput(
+                chzzk_category_id="synthetic-category-alias-a",
+                category_label="Synthetic Alias A",
+            )
+        ],
+        games=[
+            SyntheticSteamGameInput(1001, "Synthetic Game A"),
+            SyntheticSteamGameInput(1002, "Synthetic Game B"),
+        ],
+        alias_hints=[
+            build_alias_hint(game_name="Synthetic Game A"),
+            build_alias_hint(
+                hint_kind="manual_hint",
+                game_name="Synthetic Game B",
+            ),
+        ],
+    )
+
+    assert proposals[0].status == "unresolved"
+    assert proposals[0].canonical_game_id is None
+    assert proposals[0].match_count == 2
+
+
+def test_exact_match_and_alias_hint_disagreement_stays_unresolved() -> None:
+    proposals = build_proposals(
+        categories=[
+            SyntheticChzzkCategoryInput(
+                chzzk_category_id="synthetic-category-a",
+                category_label="Synthetic Game A",
+            )
+        ],
+        games=[
+            SyntheticSteamGameInput(1001, "Synthetic Game A"),
+            SyntheticSteamGameInput(1002, "Synthetic Game B"),
+        ],
+        alias_hints=[
+            build_alias_hint(
+                category_label="Synthetic Game A",
+                game_name="Synthetic Game B",
+            )
+        ],
+    )
+
+    assert proposals[0].status == "unresolved"
+    assert proposals[0].canonical_game_id is None
+    assert proposals[0].match_count == 2
+
+
+def test_exact_match_and_alias_hint_agreement_preserves_candidate() -> None:
+    proposals = build_proposals(
+        categories=[
+            SyntheticChzzkCategoryInput(
+                chzzk_category_id="synthetic-category-a",
+                category_label="Synthetic Game A",
+            )
+        ],
+        games=[SyntheticSteamGameInput(1001, "Synthetic Game A")],
+        alias_hints=[
+            build_alias_hint(
+                category_label="Synthetic Game A",
+                game_name="Synthetic Game A",
+            )
+        ],
+    )
+
+    assert proposals[0].status == "candidate"
+    assert proposals[0].canonical_game_id == 1001
+    assert proposals[0].match_count == 1
+
+
+def test_duplicate_synthetic_game_names_do_not_auto_select_hint_winner() -> None:
+    proposals = build_proposals(
+        categories=[
+            SyntheticChzzkCategoryInput(
+                chzzk_category_id="synthetic-category-alias-a",
+                category_label="Synthetic Alias A",
+            )
+        ],
+        games=[
+            SyntheticSteamGameInput(1001, "Synthetic Game A"),
+            SyntheticSteamGameInput(1002, "Synthetic Game A"),
+        ],
+        alias_hints=[build_alias_hint(game_name="Synthetic Game A")],
+    )
+
+    assert proposals[0].status == "unresolved"
+    assert proposals[0].canonical_game_id is None
+    assert proposals[0].match_count == 2
+
+
 def test_category_type_game_does_not_create_identity() -> None:
     proposals = build_proposals(
         categories=[
@@ -257,6 +435,69 @@ def test_rejected_is_not_a_dry_run_generation_status() -> None:
     assert all(proposal.status != "rejected" for proposal in proposals)
 
 
+def test_trusted_and_approved_never_appear_in_dry_run_outputs() -> None:
+    proposals = build_proposals(
+        categories=[
+            SyntheticChzzkCategoryInput(
+                chzzk_category_id="synthetic-category-alias-a",
+                category_label="Synthetic Alias A",
+            )
+        ],
+        games=[SyntheticSteamGameInput(1001, "Synthetic Game A")],
+        alias_hints=[build_alias_hint()],
+    )
+
+    assert set(get_args(ProposalStatus)) == {"candidate", "unresolved"}
+    serialized = repr(proposals).casefold()
+    assert "trusted" not in serialized
+    assert "approved" not in serialized
+    assert all(proposal.status not in {"trusted", "approved"} for proposal in proposals)
+
+
+def test_alias_hint_input_metadata_is_required_but_not_exposed_in_output() -> None:
+    proposals = build_proposals(
+        categories=[
+            SyntheticChzzkCategoryInput(
+                chzzk_category_id="synthetic-category-alias-a",
+                category_label="Synthetic Alias A",
+            )
+        ],
+        games=[SyntheticSteamGameInput(1001, "Synthetic Game A")],
+        alias_hints=[
+            build_alias_hint(
+                reason="Synthetic Reason A",
+                source_note="Synthetic Source Note A",
+            )
+        ],
+    )
+
+    output_field_names = {
+        field.name for field in fields(CategoryGameCandidateDryRunProposal)
+    }
+    output_repr = repr(proposals)
+    assert "reason" not in output_field_names
+    assert "source_note" not in output_field_names
+    assert "Synthetic Reason A" not in output_repr
+    assert "Synthetic Source Note A" not in output_repr
+
+
+def test_alias_manual_hint_output_remains_untrusted_review_evidence_only() -> None:
+    proposals = build_proposals(
+        categories=[
+            SyntheticChzzkCategoryInput(
+                chzzk_category_id="synthetic-category-alias-a",
+                category_label="Synthetic Alias A",
+            )
+        ],
+        games=[SyntheticSteamGameInput(1001, "Synthetic Game A")],
+        alias_hints=[build_alias_hint()],
+    )
+
+    assert proposals[0].status == "candidate"
+    assert proposals[0].caveats == ()
+    assert set(get_args(ProposalStatus)) == {"candidate", "unresolved"}
+
+
 @pytest.mark.parametrize(
     ("category", "error"),
     [
@@ -325,6 +566,118 @@ def test_invalid_synthetic_game_input_is_rejected(
             ],
             games=[game],
         )
+
+
+@pytest.mark.parametrize(
+    ("hint", "error"),
+    [
+        (build_alias_hint(hint_kind="synthetic_other"), "invalid_hint_kind"),
+        (
+            build_alias_hint(category_label=" "),
+            "blank_synthetic_chzzk_category_label",
+        ),
+        (
+            build_alias_hint(game_name=" "),
+            "blank_synthetic_canonical_game_name",
+        ),
+        (build_alias_hint(reason=" "), "blank_reason"),
+        (build_alias_hint(source_note=" "), "blank_source_note"),
+        (
+            SyntheticAliasHintInput(
+                hint_kind=1,  # type: ignore[arg-type]
+                synthetic_chzzk_category_label="Synthetic Alias A",
+                synthetic_canonical_game_name="Synthetic Game A",
+                reason="Synthetic Reason A",
+                source_note="Synthetic Source Note A",
+            ),
+            "invalid_hint_kind",
+        ),
+        (
+            SyntheticAliasHintInput(
+                hint_kind="alias",
+                synthetic_chzzk_category_label=1,  # type: ignore[arg-type]
+                synthetic_canonical_game_name="Synthetic Game A",
+                reason="Synthetic Reason A",
+                source_note="Synthetic Source Note A",
+            ),
+            "blank_synthetic_chzzk_category_label",
+        ),
+        (
+            SyntheticAliasHintInput(
+                hint_kind="alias",
+                synthetic_chzzk_category_label="Synthetic Alias A",
+                synthetic_canonical_game_name=1,  # type: ignore[arg-type]
+                reason="Synthetic Reason A",
+                source_note="Synthetic Source Note A",
+            ),
+            "blank_synthetic_canonical_game_name",
+        ),
+        (
+            SyntheticAliasHintInput(
+                hint_kind="alias",
+                synthetic_chzzk_category_label="Synthetic Alias A",
+                synthetic_canonical_game_name="Synthetic Game A",
+                reason=1,  # type: ignore[arg-type]
+                source_note="Synthetic Source Note A",
+            ),
+            "blank_reason",
+        ),
+        (
+            SyntheticAliasHintInput(
+                hint_kind="alias",
+                synthetic_chzzk_category_label="Synthetic Alias A",
+                synthetic_canonical_game_name="Synthetic Game A",
+                reason="Synthetic Reason A",
+                source_note=1,  # type: ignore[arg-type]
+            ),
+            "blank_source_note",
+        ),
+    ],
+)
+def test_invalid_synthetic_alias_hint_input_is_rejected(
+    hint: SyntheticAliasHintInput,
+    error: str,
+) -> None:
+    with pytest.raises(ValueError, match=error):
+        build_proposals(
+            categories=[
+                SyntheticChzzkCategoryInput(
+                    chzzk_category_id="synthetic-category-alias-a",
+                    category_label="Synthetic Alias A",
+                )
+            ],
+            games=[SyntheticSteamGameInput(1001, "Synthetic Game A")],
+            alias_hints=[hint],
+        )
+
+
+def test_no_fuzzy_or_automatic_alias_discovery_fields_or_behavior_exists() -> None:
+    source = MODULE_PATH.read_text(encoding="utf-8").lower()
+    forbidden_needles = [
+        "similarity",
+        "score",
+        "phonetic",
+        "transliteration",
+        "levenshtein",
+        "rapidfuzz",
+        "difflib",
+        "automatic alias discovery",
+    ]
+    for needle in forbidden_needles:
+        assert needle not in source
+
+    proposals = build_proposals(
+        categories=[
+            SyntheticChzzkCategoryInput(
+                chzzk_category_id="synthetic-category-alias-a",
+                category_label="Synthetic Alias A",
+            )
+        ],
+        games=[SyntheticSteamGameInput(1001, "Synthetic Game A")],
+    )
+
+    assert proposals[0].status == "unresolved"
+    assert proposals[0].canonical_game_id is None
 
 
 def test_builder_source_has_no_db_api_runtime_service_or_serving_coupling() -> None:
