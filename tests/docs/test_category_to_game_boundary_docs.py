@@ -63,16 +63,27 @@ def test_mapping_contract_keeps_review_states_untrusted() -> None:
     assert "trusted mapping" in rejected_context
 
 
-def test_mapping_contract_keeps_trusted_approved_future_only() -> None:
+def test_mapping_contract_scopes_trusted_schema_update_without_serving() -> None:
     text = _read_lower(CATEGORY_MAPPING_CONTRACT)
 
     context = _near(text, "`trusted` / `approved`")
+    update_context = _near(
+        text,
+        "updated by category-mapping-trusted-storage-contract-001",
+        span=900,
+    )
 
     assert "future" in context
     assert "persisted state" in context
     assert "schema value" in context
     assert "api field" in context
     assert "ui field" in context
+
+    assert "chzzk_category_game_mapping.mapping_status" in update_context
+    assert "chzzk_category_game_candidate.status" in update_context
+    assert "api/ui state" in update_context
+    assert "serving" in update_context
+    assert "exposure" in update_context
 
 
 def test_candidate_evidence_is_blocked_from_combined_and_serving_semantics() -> None:
@@ -133,6 +144,37 @@ def test_candidate_storage_foundation_remains_untrusted_and_non_serving() -> Non
     assert "serving semantics" in context
     assert "combined" in context
     assert "game_external_id" in context
+
+
+def test_trusted_mapping_storage_contract_is_separate_and_non_serving() -> None:
+    text = "\n".join(
+        [
+            _read_lower(DATA_MODEL_SPEC),
+            _read_lower(DATA_GOVERNANCE),
+            _read_lower(STORAGE_CONTRACT),
+            _read_lower(CATEGORY_MAPPING_CONTRACT),
+        ]
+    )
+
+    context = _near(text, "chzzk_category_game_mapping", span=1800)
+
+    assert "trusted mapping storage contract" in context
+    assert "mapping_status" in context
+    assert "trusted" in context
+    assert "source_kind" in context
+    assert "chzzk_category_game_candidate.status" in context
+    assert "candidate" in context
+    assert "unresolved" in context
+    assert "rejected" in context
+    assert "api/web" in context
+    assert "serving" in context
+    assert "combined" in context
+    assert "one trusted mapping per `chzzk_category_id`" in text
+    assert "dim_game(canonical_game_id)" in text
+    assert "non-empty" in text
+    assert "does not insert trusted mappings" in text
+    assert "does not promote current local" in text
+    assert "current local 17 candidates" in text
 
 
 def test_candidate_generation_gate_allows_only_synthetic_dry_run_builder() -> None:

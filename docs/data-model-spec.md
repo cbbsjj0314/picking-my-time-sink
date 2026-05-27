@@ -1,6 +1,6 @@
 문서 목적: 테이블/파일 목록, 그레인(1행 키), 적재 규칙, 보존 기준, provider 확장 경계 기록
-버전: v0.24 (Chzzk candidate storage foundation)
-최종 수정일: 2026-05-23 (KST)
+버전: v0.25 (Chzzk trusted mapping storage contract)
+최종 수정일: 2026-05-27 (KST)
 
 ## 0. 레이어 개요
 
@@ -254,6 +254,31 @@
     - raw provider payload, real category/channel/display values, live titles, thumbnails,
       row-level UGC, credentials, and private runtime evidence는 이 table과 public docs에
       넣지 않는다.
+
+### 4.2.2 Chzzk category-to-game trusted mapping storage contract
+
+- table: `chzzk_category_game_mapping`
+- 목적: Chzzk category와 `dim_game.canonical_game_id` 사이의 trusted mapping을
+  저장하는 provider-specific trusted storage contract다.
+- 그레인/키:
+    - PK는 `chzzk_category_id` 이다.
+    - 하나의 `chzzk_category_id` 는 최대 하나의 trusted mapping row만 가질 수 있다.
+    - `canonical_game_id` 는 `dim_game(canonical_game_id)` 를 참조한다.
+- 상태와 provenance:
+    - `mapping_status` 값은 `trusted` 만 허용한다.
+    - `source_kind` 는 비어 있지 않아야 한다.
+    - `reviewed_by`, `reviewed_at`, `created_at`, `updated_at` 은 최소 provenance
+      fields다.
+- boundary:
+    - 이 table은 `chzzk_category_game_candidate` 와 별도 storage다.
+    - `chzzk_category_game_candidate.status` 는 계속 `candidate`, `unresolved`,
+      `rejected` 로 제한되며 `trusted` 또는 `approved` 를 허용하지 않는다.
+    - Candidate row는 이 table에 자동 populate되지 않는다.
+    - 현재 local candidate 17개는 이 contract ticket에서 insert하거나 promote하지 않는다.
+    - 이 ticket은 API/web/source-view/serving path 또는 `Combined` 에 trusted mapping을
+      노출하지 않는다.
+    - Candidate-to-trusted promotion, trusted insert, serving semantics, API/web exposure,
+      and `Combined` semantics는 별도 Human Gate ticket이 필요하다.
 
 ### 4.3 Steam Price (1시간)
 

@@ -1,7 +1,7 @@
 # 데이터 거버넌스
 
 문서 목적: Steam-only MVP의 데이터 의미, 품질, freshness, lineage, public/local 경계를 최소 거버넌스 기준으로 고정한다.  
-버전: v0.6 (Chzzk candidate storage foundation boundary)
+버전: v0.7 (Chzzk trusted mapping storage contract boundary)
 작성일: 2026-05-23 (KST)
 
 ## 0. 현재 범위
@@ -176,6 +176,15 @@ web source view, ranking/sorting/KPI, or `Combined` 에 쓰지 않는다. Persis
 `candidate`, `unresolved`, `rejected` 로 제한하고, 모두 untrusted review state로 유지한다.
 이 foundation은 `game_external_id` 를 바꾸지 않으며 candidate generation, automatic
 matching, promotion/demotion, trusted mapping, or serving semantics를 승인하지 않는다.
+
+`chzzk_category_game_mapping` 은 별도의 trusted mapping storage contract다.
+`mapping_status` 는 `trusted` 로만 제한되며, `canonical_game_id` 는
+`dim_game(canonical_game_id)` 를 참조한다. 이 table은 향후 API/web/serving/`Combined`
+input이 될 수 있는 저장소지만, 현재 lineage map의 serving object는 아니다.
+Candidate rows는 자동 populate되지 않으며, 현재 local candidate 17개도 이 ticket에서
+insert하거나 promote하지 않는다. Trusted insert, candidate-to-trusted promotion,
+API/web exposure, serving semantics, and `Combined` semantics는 별도 Human Gate
+controlled slice로 남는다.
 
 새 chart 또는 API surface를 추가하면 implementation 전 또는 같은 slice 안에서 lineage row를 최소 1개 추가한다.
 

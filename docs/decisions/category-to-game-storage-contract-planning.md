@@ -4,6 +4,11 @@ Status: docs-only planning boundary with implemented candidate-only foundation n
 Ticket: PLAN-C2G-STORAGE-CONTRACT-001
 Date: 2026-05-23 (KST)
 
+Updated by CATEGORY-MAPPING-TRUSTED-STORAGE-CONTRACT-001: `trusted` is now a
+persisted value only for `chzzk_category_game_mapping.mapping_status`; it remains
+not valid for `chzzk_category_game_candidate.status`, API/UI state, or serving
+exposure.
+
 이 문서는 category-to-game 후보 evidence를 나중에 어디에 둘 수 있는지 비교하는 planning contract다.
 이 결정은 schema, SQL, migration, API, runtime, loader, scheduler, web behavior, DB write, backfill, reingest, automatic matching, trusted mapping usage, 또는 `Combined` semantics 구현 승인이 아니다.
 
@@ -17,6 +22,12 @@ Trusted mapping storage shape, promotion workflow, serving shape, API/UI exposur
 and `Combined` semantics는 아직 선택하지 않는다. 이 문서는 JSON shape, trusted
 mapping metadata, API field, UI field, or operational workflow를 정의하지 않는다.
 
+Historical note: the statement above describes the original 2026-05-23 planning
+boundary. CATEGORY-MAPPING-TRUSTED-STORAGE-CONTRACT-001 later selected only the
+trusted storage table shape as `chzzk_category_game_mapping`; promotion workflow,
+trusted insert, serving shape, API/UI exposure, and `Combined` semantics remain
+deferred.
+
 현재 durable context는 `docs/data-governance.md`, `docs/data-model-spec.md`, `docs/source-inventory.md`, `docs/decisions/category-to-game-mapping-contract.md`, `docs/decisions/category-to-game-implementation-surface-review.md`, `docs/decisions/combined-source-view-readiness-contract.md` 를 따른다.
 
 ## Current Boundary
@@ -27,8 +38,24 @@ mapping metadata, API field, UI field, or operational workflow를 정의하지 �
 - `categoryType=GAME` is provider category type evidence, not Steam or canonical mapping evidence.
 - `candidate`, `unresolved`, and `rejected` evidence cannot power trusted mapping, canonical game semantics, serving semantics, ranking/sorting/KPI, or `Combined`.
 - `trusted` / `approved` remain future Human Gate / promotion gate terminology only. This document does not define them as persisted state, schema value, API field, UI field, or runtime behavior.
+- Updated by CATEGORY-MAPPING-TRUSTED-STORAGE-CONTRACT-001: `trusted` is now a persisted value only for `chzzk_category_game_mapping.mapping_status`; it remains not valid for `chzzk_category_game_candidate.status`, API/UI state, or serving exposure. `approved` remains future terminology only.
 - `Combined` remains blocked/pending until separate trusted mapping and serving semantics gates are approved.
 - `chzzk_category_game_candidate` stores only untrusted review candidates. It does not alter `game_external_id` and is not read by current API/web/source-view paths.
+
+## Implemented Trusted Storage Contract
+
+`CATEGORY-MAPPING-TRUSTED-STORAGE-CONTRACT-001` adds only the trusted storage
+DDL/contract:
+
+- table: `chzzk_category_game_mapping`
+- grain/key: one trusted mapping per `chzzk_category_id`
+- `canonical_game_id` references `dim_game(canonical_game_id)`
+- `mapping_status` is limited to `trusted`
+- `source_kind` is required and non-empty
+- provenance fields: `reviewed_by`, `reviewed_at`, `created_at`, `updated_at`
+
+This update does not insert trusted mappings, does not promote current local
+candidates, and does not expose API/web/serving/`Combined` behavior.
 
 ## Candidate Storage Directions
 
@@ -90,17 +117,22 @@ These categories cannot include raw provider payloads, actual category/channel/d
 
 The following remain future Human Gate items and are not approved by this planning contract:
 
-- final storage selection
-- final schema, table grain, column names, JSON shape, persisted status values, API fields, or UI fields
-- promotion and demotion rules
+- trusted insert and promotion/demotion rules
 - rejected/unresolved reconsideration rules
-- trusted mapping usage
+- source_kind allowed-value policy beyond non-empty storage validation
+- API fields or UI fields
+- trusted mapping usage outside the storage contract
 - automatic matching
 - serving semantics
 - `Combined` serving semantics, ranking, sorting, KPI interpretation, or API/UI behavior
-- migration, loader, backfill, reingest, scheduler, runtime, or DB write behavior
+- additional migration, loader, backfill, reingest, scheduler, runtime, or DB write behavior
 
 ## Explicit Non-Goals
+
+Historical note: the original planning non-goals below predate
+CATEGORY-MAPPING-TRUSTED-STORAGE-CONTRACT-001. That later ticket supersedes only
+the `chzzk_category_game_mapping` SQL/DDL storage contract. Trusted insert,
+promotion, API/web exposure, serving behavior, and `Combined` remain non-goals.
 
 이번 slice에서는 아래 작업을 하지 않는다.
 
