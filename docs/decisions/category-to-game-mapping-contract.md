@@ -3,12 +3,12 @@
 Status: docs-only planning boundary  
 Date: 2026-05-19 (KST)
 
-Updated by CATEGORY-MAPPING-TRUSTED-STORAGE-CONTRACT-001: `trusted` is now a
-persisted value only for `chzzk_category_game_mapping.mapping_status`; it remains
-not valid for `chzzk_category_game_candidate.status`, API/UI state, or serving
-exposure.
+CATEGORY-MAPPING-TRUSTED-STORAGE-CONTRACT-001 이후, `trusted`는 `chzzk_category_game_mapping.mapping_status`에만 저장되는 값이다. 
+
+`chzzk_category_game_candidate.status`, API/UI state, serving exposure에는 사용하지 않는다.
 
 이 문서는 Chzzk category observed evidence를 Steam canonical game에 연결하기 위한 첫 planning boundary를 고정한다.
+
 이 결정은 schema, API, runtime, loader, scheduler, web, DB write, 또는 Combined semantics 구현 승인이 아니다.
 
 현재 durable context는 `README.md`, `docs/source-inventory.md`, `docs/data-model-spec.md` 를 따른다.
@@ -18,7 +18,9 @@ exposure.
 목적은 Chzzk category와 Steam canonical game 사이의 연결을 어떻게 시작할지 정하는 것이다.
 
 첫 boundary는 "자동 매핑"이 아니라 "review 가능한 mapping 후보와 판단 기록"이다.
+
 Chzzk category evidence는 canonical game identity가 아니며, 사람이 검토하거나 검토 가능한 workflow를 거치기 전에는 trusted game mapping으로 쓰지 않는다.
+
 Candidate evidence는 Combined KPI, canonical game semantics, 또는 serving semantics에 쓰지 않는다.
 
 ## Current State
@@ -52,33 +54,32 @@ State 의미는 planning contract로만 정의한다.
 - `rejected`: 검토 결과 의도적으로 수용하지 않은 후보다. rejected evidence도 trusted mapping으로 되살리지 않는다.
 - `trusted` / `approved`: future implementation gate 이름으로만 언급한다. 이 PR은 이를 현재 repo에 존재하는 persisted state, schema value, API field, UI field로 정의하지 않는다.
 
-Updated by CATEGORY-MAPPING-TRUSTED-STORAGE-CONTRACT-001: the historical
-statement above remains true for `approved`, for `chzzk_category_game_candidate.status`,
-and for API/UI/serving exposure. `trusted` is now a persisted value only for
-`chzzk_category_game_mapping.mapping_status`.
+CATEGORY-MAPPING-TRUSTED-STORAGE-CONTRACT-001 이후에도 위 historical statement는 `approved`, `chzzk_category_game_candidate.status`, API/UI/serving exposure에 대해서는 계속 유효하다.
+
+`trusted` 는 이제 `chzzk_category_game_mapping.mapping_status`에만 저장되는 값이다.
 
 ## Current Trusted Storage Contract
 
-`CATEGORY-MAPPING-TRUSTED-STORAGE-CONTRACT-001` adds separate trusted storage:
+`CATEGORY-MAPPING-TRUSTED-STORAGE-CONTRACT-001` 별도의 trusted storage를 추가:
 
 - `chzzk_category_game_candidate.status` remains limited to `candidate`,
   `unresolved`, `rejected`.
 - `chzzk_category_game_mapping.mapping_status` is limited to `trusted`.
-- Candidate rows are not automatically populated into trusted storage.
-- The current local 17 candidates are not inserted or promoted by this ticket.
+- Candidate row는 trusted storage에 자동으로 채워지지 않는다.
+- 현재 local 17개 candidate는 이 ticket에서 insert하거나 promotion하지 않는다.
 - API/web/serving/`Combined` exposure remains deferred.
-- Promotion from candidate to trusted mapping remains a later Human Gate ticket.
+- candidate를 trusted mapping으로 승격하는 작업은 후속 Human Gate ticket으로 남긴다.
 
-Updated by `CATEGORY-MAPPING-TRUSTED-MAPPING-SERVING-VIEW-001`: the trusted
-mapping storage now has an internal read-only DB serving view contract,
-`srv_chzzk_category_game_mapping`. This view reads only
-`chzzk_category_game_mapping` rows with `mapping_status = 'trusted'`, joins
-`dim_game`, and may attach nullable latest `fact_chzzk_category_30m` context.
-This PR adds only an internal read-only DB serving view contract. It does not add
-API exposure, web exposure, product serving behavior, or `Combined` semantics.
-It does not read `chzzk_category_game_candidate` and does not expose
-`reviewed_by`, raw manual-hint evidence, candidate status, or row-level private
-evidence.
+Updated by `CATEGORY-MAPPING-TRUSTED-MAPPING-SERVING-VIEW-001`: trusted mapping storage에는 내부 read-only DB serving view contract인 `srv_chzzk_category_game_mapping`이 추가됐다.
+
+
+이 view는 `mapping_status` = `'trusted'` 인 `chzzk_category_game_mapping` row만 읽고, `dim_game` 을 join하며, nullable latest `fact_chzzk_category_30m` context를 붙일 수 있다.
+
+이 PR은 내부 read-only DB serving view contract만 추가한다.
+
+API 노출, web 노출, product serving behavior, `Combined` semantics는 추가하지 않는다.
+
+`chzzk_category_game_candidate`는 읽지 않으며, `reviewed_by`, raw manual-hint evidence, candidate status, row-level private evidence도 노출하지 않는다.
 
 아래 ambiguity는 자동 확정하지 않는다.
 
@@ -100,6 +101,7 @@ Future implementation slice에서 검토할 metadata candidates:
 - created/updated/reviewed timestamps
 
 위 항목은 metadata category 후보일 뿐이다.
+
 이 문서는 column name, JSON shape, table grain, API field, UI field, note format, 또는 public evidence example을 확정하지 않는다.
 
 ## Future Implementation Checklist
@@ -122,17 +124,17 @@ Future implementation slice에서 검토할 metadata candidates:
 
 ## Explicit Non-Goals
 
-Historical note: the original planning non-goals below predate
-CATEGORY-MAPPING-TRUSTED-STORAGE-CONTRACT-001. That later ticket supersedes only
-the `chzzk_category_game_mapping` SQL/DDL storage contract. Trusted insert,
-promotion, API/web exposure, serving behavior, and `Combined` remain non-goals.
+Historical note: 아래 original planning non-goals는 CATEGORY-MAPPING-TRUSTED-STORAGE-CONTRACT-001 이전에 작성됐다.
+그 이후 ticket은 `chzzk_category_game_mapping` SQL/DDL storage contract만 supersede한다.
+Trusted insert,
+Trusted insert, promotion, API/web exposure, product serving behavior, `Combined`는 여전히 non-goal이다.
 
 이번 slice에서는 아래 작업을 하지 않는다.
 
 - schema, SQL, migration, model, API, web, loader, scheduler, runtime behavior 변경
 - DB write, backfill, reingest, bootstrap, DDL
 - live Chzzk fetch
-- category search API probe unless separately approved
+- 별도 승인 없는 category search API probe
 - Combined semantics
 - `gold_stream_game_30m`
 - generalized provider abstraction
@@ -142,7 +144,9 @@ promotion, API/web exposure, serving behavior, and `Combined` remain non-goals.
 ## Public Boundary
 
 Public docs에는 durable planning contract만 둔다.
+
 State 의미와 promotion gate의 존재는 public docs에 남길 수 있다.
+
 Mapping 판단의 근거가 되는 raw provider response, row-level UGC, category/channel display values, live title, thumbnail, credential, private runtime path, local scheduler evidence, screenshot, raw API response는 local/private boundary에 둔다.
 
 이 contract를 바꾸거나 mapping을 실제 schema/API/runtime semantics로 승격하려면 별도 implementation slice에서 관련 durable docs와 regression tests를 함께 갱신한다.

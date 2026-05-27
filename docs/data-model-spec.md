@@ -129,18 +129,12 @@
 ### 4.2 Streaming Category Metrics (30분) — Chzzk category evidence browser 후보
 
 - 문서 기준:
-    - 현재 MVP serving runtime은 Steam 중심 baseline에 Chzzk category-only source
-      API serving을 더한 상태다. Chzzk는 category-result artifact를
-      `fact_chzzk_category_30m` 에 적재하는 provider-specific fact write path,
-      channel-result artifact를 `fact_chzzk_category_channel_30m` 에 적재하는
-      provider-specific observed channel fact write path, and read-only category
-      overview API를 갖고 있다.
+    - 현재 MVP serving runtime은 Steam 중심 baseline에 Chzzk category-only source API serving을 더한 상태다. Chzzk는 category-result artifact를
+      `fact_chzzk_category_30m` 에 적재하는 provider-specific fact write path, channel-result artifact를 `fact_chzzk_category_channel_30m` 에 적재하는 provider-specific observed channel fact write path, and read-only category overview API를 갖고 있다.
     - streaming 확장은 provider-specific probe/ingest와 category-level 30분 fact에서 시작한다.
     - 첫 후보는 Chzzk category live-list source다.
     - `fact_chzzk_category_30m` DDL/parser candidate는 artifact-to-Postgres runtime write path로 승격되었다. 첫 API/web source surface는 `/chzzk/categories/overview` 기반 Chzzk category source view다.
-    - fact runtime integration은 provider-specific category aggregate fact와
-      observed category-channel fact에 한정한다. generalized streaming
-      fact/table은 만들지 않는다.
+    - fact runtime integration은 provider-specific category aggregate fact와 observed category-channel fact에 한정한다. generalized streaming fact/table은 만들지 않는다.
     - canonical game 기준 serving shape는 provider raw/category 수집 이후의 downstream 단계다.
     - First Chzzk source view는 category evidence browser 후보로만 해석한다. `categoryType=GAME` 은 Chzzk category type evidence일 뿐 game semantics, Steam mapping, API/UI game column, Combined semantics로 확장하지 않는다.
 - 현재 repo 관찰:
@@ -168,13 +162,10 @@
       `fact_chzzk_category_channel_30m` 에서 계산한다.
     - table: `fact_chzzk_category_channel_30m`
     - 그레인/PK: `(chzzk_category_id, bucket_time, channel_id)`
-    - source boundary: local/private derived `channel-result.jsonl` 의
-      category-bucket-channel evidence row를 정규화한다.
+    - source boundary: local/private derived `channel-result.jsonl` 의 category-bucket-channel evidence row를 정규화한다.
     - DDL 후보: `sql/postgres/016_fact_chzzk_category_channel_30m.sql`
-    - 컬럼 후보: `chzzk_category_id`, `bucket_time`, `channel_id`,
-      `category_type`, `category_name`, `concurrent_user_count`, `collected_at`
-    - local/private input에 channel display name이 있더라도 이 fact에는 저장하거나
-      노출하지 않는다.
+    - 컬럼 후보: `chzzk_category_id`, `bucket_time`, `channel_id`, `category_type`, `category_name`, `concurrent_user_count`, `collected_at`
+    - local/private input에 channel display name이 있더라도 이 fact에는 저장하거나 노출하지 않는다.
     - `unique_channels_observed = COUNT(DISTINCT channel_id)` 로 계산한다.
     - API/web exposure는 category observed bucket set에 matching되는 channel fact row만 count한다. Channel-only category/bucket facts는 overview row를 만들거나 count를 늘리지 않는다. Optional channel fact relation 또는 matching evidence가 없으면 `unique_channels_observed` 는 null이다.
     - blank category 또는 category-fact-ineligible row는 channel artifact에 넣지 않고 summary skip evidence로만 남긴다.
@@ -182,34 +173,12 @@
 - 첫 API serving surface:
     - endpoint: `/chzzk/categories/overview`
     - read model: SQL serving view를 추가하지 않고 `fact_chzzk_category_30m` 을 직접 aggregate한다.
-    - category metadata/latest row rule: `category_name`, `category_type`,
-      `latest_bucket_time`, `latest_viewers_observed` 는 같은
-      `chzzk_category_id` 의 latest fact row 기준으로 deterministic하게 선택한다.
-      Latest row ordering은 `bucket_time DESC, collected_at DESC, ingested_at DESC`
-      이다.
-    - response fields: `chzzk_category_id`, `category_name`, `category_type`,
-      `latest_bucket_time`, `latest_viewers_observed`, `observed_bucket_count`,
-      `bucket_time_min`, `bucket_time_max`,
-      `viewer_hours_observed`, `avg_viewers_observed`, `peak_viewers_observed`,
-      `live_count_observed_total`, `avg_channels_observed`,
-      `peak_channels_observed`, `viewer_per_channel_observed`,
-      `unique_channels_observed`,
-      `full_1d_candidate_available`, `full_7d_candidate_available`,
-      `missing_1d_bucket_count`, `missing_7d_bucket_count`, `coverage_status`,
-      `bounded_sample_caveat`.
-    - `bucket_time_max` 는 observed aggregate window의 max bucket이고,
-      `latest_bucket_time` 은 `latest_viewers_observed` 의 기준 bucket이다. 현재
-      API에서는 같은 값일 수 있지만 의미는 분리한다.
-    - `latest_viewers_observed` 는 full live-list current population이 아니라 bounded
-      latest observed bucket snapshot이다. 실시간 전체 current 값으로 오해될 수 있어
-      `current_viewers_observed` 이름은 쓰지 않는다.
-    - `bounded_sample_caveat` 는 string `"bounded_sample"` 로 고정하며, bounded
-      pagination/live-list completeness caveat다. 이 값은 bucket coverage 상태가
-      아니며 full live-list population 또는 pagination exhaustion을 claim하지 않는다는
-      UI marker다.
-    - `coverage_status` 는 per-category bucket coverage 상태이며
-      `observed_bucket_only`, `partial_window`,
-      `full_1d_candidate_available`, `full_7d_candidate_available` 중 하나다.
+    - category metadata/latest row rule: `category_name`, `category_type`, `latest_bucket_time`, `latest_viewers_observed` 는 같은 `chzzk_category_id` 의 latest fact row 기준으로 deterministic하게 선택한다. Latest row ordering은 `bucket_time DESC, collected_at DESC, ingested_at DESC`이다.
+    - response fields: `chzzk_category_id`, `category_name`, `category_type`, `latest_bucket_time`, `latest_viewers_observed`, `observed_bucket_count`, `bucket_time_min`, `bucket_time_max`, `viewer_hours_observed`, `avg_viewers_observed`, `peak_viewers_observed`, `live_count_observed_total`, `avg_channels_observed`, `peak_channels_observed`, `viewer_per_channel_observed`, `unique_channels_observed`, `full_1d_candidate_available`, `full_7d_candidate_available`, `missing_1d_bucket_count`, `missing_7d_bucket_count`, `coverage_status`, `bounded_sample_caveat`.
+    - `bucket_time_max` 는 observed aggregate window의 max bucket이고, `latest_bucket_time` 은 `latest_viewers_observed` 의 기준 bucket이다. 현재 API에서는 같은 값일 수 있지만 의미는 분리한다.
+    - `latest_viewers_observed` 는 full live-list current population이 아니라 bounded latest observed bucket snapshot이다. 실시간 전체 current 값으로 오해될 수 있어 `current_viewers_observed` 이름은 쓰지 않는다.
+    - `bounded_sample_caveat` 는 string `"bounded_sample"` 로 고정하며, bounded pagination/live-list completeness caveat다. 이 값은 bucket coverage 상태가 아니며 full live-list population 또는 pagination exhaustion을 claim하지 않는다는 UI marker다.
+    - `coverage_status` 는 per-category bucket coverage 상태이며 `observed_bucket_only`, `partial_window`, `full_1d_candidate_available`, `full_7d_candidate_available` 중 하나다.
 - raw/probe/ingest 책임 경계:
     - probe/raw는 provider response와 수집 메타데이터를 local/private에 보존한다.
     - public fixture는 official response shape 기반 synthetic/sanitized payload로만 둔다.
@@ -219,9 +188,7 @@
     - `temporal-summary.json` 은 comparable run만 읽어 `coverage_status`, observed bucket count, missing 1d/7d bucket count를 비교한다.
     - failed/partial run은 local/private summary boundary에 남기고 category window coverage 계산에서는 제외한다.
     - bounded page cutoff 또는 last-page next cursor가 남아 있으면 observed sample metric으로만 해석하고 full live-list population 또는 pagination exhaustion으로 표현하지 않는다.
-    - ingest는 local/private `category-result.jsonl` 의 strict category rows를
-      category 30분 fact row로 적재한다. Raw provider page는 runtime DB loader의
-      입력이 아니다.
+    - ingest는 local/private `category-result.jsonl` 의 strict category rows를 category 30분 fact row로 적재한다. Raw provider page는 runtime DB loader의 입력이 아니다.
     - ingest/API/web serving이 하지 않는 것: `canonical_game_id` 확정, `game_external_id` 자동 매핑, `gold_stream_game_30m`, Combined/relationship metric 생성.
 - real integration 후 남은 조건:
     - longer temporal coverage와 runtime error behavior 확인
@@ -234,8 +201,7 @@
 ### 4.2.1 Chzzk category-to-game candidate storage foundation
 
 - table: `chzzk_category_game_candidate`
-- 목적: Chzzk category와 `dim_game.canonical_game_id` 사이의 review-only 후보를
-  저장하는 provider-specific candidate-only storage foundation이다.
+- 목적: Chzzk category와 `dim_game.canonical_game_id` 사이의 review-only 후보를 저장하는 provider-specific candidate-only storage foundation이다.
 - 그레인/키:
     - PK는 surrogate `candidate_id` 이다.
     - `canonical_game_id IS NOT NULL` row는 특정 category-to-game review candidate다.
@@ -258,8 +224,7 @@
 ### 4.2.2 Chzzk category-to-game trusted mapping storage contract
 
 - table: `chzzk_category_game_mapping`
-- 목적: Chzzk category와 `dim_game.canonical_game_id` 사이의 trusted mapping을
-  저장하는 provider-specific trusted storage contract다.
+- 목적: Chzzk category와 `dim_game.canonical_game_id` 사이의 trusted mapping을 저장하는 provider-specific trusted storage contract다.
 - 그레인/키:
     - PK는 `chzzk_category_id` 이다.
     - 하나의 `chzzk_category_id` 는 최대 하나의 trusted mapping row만 가질 수 있다.
@@ -271,35 +236,20 @@
       fields다.
 - boundary:
     - 이 table은 `chzzk_category_game_candidate` 와 별도 storage다.
-    - `chzzk_category_game_candidate.status` 는 계속 `candidate`, `unresolved`,
-      `rejected` 로 제한되며 `trusted` 또는 `approved` 를 허용하지 않는다.
+    - `chzzk_category_game_candidate.status` 는 계속 `candidate`, `unresolved`, `rejected` 로 제한되며 `trusted` 또는 `approved` 를 허용하지 않는다.
     - Candidate row는 이 table에 자동 populate되지 않는다.
     - 현재 local candidate 17개는 이 contract ticket에서 insert하거나 promote하지 않는다.
-    - 이 ticket은 API/web/source-view/serving path 또는 `Combined` 에 trusted mapping을
-      노출하지 않는다.
-    - Candidate-to-trusted promotion, trusted insert, serving semantics, API/web exposure,
-      and `Combined` semantics는 별도 Human Gate ticket이 필요하다.
+    - 이 ticket은 API/web/source-view/serving path 또는 `Combined` 에 trusted mapping을 노출하지 않는다.
+    - Candidate-to-trusted promotion, trusted insert, serving semantics, API/web exposure, and `Combined` semantics는 별도 Human Gate ticket이 필요하다.
 - internal read-only DB serving view:
     - view: `srv_chzzk_category_game_mapping`
-    - 목적: trusted mapping storage를 later API endpoint가 읽을 수 있는 안정적인
-      DB query contract로 제공한다.
-    - 이 view는 `chzzk_category_game_mapping` 에서
-      `mapping_status = 'trusted'` 인 row만 읽고, `dim_game.canonical_name` 을
-      `mapped_canonical_game_name` 으로 노출한다.
-    - nullable observed context로 latest `fact_chzzk_category_30m` row의
-      `category_name`, `category_type`, `latest_bucket_time` 을 붙인다. Observed
-      context가 없어도 trusted mapping row는 사라지지 않아야 하므로 latest category
-      context는 `LEFT JOIN` 이다.
-    - view columns: `chzzk_category_id`, `category_name`, `category_type`,
-      `latest_bucket_time`, `mapped_canonical_game_id`,
-      `mapped_canonical_game_name`.
-    - 이 view는 `chzzk_category_game_candidate`, `game_external_id`,
-      `tracked_game`, tracked_universe, App Catalog를 읽지 않는다.
-    - 이 view는 `reviewed_by`, raw manual-hint evidence, candidate status, row-level
-      private evidence를 노출하지 않는다.
-    - This adds only an internal read-only DB serving view contract. It does not
-      add API exposure, web exposure, product serving behavior, or `Combined`
-      semantics.
+    - 목적: trusted mapping storage를 later API endpoint가 읽을 수 있는 안정적인 DB query contract로 제공한다.
+    - 이 view는 `chzzk_category_game_mapping` 에서 `mapping_status = 'trusted'` 인 row만 읽고, `dim_game.canonical_name` 을 `mapped_canonical_game_name` 으로 노출한다.
+    - nullable observed context로 latest `fact_chzzk_category_30m` row의 `category_name`, `category_type`, `latest_bucket_time` 을 붙인다. Observed context가 없어도 trusted mapping row는 사라지지 않아야 하므로 latest category context는 `LEFT JOIN` 이다.
+    - view columns: `chzzk_category_id`, `category_name`, `category_type`, `latest_bucket_time`, `mapped_canonical_game_id`, `mapped_canonical_game_name`.
+    - 이 view는 `chzzk_category_game_candidate`, `game_external_id`, `tracked_game`, tracked_universe, App Catalog를 읽지 않는다.
+    - 이 view는 `reviewed_by`, raw manual-hint evidence, candidate status, row-level private evidence를 노출하지 않는다.
+    - 이 변경은 internal read-only DB serving view contract만 추가한다. API exposure, web exposure, product serving behavior, 또는 `Combined` semantics를 추가하지 않는다.
 
 ### 4.3 Steam Price (1시간)
 
@@ -377,8 +327,7 @@
     - srv_game_latest_reviews: game별 최신 snapshot_date의 positive_ratio + Δ(전일)
     - srv_rank_latest_kr_top_selling: 현재 minimum path의 최신 KR top-selling 랭킹 리스트
     - srv_game_explore_period_metrics: 현재 최소 `Explore` 개요 근거 테이블용 기간 지표 묶음
-    - srv_chzzk_category_game_mapping: trusted Chzzk category-to-canonical-game
-      mapping의 internal read-only DB query contract
+    - srv_chzzk_category_game_mapping: trusted Chzzk category-to-canonical-game mapping의 internal read-only DB query contract
     - broader KR/global + top_selling/top_played serving split은 후속 slice에서 필요 시 확장
 
 ### 5.2 Explore 기간 지표 서빙 객체

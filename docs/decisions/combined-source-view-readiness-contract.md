@@ -4,9 +4,11 @@ Status: docs-only planning boundary
 Date: 2026-05-19 (KST)
 
 이 문서는 `Combined` source view가 구현 전까지 blocked/pending 상태로 남아야 하는 조건을 고정한다.
+
 이 결정은 schema, API, runtime, loader, scheduler, web behavior, DB write, category-to-game trusted mapping, 또는 `Combined` semantics 구현 승인이 아니다.
 
 현재 durable context는 `README.md`, `docs/source-inventory.md`, `docs/data-model-spec.md`, `docs/decisions/category-to-game-mapping-contract.md` 를 따른다.
+
 목적은 trusted mapping과 serving semantics가 별도 승인될 때까지 `Combined` 를 blocked/pending 상태로 유지하는 것이다.
 
 ## Current Context
@@ -27,10 +29,9 @@ Date: 2026-05-19 (KST)
 - hidden inferred mapping, synthetic join, fallback mapping, guessed mapping은 허용하지 않는다.
 - Trusted mapping과 serving semantics가 승인되기 전까지 `Combined` data semantics는 없다.
 
-`srv_chzzk_category_game_mapping` 같은 internal read-only DB serving view
-contract는 단독으로 `Combined` readiness gate를 충족하지 않는다. API response
-shape, web exposure, product serving behavior, and `Combined` semantics remain
-separate Human Gate items.
+`srv_chzzk_category_game_mapping` 같은 internal read-only DB serving view contract는 단독으로 `Combined` readiness gate를 충족하지 않는다.
+
+API response shape, web exposure, product serving behavior, and `Combined` semantics remain separate Human Gate items.
 
 ## Readiness Gates
 

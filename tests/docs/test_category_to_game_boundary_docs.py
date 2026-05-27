@@ -69,7 +69,7 @@ def test_mapping_contract_scopes_trusted_schema_update_without_serving() -> None
     context = _near(text, "`trusted` / `approved`")
     update_context = _near(
         text,
-        "updated by category-mapping-trusted-storage-contract-001",
+        "category-mapping-trusted-storage-contract-001 이후에도",
         span=900,
     )
 
@@ -81,7 +81,7 @@ def test_mapping_contract_scopes_trusted_schema_update_without_serving() -> None
 
     assert "chzzk_category_game_mapping.mapping_status" in update_context
     assert "chzzk_category_game_candidate.status" in update_context
-    assert "api/ui state" in update_context
+    assert "api/ui/serving exposure" in update_context
     assert "serving" in update_context
     assert "exposure" in update_context
 
@@ -169,12 +169,12 @@ def test_trusted_mapping_storage_contract_is_separate_and_scoped_to_internal_vie
     assert "api/web" in context
     assert "serving" in context
     assert "combined" in context
-    assert "one trusted mapping per `chzzk_category_id`" in text
+    assert "`chzzk_category_id` 하나당 trusted mapping 1개" in text
     assert "dim_game(canonical_game_id)" in text
-    assert "non-empty" in text
-    assert "does not insert trusted mappings" in text
-    assert "does not promote current local" in text
-    assert "current local 17 candidates" in text
+    assert "빈 값일 수 없다" in text
+    assert "trusted mapping을 insert하지 않고" in text
+    assert "local candidate를 promotion하지 않" in text
+    assert "현재 local 17개 candidate" in text
 
 
 def test_trusted_mapping_serving_view_contract_defers_api_web_and_combined() -> None:
@@ -196,11 +196,11 @@ def test_trusted_mapping_serving_view_contract_defers_api_web_and_combined() -> 
     assert "dim_game" in context
     assert "fact_chzzk_category_30m" in context
     assert "chzzk_category_game_candidate" in context
-    assert "does not read `chzzk_category_game_candidate`" in text
-    assert "does not expose" in text
+    assert "`chzzk_category_game_candidate`는 읽지 않으며" in text
+    assert "노출하지 않는다" in text or "노출하지 않으며" in text
     assert "reviewed_by" in text
-    assert "api exposure" in context
-    assert "web exposure" in context
+    assert "api exposure" in context or "api 노출" in context
+    assert "web exposure" in context or "web 노출" in context
     assert "product serving behavior" in context
     assert "combined" in context
     assert "readiness gate" in text
