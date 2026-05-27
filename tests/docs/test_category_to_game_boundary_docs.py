@@ -69,7 +69,7 @@ def test_mapping_contract_scopes_trusted_schema_update_without_serving() -> None
     context = _near(text, "`trusted` / `approved`")
     update_context = _near(
         text,
-        "updated by category-mapping-trusted-storage-contract-001",
+        "category-mapping-trusted-storage-contract-001 이후에도",
         span=900,
     )
 
@@ -81,7 +81,7 @@ def test_mapping_contract_scopes_trusted_schema_update_without_serving() -> None
 
     assert "chzzk_category_game_mapping.mapping_status" in update_context
     assert "chzzk_category_game_candidate.status" in update_context
-    assert "api/ui state" in update_context
+    assert "api/ui/serving exposure" in update_context
     assert "serving" in update_context
     assert "exposure" in update_context
 
@@ -146,7 +146,7 @@ def test_candidate_storage_foundation_remains_untrusted_and_non_serving() -> Non
     assert "game_external_id" in context
 
 
-def test_trusted_mapping_storage_contract_is_separate_and_non_serving() -> None:
+def test_trusted_mapping_storage_contract_is_separate_and_scoped_to_internal_view() -> None:
     text = "\n".join(
         [
             _read_lower(DATA_MODEL_SPEC),
@@ -169,12 +169,41 @@ def test_trusted_mapping_storage_contract_is_separate_and_non_serving() -> None:
     assert "api/web" in context
     assert "serving" in context
     assert "combined" in context
-    assert "one trusted mapping per `chzzk_category_id`" in text
+    assert "`chzzk_category_id` 하나당 trusted mapping 1개" in text
     assert "dim_game(canonical_game_id)" in text
-    assert "non-empty" in text
-    assert "does not insert trusted mappings" in text
-    assert "does not promote current local" in text
-    assert "current local 17 candidates" in text
+    assert "빈 값일 수 없다" in text
+    assert "trusted mapping을 insert하지 않고" in text
+    assert "local candidate를 promotion하지 않" in text
+    assert "현재 local 17개 candidate" in text
+
+
+def test_trusted_mapping_serving_view_contract_defers_api_web_and_combined() -> None:
+    text = "\n".join(
+        [
+            _read_lower(DATA_MODEL_SPEC),
+            _read_lower(DATA_GOVERNANCE),
+            _read_lower(STORAGE_CONTRACT),
+            _read_lower(CATEGORY_MAPPING_CONTRACT),
+            _read_lower(COMBINED_READINESS_CONTRACT),
+        ]
+    )
+
+    context = _near(text, "srv_chzzk_category_game_mapping", span=2200)
+
+    assert "internal read-only db serving view contract" in context
+    assert "chzzk_category_game_mapping" in context
+    assert "mapping_status = 'trusted'" in context
+    assert "dim_game" in context
+    assert "fact_chzzk_category_30m" in context
+    assert "chzzk_category_game_candidate" in context
+    assert "`chzzk_category_game_candidate`는 읽지 않으며" in text
+    assert "노출하지 않는다" in text or "노출하지 않으며" in text
+    assert "reviewed_by" in text
+    assert "api exposure" in context or "api 노출" in context
+    assert "web exposure" in context or "web 노출" in context
+    assert "product serving behavior" in context
+    assert "combined" in context
+    assert "readiness gate" in text
 
 
 def test_candidate_generation_gate_allows_only_synthetic_dry_run_builder() -> None:
