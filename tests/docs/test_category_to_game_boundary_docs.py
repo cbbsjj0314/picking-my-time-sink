@@ -146,7 +146,7 @@ def test_candidate_storage_foundation_remains_untrusted_and_non_serving() -> Non
     assert "game_external_id" in context
 
 
-def test_trusted_mapping_storage_contract_is_separate_and_non_serving() -> None:
+def test_trusted_mapping_storage_contract_is_separate_and_scoped_to_internal_view() -> None:
     text = "\n".join(
         [
             _read_lower(DATA_MODEL_SPEC),
@@ -175,6 +175,35 @@ def test_trusted_mapping_storage_contract_is_separate_and_non_serving() -> None:
     assert "does not insert trusted mappings" in text
     assert "does not promote current local" in text
     assert "current local 17 candidates" in text
+
+
+def test_trusted_mapping_serving_view_contract_defers_api_web_and_combined() -> None:
+    text = "\n".join(
+        [
+            _read_lower(DATA_MODEL_SPEC),
+            _read_lower(DATA_GOVERNANCE),
+            _read_lower(STORAGE_CONTRACT),
+            _read_lower(CATEGORY_MAPPING_CONTRACT),
+            _read_lower(COMBINED_READINESS_CONTRACT),
+        ]
+    )
+
+    context = _near(text, "srv_chzzk_category_game_mapping", span=2200)
+
+    assert "internal read-only db serving view contract" in context
+    assert "chzzk_category_game_mapping" in context
+    assert "mapping_status = 'trusted'" in context
+    assert "dim_game" in context
+    assert "fact_chzzk_category_30m" in context
+    assert "chzzk_category_game_candidate" in context
+    assert "does not read `chzzk_category_game_candidate`" in text
+    assert "does not expose" in text
+    assert "reviewed_by" in text
+    assert "api exposure" in context
+    assert "web exposure" in context
+    assert "product serving behavior" in context
+    assert "combined" in context
+    assert "readiness gate" in text
 
 
 def test_candidate_generation_gate_allows_only_synthetic_dry_run_builder() -> None:

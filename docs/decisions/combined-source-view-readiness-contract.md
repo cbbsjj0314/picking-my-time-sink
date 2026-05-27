@@ -27,6 +27,11 @@ Date: 2026-05-19 (KST)
 - hidden inferred mapping, synthetic join, fallback mapping, guessed mapping은 허용하지 않는다.
 - Trusted mapping과 serving semantics가 승인되기 전까지 `Combined` data semantics는 없다.
 
+`srv_chzzk_category_game_mapping` 같은 internal read-only DB serving view
+contract는 단독으로 `Combined` readiness gate를 충족하지 않는다. API response
+shape, web exposure, product serving behavior, and `Combined` semantics remain
+separate Human Gate items.
+
 ## Readiness Gates
 
 나중에 `Combined` 를 blocked/pending 상태 밖으로 옮기려면 아래 조건을 checklist 수준에서 모두 만족해야 한다.

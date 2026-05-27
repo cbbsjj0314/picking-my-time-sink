@@ -69,6 +69,17 @@ and for API/UI/serving exposure. `trusted` is now a persisted value only for
 - API/web/serving/`Combined` exposure remains deferred.
 - Promotion from candidate to trusted mapping remains a later Human Gate ticket.
 
+Updated by `CATEGORY-MAPPING-TRUSTED-MAPPING-SERVING-VIEW-001`: the trusted
+mapping storage now has an internal read-only DB serving view contract,
+`srv_chzzk_category_game_mapping`. This view reads only
+`chzzk_category_game_mapping` rows with `mapping_status = 'trusted'`, joins
+`dim_game`, and may attach nullable latest `fact_chzzk_category_30m` context.
+This PR adds only an internal read-only DB serving view contract. It does not add
+API exposure, web exposure, product serving behavior, or `Combined` semantics.
+It does not read `chzzk_category_game_candidate` and does not expose
+`reviewed_by`, raw manual-hint evidence, candidate status, or row-level private
+evidence.
+
 아래 ambiguity는 자동 확정하지 않는다.
 
 - ambiguous alias

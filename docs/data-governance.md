@@ -125,6 +125,7 @@ Local monitoring은 더 엄격한 thresholds, exact scheduler windows, host-spec
 | Tracked universe | `tracked_game`, `game_external_id`, `dim_game` | Steam ranking payloads, optional completed App Catalog evidence | `daily`, optional `app-catalog-weekly` |
 | Chzzk category overview API / source view | direct API service aggregate over `fact_chzzk_category_30m` with optional matching `fact_chzzk_category_channel_30m` unique-channel evidence | `fact_chzzk_category_30m` category observed buckets; optional category-bucket-channel observed rows | local/private `category-result.jsonl` and `channel-result.jsonl` to gold loaders |
 | Chzzk observed channel fact | optional nullable `unique_channels_observed` evidence for Chzzk category overview/source view | `fact_chzzk_category_channel_30m` category-channel observed buckets | local/private `channel-result.jsonl` to gold loader |
+| Chzzk trusted category-game mapping DB contract | `srv_chzzk_category_game_mapping` | `chzzk_category_game_mapping`, `dim_game`, nullable latest context from `fact_chzzk_category_30m` | trusted mapping rows are Human Gate controlled; no API/web/`Combined` exposure |
 
 Chzzk `fact_chzzk_category_30m` 은 provider-specific DDL/parser candidate에서
 local/private `category-result.jsonl` artifact-to-Postgres write path와 read-only
@@ -179,8 +180,9 @@ matching, promotion/demotion, trusted mapping, or serving semantics를 승인하
 
 `chzzk_category_game_mapping` 은 별도의 trusted mapping storage contract다.
 `mapping_status` 는 `trusted` 로만 제한되며, `canonical_game_id` 는
-`dim_game(canonical_game_id)` 를 참조한다. 이 table은 향후 API/web/serving/`Combined`
-input이 될 수 있는 저장소지만, 현재 lineage map의 serving object는 아니다.
+`dim_game(canonical_game_id)` 를 참조한다. `srv_chzzk_category_game_mapping` 은 이
+trusted storage를 읽는 internal read-only DB serving view contract다. It does not add
+API exposure, web exposure, product serving behavior, or `Combined` semantics.
 Candidate rows는 자동 populate되지 않으며, 현재 local candidate 17개도 이 ticket에서
 insert하거나 promote하지 않는다. Trusted insert, candidate-to-trusted promotion,
 API/web exposure, serving semantics, and `Combined` semantics는 별도 Human Gate

@@ -57,6 +57,26 @@ DDL/contract:
 This update does not insert trusted mappings, does not promote current local
 candidates, and does not expose API/web/serving/`Combined` behavior.
 
+## Implemented Internal DB Serving View Contract
+
+`CATEGORY-MAPPING-TRUSTED-MAPPING-SERVING-VIEW-001` adds only an internal
+read-only SQL serving view / DB query contract:
+
+- view: `srv_chzzk_category_game_mapping`
+- grain: one row per trusted `chzzk_category_game_mapping.chzzk_category_id`
+- trusted source: `chzzk_category_game_mapping` filtered to
+  `mapping_status = 'trusted'`
+- canonical identity: `dim_game.canonical_game_id` and `dim_game.canonical_name`
+- nullable observed context: latest `fact_chzzk_category_30m` row per
+  `chzzk_category_id`
+
+This PR adds only an internal read-only DB serving view contract. It does not add
+API exposure, web exposure, product serving behavior, or `Combined` semantics.
+The view does not read `chzzk_category_game_candidate`, `game_external_id`,
+`tracked_game`, tracked_universe, or App Catalog surfaces. It does not expose
+`reviewed_by`, raw manual-hint evidence, candidate status, or row-level private
+evidence.
+
 ## Candidate Storage Directions
 
 아래 방향들은 future implementation ticket이 검토할 수 있는 storage candidates다.
@@ -121,9 +141,9 @@ The following remain future Human Gate items and are not approved by this planni
 - rejected/unresolved reconsideration rules
 - source_kind allowed-value policy beyond non-empty storage validation
 - API fields or UI fields
-- trusted mapping usage outside the storage contract
+- trusted mapping usage outside the internal read-only DB serving view contract
 - automatic matching
-- serving semantics
+- product serving semantics outside the internal DB view contract
 - `Combined` serving semantics, ranking, sorting, KPI interpretation, or API/UI behavior
 - additional migration, loader, backfill, reingest, scheduler, runtime, or DB write behavior
 

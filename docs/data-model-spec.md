@@ -279,6 +279,27 @@
       노출하지 않는다.
     - Candidate-to-trusted promotion, trusted insert, serving semantics, API/web exposure,
       and `Combined` semantics는 별도 Human Gate ticket이 필요하다.
+- internal read-only DB serving view:
+    - view: `srv_chzzk_category_game_mapping`
+    - 목적: trusted mapping storage를 later API endpoint가 읽을 수 있는 안정적인
+      DB query contract로 제공한다.
+    - 이 view는 `chzzk_category_game_mapping` 에서
+      `mapping_status = 'trusted'` 인 row만 읽고, `dim_game.canonical_name` 을
+      `mapped_canonical_game_name` 으로 노출한다.
+    - nullable observed context로 latest `fact_chzzk_category_30m` row의
+      `category_name`, `category_type`, `latest_bucket_time` 을 붙인다. Observed
+      context가 없어도 trusted mapping row는 사라지지 않아야 하므로 latest category
+      context는 `LEFT JOIN` 이다.
+    - view columns: `chzzk_category_id`, `category_name`, `category_type`,
+      `latest_bucket_time`, `mapped_canonical_game_id`,
+      `mapped_canonical_game_name`.
+    - 이 view는 `chzzk_category_game_candidate`, `game_external_id`,
+      `tracked_game`, tracked_universe, App Catalog를 읽지 않는다.
+    - 이 view는 `reviewed_by`, raw manual-hint evidence, candidate status, row-level
+      private evidence를 노출하지 않는다.
+    - This adds only an internal read-only DB serving view contract. It does not
+      add API exposure, web exposure, product serving behavior, or `Combined`
+      semantics.
 
 ### 4.3 Steam Price (1시간)
 
@@ -356,6 +377,8 @@
     - srv_game_latest_reviews: game별 최신 snapshot_date의 positive_ratio + Δ(전일)
     - srv_rank_latest_kr_top_selling: 현재 minimum path의 최신 KR top-selling 랭킹 리스트
     - srv_game_explore_period_metrics: 현재 최소 `Explore` 개요 근거 테이블용 기간 지표 묶음
+    - srv_chzzk_category_game_mapping: trusted Chzzk category-to-canonical-game
+      mapping의 internal read-only DB query contract
     - broader KR/global + top_selling/top_played serving split은 후속 slice에서 필요 시 확장
 
 ### 5.2 Explore 기간 지표 서빙 객체
