@@ -20,7 +20,7 @@ Trusted mapping storage shape, promotion workflow, serving shape, API/UI exposur
 
 Historical note: 위 설명은 원래 2026-05-23 planning boundary를 설명한다. 이후 CATEGORY-MAPPING-TRUSTED-STORAGE-CONTRACT-001은 trusted storage table shape만 `chzzk_category_game_mapping`으로 선택했다. promotion workflow, trusted insert, serving shape, API/UI exposure, `Combined` semantics는 계속 deferred 상태다.
 
-현재 durable context는 `docs/data-governance.md`, `docs/data-model-spec.md`, `docs/source-inventory.md`, `docs/decisions category-to-game-mapping-contract.md`, `docs/decisions/category-to-game-implementation-surface-review.md`, `docs/decisions combined-source-view-readiness-contract.md` 를 따른다.
+현재 durable context는 `docs/data-governance.md`, `docs/data-model-spec.md`, `docs/source-inventory.md`, `docs/decisions/category-to-game-mapping-contract.md`, `docs/decisions/category-to-game-implementation-surface-review.md`, `docs/decisions/combined-source-view-readiness-contract.md` 를 따른다.
 
 ## Current Boundary
 

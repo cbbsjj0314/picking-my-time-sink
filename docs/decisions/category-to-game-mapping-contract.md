@@ -126,7 +126,6 @@ Future implementation slice에서 검토할 metadata candidates:
 
 Historical note: 아래 original planning non-goals는 CATEGORY-MAPPING-TRUSTED-STORAGE-CONTRACT-001 이전에 작성됐다.
 그 이후 ticket은 `chzzk_category_game_mapping` SQL/DDL storage contract만 supersede한다.
-Trusted insert,
 Trusted insert, promotion, API/web exposure, product serving behavior, `Combined`는 여전히 non-goal이다.
 
 이번 slice에서는 아래 작업을 하지 않는다.
