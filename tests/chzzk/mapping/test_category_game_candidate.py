@@ -25,6 +25,10 @@ def test_candidate_table_declares_candidate_only_grain_and_status_boundary() -> 
     assert "status text not null" in sql
     assert "status in ('candidate', 'unresolved', 'rejected')" in sql
     assert "references dim_game (canonical_game_id)" in sql
+    assert "mapping_status" not in sql
+    assert "source_kind" not in sql
+    assert "reviewed_by" not in sql
+    assert "reviewed_at" not in sql
 
 
 def test_candidate_table_blocks_duplicate_specific_and_unresolved_rows() -> None:

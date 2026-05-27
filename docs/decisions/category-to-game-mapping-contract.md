@@ -3,6 +3,11 @@
 Status: docs-only planning boundary  
 Date: 2026-05-19 (KST)
 
+Updated by CATEGORY-MAPPING-TRUSTED-STORAGE-CONTRACT-001: `trusted` is now a
+persisted value only for `chzzk_category_game_mapping.mapping_status`; it remains
+not valid for `chzzk_category_game_candidate.status`, API/UI state, or serving
+exposure.
+
 이 문서는 Chzzk category observed evidence를 Steam canonical game에 연결하기 위한 첫 planning boundary를 고정한다.
 이 결정은 schema, API, runtime, loader, scheduler, web, DB write, 또는 Combined semantics 구현 승인이 아니다.
 
@@ -47,6 +52,23 @@ State 의미는 planning contract로만 정의한다.
 - `rejected`: 검토 결과 의도적으로 수용하지 않은 후보다. rejected evidence도 trusted mapping으로 되살리지 않는다.
 - `trusted` / `approved`: future implementation gate 이름으로만 언급한다. 이 PR은 이를 현재 repo에 존재하는 persisted state, schema value, API field, UI field로 정의하지 않는다.
 
+Updated by CATEGORY-MAPPING-TRUSTED-STORAGE-CONTRACT-001: the historical
+statement above remains true for `approved`, for `chzzk_category_game_candidate.status`,
+and for API/UI/serving exposure. `trusted` is now a persisted value only for
+`chzzk_category_game_mapping.mapping_status`.
+
+## Current Trusted Storage Contract
+
+`CATEGORY-MAPPING-TRUSTED-STORAGE-CONTRACT-001` adds separate trusted storage:
+
+- `chzzk_category_game_candidate.status` remains limited to `candidate`,
+  `unresolved`, `rejected`.
+- `chzzk_category_game_mapping.mapping_status` is limited to `trusted`.
+- Candidate rows are not automatically populated into trusted storage.
+- The current local 17 candidates are not inserted or promoted by this ticket.
+- API/web/serving/`Combined` exposure remains deferred.
+- Promotion from candidate to trusted mapping remains a later Human Gate ticket.
+
 아래 ambiguity는 자동 확정하지 않는다.
 
 - ambiguous alias
@@ -88,6 +110,11 @@ Future implementation slice에서 검토할 metadata candidates:
 - Combined view는 mapping contract와 serving semantics가 별도 승인될 때까지 blocked 상태로 남아야 한다.
 
 ## Explicit Non-Goals
+
+Historical note: the original planning non-goals below predate
+CATEGORY-MAPPING-TRUSTED-STORAGE-CONTRACT-001. That later ticket supersedes only
+the `chzzk_category_game_mapping` SQL/DDL storage contract. Trusted insert,
+promotion, API/web exposure, serving behavior, and `Combined` remain non-goals.
 
 이번 slice에서는 아래 작업을 하지 않는다.
 
