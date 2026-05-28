@@ -12,6 +12,7 @@ from api.services import chzzk_service
 router = APIRouter(prefix="/chzzk", tags=["chzzk"])
 
 CHZZK_CATEGORY_OVERVIEW_LIMIT_QUERY = Query(default=50, ge=1, le=200)
+CHZZK_CATEGORY_GAME_MAPPING_LIMIT_QUERY = Query(default=50, ge=1, le=200)
 
 
 class ChzzkCategoryOverviewResponse(BaseModel):
@@ -41,6 +42,17 @@ class ChzzkCategoryOverviewResponse(BaseModel):
     bounded_sample_caveat: str
 
 
+class ChzzkCategoryGameMappingResponse(BaseModel):
+    """Trusted Chzzk category-to-canonical-game mapping identity row."""
+
+    chzzk_category_id: str
+    category_name: str | None
+    category_type: str | None
+    latest_bucket_time: dt.datetime | None
+    mapped_canonical_game_id: int
+    mapped_canonical_game_name: str
+
+
 @router.get("/categories/overview", response_model=list[ChzzkCategoryOverviewResponse])
 def list_chzzk_categories_overview(
     limit: int = CHZZK_CATEGORY_OVERVIEW_LIMIT_QUERY,
@@ -49,3 +61,16 @@ def list_chzzk_categories_overview(
 
     rows = chzzk_service.list_category_overview(limit=limit)
     return [ChzzkCategoryOverviewResponse.model_validate(row) for row in rows]
+
+
+@router.get(
+    "/category-game-mappings",
+    response_model=list[ChzzkCategoryGameMappingResponse],
+)
+def list_chzzk_category_game_mappings(
+    limit: int = CHZZK_CATEGORY_GAME_MAPPING_LIMIT_QUERY,
+) -> list[ChzzkCategoryGameMappingResponse]:
+    """Return trusted Chzzk category-to-game mapping identity rows."""
+
+    rows = chzzk_service.list_category_game_mappings(limit=limit)
+    return [ChzzkCategoryGameMappingResponse.model_validate(row) for row in rows]

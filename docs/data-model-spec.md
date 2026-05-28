@@ -239,8 +239,8 @@
     - `chzzk_category_game_candidate.status` 는 계속 `candidate`, `unresolved`, `rejected` 로 제한되며 `trusted` 또는 `approved` 를 허용하지 않는다.
     - Candidate row는 이 table에 자동 populate되지 않는다.
     - 현재 local candidate 17개는 이 contract ticket에서 insert하거나 promote하지 않는다.
-    - 이 ticket은 API/web/source-view/serving path 또는 `Combined` 에 trusted mapping을 노출하지 않는다.
-    - Candidate-to-trusted promotion, trusted insert, serving semantics, API/web exposure, and `Combined` semantics는 별도 Human Gate ticket이 필요하다.
+    - `GET /chzzk/category-game-mappings` 는 이 trusted mapping의 identity rows를 read-only API로 노출한다.
+    - Web source view, product ranking/KPI semantics, `Combined`, candidate-to-trusted promotion, trusted insert, and broader serving semantics는 별도 Human Gate ticket이 필요하다.
 - internal read-only DB serving view:
     - view: `srv_chzzk_category_game_mapping`
     - 목적: trusted mapping storage를 later API endpoint가 읽을 수 있는 안정적인 DB query contract로 제공한다.
@@ -249,7 +249,8 @@
     - view columns: `chzzk_category_id`, `category_name`, `category_type`, `latest_bucket_time`, `mapped_canonical_game_id`, `mapped_canonical_game_name`.
     - 이 view는 `chzzk_category_game_candidate`, `game_external_id`, `tracked_game`, tracked_universe, App Catalog를 읽지 않는다.
     - 이 view는 `reviewed_by`, raw manual-hint evidence, candidate status, row-level private evidence를 노출하지 않는다.
-    - 이 변경은 internal read-only DB serving view contract만 추가한다. API exposure, web exposure, product serving behavior, 또는 `Combined` semantics를 추가하지 않는다.
+    - `GET /chzzk/category-game-mappings` 는 이 view만 읽으며, direct upstream table join을 재구현하지 않는다.
+    - 이 API는 trusted mapping identity rows만 노출한다. Web exposure, product ranking/KPI semantics, 또는 `Combined` semantics를 추가하지 않는다.
 
 ### 4.3 Steam Price (1시간)
 

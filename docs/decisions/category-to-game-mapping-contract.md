@@ -9,7 +9,9 @@ CATEGORY-MAPPING-TRUSTED-STORAGE-CONTRACT-001 이후, `trusted`는 `chzzk_catego
 
 이 문서는 Chzzk category observed evidence를 Steam canonical game에 연결하기 위한 첫 planning boundary를 고정한다.
 
-이 결정은 schema, API, runtime, loader, scheduler, web, DB write, 또는 Combined semantics 구현 승인이 아니다.
+이 original decision은 schema, API, runtime, loader, scheduler, web, DB write, 또는 Combined semantics 구현 승인이 아니었다.
+
+Subsequent `CATEGORY-MAPPING-TRUSTED-MAPPING-API-CONTRACT-001`은 `GET /chzzk/category-game-mappings` read-only API만 승인하며, web/product/`Combined` semantics는 계속 제외한다.
 
 현재 durable context는 `README.md`, `docs/source-inventory.md`, `docs/data-model-spec.md` 를 따른다.
 
@@ -67,7 +69,8 @@ CATEGORY-MAPPING-TRUSTED-STORAGE-CONTRACT-001 이후에도 위 historical statem
 - `chzzk_category_game_mapping.mapping_status` is limited to `trusted`.
 - Candidate row는 trusted storage에 자동으로 채워지지 않는다.
 - 현재 local 17개 candidate는 이 ticket에서 insert하거나 promotion하지 않는다.
-- API/web/serving/`Combined` exposure remains deferred.
+- `GET /chzzk/category-game-mappings`는 trusted mapping의 identity rows만 반환한다.
+- Web exposure, product ranking/KPI semantics, broader serving semantics, `Combined` exposure는 계속 deferred 상태로 둔다.
 - candidate를 trusted mapping으로 승격하는 작업은 후속 Human Gate ticket으로 남긴다.
 
 Updated by `CATEGORY-MAPPING-TRUSTED-MAPPING-SERVING-VIEW-001`: trusted mapping storage에는 내부 read-only DB serving view contract인 `srv_chzzk_category_game_mapping`이 추가됐다.
@@ -77,7 +80,13 @@ Updated by `CATEGORY-MAPPING-TRUSTED-MAPPING-SERVING-VIEW-001`: trusted mapping 
 
 이 PR은 내부 read-only DB serving view contract만 추가한다.
 
-API 노출, web 노출, product serving behavior, `Combined` semantics는 추가하지 않는다.
+Updated by `CATEGORY-MAPPING-TRUSTED-MAPPING-API-CONTRACT-001`: `GET /chzzk/category-game-mappings` 는 이 view만 읽는 read-only API로 trusted mapping identity rows를 노출한다.
+
+이 API는 `chzzk_category_id`, nullable `category_name`, nullable `category_type`, nullable `latest_bucket_time`, `mapped_canonical_game_id`, `mapped_canonical_game_name` 만 반환한다.
+
+`mapping_status`, `source_kind`, `reviewed_by`, `reviewed_at`, raw manual-hint evidence, candidate status, row-level private evidence는 API에 노출하지 않는다.
+
+Web 노출, product serving behavior, ranking/KPI semantics, `Combined` semantics는 추가하지 않는다.
 
 `chzzk_category_game_candidate`는 읽지 않으며, `reviewed_by`, raw manual-hint evidence, candidate status, row-level private evidence도 노출하지 않는다.
 

@@ -118,5 +118,6 @@ def test_combined_pending_shell_does_not_gain_mapping_fields() -> None:
         "mappingStatus",
         "mappingMethod",
         "mappingConfidence",
+        "category-game-mappings",
     ]:
         assert needle not in source
