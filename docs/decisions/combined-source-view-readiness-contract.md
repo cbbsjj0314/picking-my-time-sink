@@ -31,7 +31,9 @@ Date: 2026-05-19 (KST)
 
 `srv_chzzk_category_game_mapping` 같은 internal read-only DB serving view contract는 단독으로 `Combined` readiness gate를 충족하지 않는다.
 
-API response shape, web exposure, product serving behavior, and `Combined` semantics remain separate Human Gate items.
+`GET /chzzk/category-game-mappings` API response shape도 trusted mapping identity rows만 노출하며, 단독으로 `Combined` readiness gate를 충족하지 않는다.
+
+Web exposure, product serving behavior, ranking/KPI semantics, and `Combined` semantics remain separate Human Gate items.
 
 ## Readiness Gates
 

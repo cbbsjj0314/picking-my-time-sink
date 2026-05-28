@@ -14,7 +14,9 @@ Updated by CATEGORY-MAPPING-TRUSTED-STORAGE-CONTRACT-001: `trusted`는 `chzzk_ca
 
 이 foundation은 provider-specific review 후보 저장소이며 trusted mapping, automatic matching, API field, UI field, serving semantics, `Combined`, promotion/demotion workflow, or operational workflow를 정의하지 않는다.
 
-Trusted mapping storage shape, promotion workflow, serving shape, API/UI exposure, and `Combined` semantics는 아직 선택하지 않는다.
+Historical note: original planning 당시에는 trusted mapping storage shape, promotion workflow, serving shape, API/UI exposure, and `Combined` semantics를 아직 선택하지 않았다.
+
+Subsequent `CATEGORY-MAPPING-TRUSTED-MAPPING-API-CONTRACT-001`은 `GET /chzzk/category-game-mappings` read-only API만 승인하며, promotion workflow, web/UI exposure, product ranking/KPI semantics, and `Combined` semantics는 계속 deferred 상태다.
 
 이 문서는 JSON shape, trusted mapping metadata, API field, UI field, or operational workflow를 정의하지 않는다.
 
@@ -57,9 +59,11 @@ Historical note: 위 설명은 원래 2026-05-23 planning boundary를 설명한�
 - canonical identity: `dim_game.canonical_game_id`, `dim_game.canonical_name`
 - nullable observed context: `chzzk_category_id`별 `latest fact_chzzk_category_30m row`
 
-이 PR은 internal read-only DB serving view contract만 추가한다.
+Updated by `CATEGORY-MAPPING-TRUSTED-MAPPING-API-CONTRACT-001`: `GET /chzzk/category-game-mappings` 는 이 view만 읽는 read-only API로 trusted mapping identity rows를 노출한다.
 
-API exposure, web exposure, product serving behavior, `Combined` semantics는 추가하지 않는다.
+이 API는 direct upstream table join을 재구현하지 않으며, `mapping_status`, `source_kind`, `reviewed_by`, `reviewed_at`, raw manual-hint evidence, candidate status, row-level private evidence를 노출하지 않는다.
+
+Web exposure, product ranking/KPI semantics, broader serving semantics, `Combined` semantics는 추가하지 않는다.
 
 이 view는 `chzzk_category_game_candidate`, `game_external_id`, `tracked_game`, tracked_universe, App Catalog surface를 읽지 않는다.
 

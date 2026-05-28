@@ -146,7 +146,7 @@ def test_candidate_storage_foundation_remains_untrusted_and_non_serving() -> Non
     assert "game_external_id" in context
 
 
-def test_trusted_mapping_storage_contract_is_separate_and_scoped_to_internal_view() -> None:
+def test_trusted_mapping_storage_contract_is_separate_and_has_minimal_api_surface() -> None:
     text = "\n".join(
         [
             _read_lower(DATA_MODEL_SPEC),
@@ -166,7 +166,7 @@ def test_trusted_mapping_storage_contract_is_separate_and_scoped_to_internal_vie
     assert "candidate" in context
     assert "unresolved" in context
     assert "rejected" in context
-    assert "api/web" in context
+    assert "category-game-mappings" in text
     assert "serving" in context
     assert "combined" in context
     assert "`chzzk_category_id` 하나당 trusted mapping 1개" in text
@@ -177,7 +177,7 @@ def test_trusted_mapping_storage_contract_is_separate_and_scoped_to_internal_vie
     assert "현재 local 17개 candidate" in text
 
 
-def test_trusted_mapping_serving_view_contract_defers_api_web_and_combined() -> None:
+def test_trusted_mapping_serving_view_contract_pins_minimal_api_and_deferrals() -> None:
     text = "\n".join(
         [
             _read_lower(DATA_MODEL_SPEC),
@@ -188,7 +188,7 @@ def test_trusted_mapping_serving_view_contract_defers_api_web_and_combined() -> 
         ]
     )
 
-    context = _near(text, "srv_chzzk_category_game_mapping", span=2200)
+    context = text
 
     assert "internal read-only db serving view contract" in context
     assert "chzzk_category_game_mapping" in context
@@ -199,9 +199,11 @@ def test_trusted_mapping_serving_view_contract_defers_api_web_and_combined() -> 
     assert "`chzzk_category_game_candidate`는 읽지 않으며" in text
     assert "노출하지 않는다" in text or "노출하지 않으며" in text
     assert "reviewed_by" in text
-    assert "api exposure" in context or "api 노출" in context
-    assert "web exposure" in context or "web 노출" in context
+    assert "get /chzzk/category-game-mappings" in text
+    assert "trusted mapping identity rows" in text
+    assert "web exposure" in text or "web 노출" in text
     assert "product serving behavior" in context
+    assert "ranking/kpi semantics" in text
     assert "combined" in context
     assert "readiness gate" in text
 

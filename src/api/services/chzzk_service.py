@@ -146,6 +146,19 @@ LIMIT %s
 
 LIST_CATEGORY_OVERVIEW_SQL = LIST_CATEGORY_OVERVIEW_WITH_CHANNELS_SQL
 
+LIST_CATEGORY_GAME_MAPPINGS_SQL = """
+SELECT
+    chzzk_category_id,
+    category_name,
+    category_type,
+    latest_bucket_time,
+    mapped_canonical_game_id,
+    mapped_canonical_game_name
+FROM srv_chzzk_category_game_mapping
+ORDER BY chzzk_category_id ASC
+LIMIT %s
+"""
+
 
 def _finite_float(value: Any) -> float:
     numeric_value = float(value)
@@ -214,6 +227,23 @@ def to_response_record(row: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
+def _optional_str(value: Any) -> str | None:
+    return str(value) if value is not None else None
+
+
+def to_category_game_mapping_response_record(row: Mapping[str, Any]) -> dict[str, Any]:
+    """Map one trusted mapping view row to the public API response shape."""
+
+    return {
+        "chzzk_category_id": str(row["chzzk_category_id"]),
+        "category_name": _optional_str(row.get("category_name")),
+        "category_type": _optional_str(row.get("category_type")),
+        "latest_bucket_time": row.get("latest_bucket_time"),
+        "mapped_canonical_game_id": int(row["mapped_canonical_game_id"]),
+        "mapped_canonical_game_name": str(row["mapped_canonical_game_name"]),
+    }
+
+
 def list_category_overview(limit: int = 50) -> list[dict[str, Any]]:
     """Return Chzzk category observed sample metrics from the category fact table."""
 
@@ -233,3 +263,17 @@ def list_category_overview(limit: int = 50) -> list[dict[str, Any]]:
             rows = cursor.fetchall()
 
     return [to_response_record(row) for row in rows]
+
+
+def list_category_game_mappings(limit: int = 50) -> list[dict[str, Any]]:
+    """Return trusted Chzzk category-to-game mappings from the serving view."""
+
+    psycopg, dict_row = require_psycopg()
+    conninfo = build_pg_conninfo_from_env()
+
+    with psycopg.connect(conninfo=conninfo) as conn:
+        with conn.cursor(row_factory=dict_row) as cursor:
+            cursor.execute(LIST_CATEGORY_GAME_MAPPINGS_SQL, (limit,))
+            rows = cursor.fetchall()
+
+    return [to_category_game_mapping_response_record(row) for row in rows]

@@ -19,6 +19,7 @@ def test_chzzk_api_client_reads_category_overview() -> None:
     assert "unique_channels_observed: number | null" in source
     assert "function listCategoryOverview" in source
     assert "withQuery('/chzzk/categories/overview', { limit: options.limit ?? 50 })" in source
+    assert "category-game-mappings" not in source
 
     mapping_field_needles = [
         "canonical_game_id",
