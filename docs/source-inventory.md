@@ -204,6 +204,13 @@
     - public fixture는 synthetic/sanitized payload만 둔다. live title, channel name, thumbnail URL 같은 raw UGC/provider response는 public에 그대로 남기지 않는다.
     - credentials, private runtime identifiers, local host/path detail은 public source docs, fixtures, API/UI semantics에 올리지 않는다.
 
+Updated by CATEGORY-MAPPING-COMBINED-SOURCE-VIEW-CONTRACT-001:
+
+- The next `Combined` step remains docs/tests-only planning. It does not add a `Combined` API route, SQL serving view, web data surface, web fetch/hook, mapping coverage panel, product ranking, KPI, score, recommendation behavior, DB write/backfill, or scheduler/runtime job.
+- Future `Combined` may propose one row per `dim_game.canonical_game_id` as proposed future Combined row grain, but that is not current runtime behavior.
+- Existing Steam source contracts must be compared as candidate Steam source contract options only. No current Steam endpoint, service, or serving view is implemented as the `Combined` source by this update.
+- `GET /chzzk/category-game-mappings` and `srv_chzzk_category_game_mapping` are future gated identity input candidates only. Chzzk viewer metrics remain bounded observed category evidence and must not be merged into `Combined` product semantics before a later approved implementation ticket.
+
 ### 2.2 Category 검색 (매핑 보조)
 
 - 목적: Chzzk 카테고리 ↔ Steam 게임명 후보 추천에 활용할 수 있는 보조 source
