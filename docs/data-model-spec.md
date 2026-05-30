@@ -252,6 +252,13 @@
     - `GET /chzzk/category-game-mappings` 는 이 view만 읽으며, direct upstream table join을 재구현하지 않는다.
     - 이 API는 trusted mapping identity rows만 노출한다. Web exposure, product ranking/KPI semantics, 또는 `Combined` semantics를 추가하지 않는다.
 
+Updated by CATEGORY-MAPPING-COMBINED-SOURCE-VIEW-CONTRACT-001:
+
+- Proposed future `Combined` row grain is one row per `dim_game.canonical_game_id`, but this remains a future gated contract proposal only. It does not create a `Combined` API, SQL serving view, web data surface, mapping coverage panel, or runtime behavior.
+- Current Steam serving objects are candidate inputs to compare, not implemented `Combined` inputs. `srv_game_explore_period_metrics` / `/games/explore/overview` may be documented as a candidate Steam source contract alongside latest CCU, price, reviews, and rankings contracts, but this document does not select it as an implemented `Combined` source.
+- `srv_chzzk_category_game_mapping` and `GET /chzzk/category-game-mappings` are future gated identity input candidates only. Chzzk category viewer metrics remain observed category evidence and are not merged into `Combined` ranking, KPI, score, or recommendation semantics.
+- Candidate/unresolved/rejected rows, `categoryType=GAME`, inferred mapping, guessed mapping, hidden fallback mapping, and synthetic joins are not valid `Combined` identity.
+
 ### 4.3 Steam Price (1시간)
 
 - 테이블: fact_steam_price_1h

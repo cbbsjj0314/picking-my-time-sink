@@ -5,6 +5,17 @@ from pathlib import Path
 APP_PATH = Path("web/src/App.tsx")
 PENDING_SOURCE_PANEL_PATH = Path("web/src/components/PendingSourcePanel.tsx")
 SOURCE_TABS_ROW_PATH = Path("web/src/components/SourceTabsRow.tsx")
+WEB_SRC_PATH = Path("web/src")
+API_SRC_PATH = Path("src/api")
+SQL_POSTGRES_PATH = Path("sql/postgres")
+
+
+def _read_tree(path: Path, pattern: str) -> str:
+    return "\n".join(
+        file_path.read_text(encoding="utf-8")
+        for file_path in sorted(path.rglob(pattern))
+        if file_path.is_file()
+    )
 
 
 def test_pending_source_panel_is_combined_only() -> None:
@@ -119,5 +130,73 @@ def test_combined_pending_shell_does_not_gain_mapping_fields() -> None:
         "mappingMethod",
         "mappingConfidence",
         "category-game-mappings",
+    ]:
+        assert needle not in source
+
+
+def test_no_combined_api_or_sql_surface_exists_yet() -> None:
+    api_source = _read_tree(API_SRC_PATH, "*.py")
+    sql_source = _read_tree(SQL_POSTGRES_PATH, "*.sql")
+
+    for needle in [
+        "/combined",
+        "combined source",
+        "combined_source",
+        "CombinedResponse",
+        "CombinedOverview",
+        "list_combined",
+        "combined_router",
+    ]:
+        assert needle not in api_source
+
+    for needle in [
+        "srv_combined",
+        "combined_source",
+        "combined source",
+        "create or replace view combined",
+        "create or replace view srv_game_combined",
+    ]:
+        assert needle not in sql_source.lower()
+
+
+def test_no_combined_web_data_surface_or_mapping_coverage_panel_exists_yet() -> None:
+    app_source = APP_PATH.read_text(encoding="utf-8")
+    web_source = _read_tree(WEB_SRC_PATH, "*.tsx") + "\n" + _read_tree(WEB_SRC_PATH, "*.ts")
+
+    assert "<PendingSourcePanel sourceTab={sourceTab} />" in app_source
+    assert "CombinedWhySurfacedNow" not in app_source
+    assert "useCombined" not in web_source
+    assert "combinedApi" not in web_source
+    assert "CombinedTable" not in web_source
+    assert "CombinedSourceTable" not in web_source
+    assert "MappingCoverage" not in web_source
+    assert "mapping coverage" not in web_source.lower()
+    assert "category-game-mappings" not in web_source
+
+
+def test_combined_shell_does_not_gain_ranking_kpi_or_score_semantics() -> None:
+    source = "\n".join(
+        [
+            APP_PATH.read_text(encoding="utf-8"),
+            PENDING_SOURCE_PANEL_PATH.read_text(encoding="utf-8"),
+            SOURCE_TABS_ROW_PATH.read_text(encoding="utf-8"),
+        ]
+    ).lower()
+
+    for needle in [
+        "kpi",
+        "score",
+        "recommendation",
+        "recommended",
+        "ranked combined",
+        "combined ranking",
+        "mapping coverage",
+        "candidate mapping",
+        "unresolved mapping",
+        "rejected mapping",
+        "categorytype=game",
+        "inferred mapping",
+        "guessed mapping",
+        "fallback mapping",
     ]:
         assert needle not in source

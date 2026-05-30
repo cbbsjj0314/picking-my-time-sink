@@ -26,6 +26,7 @@ COMBINED_READINESS_CONTRACT = Path(
 )
 DATA_GOVERNANCE = Path("docs/data-governance.md")
 DATA_MODEL_SPEC = Path("docs/data-model-spec.md")
+SOURCE_INVENTORY = Path("docs/source-inventory.md")
 IMPLEMENTATION_SURFACE_REVIEW = Path(
     "docs/decisions/category-to-game-implementation-surface-review.md"
 )
@@ -206,6 +207,110 @@ def test_trusted_mapping_serving_view_contract_pins_minimal_api_and_deferrals() 
     assert "ranking/kpi semantics" in text
     assert "combined" in context
     assert "readiness gate" in text
+
+
+def test_combined_source_view_contract_is_docs_tests_only_and_future_gated() -> None:
+    text = _read_lower(COMBINED_READINESS_CONTRACT)
+    update_context = _near(
+        text,
+        "updated by category-mapping-combined-source-view-contract-001",
+        span=3200,
+    )
+
+    assert "docs/tests-only planning contract" in update_context
+    assert "`combined` api route" in update_context
+    assert "sql serving view" in update_context
+    assert "web data surface" in update_context
+    assert "web fetch/hook" in update_context
+    assert "mapping coverage panel" in update_context
+    assert "product ranking" in update_context
+    assert "kpi" in update_context
+    assert "score" in update_context
+    assert "recommendation behavior" in update_context
+    assert "does not create" not in update_context
+    assert "구현하지 않는다" in update_context or "not merged" in update_context
+
+    assert "proposed future `combined` row grain" in update_context
+    assert "one row per `dim_game.canonical_game_id`" in update_context
+    assert "future implementation gate" in update_context
+    assert "현재 api, sql, web, runtime behavior가 아니다" in update_context
+
+    assert "candidate steam source contract" in update_context
+    assert "none is selected or implemented" in update_context
+    assert "future gated identity input" in update_context
+
+
+def test_combined_source_view_contract_blocks_premature_identity_and_kpi_unlocks() -> None:
+    text = "\n".join(
+        [
+            _read_lower(COMBINED_READINESS_CONTRACT),
+            _read_lower(DATA_MODEL_SPEC),
+            _read_lower(DATA_GOVERNANCE),
+            _read_lower(SOURCE_INVENTORY),
+        ]
+    )
+
+    assert "candidate/unresolved/rejected" in text
+    assert "`categorytype=game`" in text or "`categorytype=game`" in text.replace(
+        "`categorytype=game`", "`categorytype=game`"
+    )
+    assert "inferred mapping" in text
+    assert "guessed mapping" in text
+    assert "hidden fallback mapping" in text
+    assert "synthetic joins" in text or "synthetic join" in text
+    assert "not valid `combined` identity" in text or "invalid as `combined` identity" in text
+
+    assert "chzzk viewer metrics" in text
+    assert "full live-list population" in text
+    assert "current unbounded viewers" in text
+    assert "steam-equivalent chzzk baseline" in text
+    assert "recommendation quality" in text
+    assert "ranking readiness" in text or "ranking/kpi/score semantics" in text
+    assert "kpi readiness" in text or "ranking/kpi/score semantics" in text
+
+
+def test_combined_source_view_contract_keeps_steam_source_candidate_only() -> None:
+    text = "\n".join(
+        [
+            _read_lower(COMBINED_READINESS_CONTRACT),
+            _read_lower(DATA_MODEL_SPEC),
+            _read_lower(SOURCE_INVENTORY),
+            _read_lower(DATA_GOVERNANCE),
+        ]
+    )
+
+    assert "candidate steam source contract" in text
+    assert "candidate inputs only" in text or "candidate inputs to compare" in text
+    assert "candidate steam source contract options" in text
+    assert (
+        "not implemented `combined` inputs" in text
+        or "not current `combined` runtime lineage" in text
+    )
+    assert (
+        "no current steam endpoint, service, or serving view is implemented "
+        "as the `combined` source"
+        in text
+    )
+    assert "srv_game_explore_period_metrics" in text
+    assert "/games/explore/overview" in text
+
+
+def test_combined_source_view_contract_keeps_mapping_identity_future_only() -> None:
+    text = "\n".join(
+        [
+            _read_lower(COMBINED_READINESS_CONTRACT),
+            _read_lower(DATA_MODEL_SPEC),
+            _read_lower(SOURCE_INVENTORY),
+            _read_lower(DATA_GOVERNANCE),
+        ]
+    )
+
+    assert "future gated identity input" in text
+    assert "get /chzzk/category-game-mappings" in text
+    assert "srv_chzzk_category_game_mapping" in text
+    assert "trusted mapping identity rows" in text
+    assert "not current `combined` runtime lineage" in text
+    assert "not be merged into `combined` product semantics" in text
 
 
 def test_candidate_generation_gate_allows_only_synthetic_dry_run_builder() -> None:

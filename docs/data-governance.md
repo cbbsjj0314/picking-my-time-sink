@@ -129,6 +129,14 @@ Local monitoring은 더 엄격한 thresholds, exact scheduler windows, host-spec
 | Chzzk observed channel fact | optional nullable `unique_channels_observed` evidence for Chzzk category overview/source view | `fact_chzzk_category_channel_30m` category-channel observed buckets | local/private `channel-result.jsonl` to gold loader |
 | Chzzk trusted category-game mappings API | `srv_chzzk_category_game_mapping` | `chzzk_category_game_mapping`, `dim_game`, nullable latest context from `fact_chzzk_category_30m` | `GET /chzzk/category-game-mappings` exposes trusted mapping identity rows only; no web/`Combined` exposure |
 
+Updated by CATEGORY-MAPPING-COMBINED-SOURCE-VIEW-CONTRACT-001:
+
+No `Combined` lineage row is added by this update because no `Combined` API route, SQL serving view, web data surface, mapping coverage panel, ranking/KPI/score semantics, DB write/backfill, or scheduler/runtime job is implemented.
+
+The proposed future `Combined` row grain is one row per `dim_game.canonical_game_id`, but it remains a future gated contract proposal only. Existing Steam source contracts must be compared as candidate Steam source contract options before any implementation. `srv_chzzk_category_game_mapping` and `GET /chzzk/category-game-mappings` remain future gated identity input candidates only, not current `Combined` runtime lineage.
+
+Candidate/unresolved/rejected mappings, `categoryType=GAME`, inferred mapping, guessed mapping, hidden fallback mapping, and Chzzk viewer metrics are not valid `Combined` identity or `Combined` product semantics.
+
 Chzzk `fact_chzzk_category_30m` 은 provider-specific DDL/parser candidate에서 local/private `category-result.jsonl` artifact-to-Postgres write path와 read-only category overview API로 승격되었다.
 
 Chzzk `fact_chzzk_category_channel_30m` 은 local/private `channel-result.jsonl` artifact-to-Postgres write path로 승격되었고, API/web serving에서는 matching category observed buckets 안의 `unique_channels_observed` nullable metric에만 사용한다. 
