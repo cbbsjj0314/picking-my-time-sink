@@ -4,8 +4,10 @@
 티켓: CATEGORY-MAPPING-IMPLEMENTATION-GATE-001
 날짜: 2026-05-23 (KST)
 
+Role: historical/guardrail decision checkpoint. Current trusted storage/API/view exists, but candidate-to-trusted promotion and `Combined` remain gated.
+
 이 문서는 category-to-game mapping 구현을 시작하기 전에 필요한 decision gate를 고정한다.
-이 결정은 schema, API, runtime, DB, web, storage, serving, trusted mapping, automatic matching, 또는 `Combined` semantics 구현 승인이 아니다.
+이 결정은 schema, API, runtime, DB, web, storage, serving, candidate-to-trusted promotion, automatic matching, 또는 `Combined` semantics 구현 승인이 아니다.
 
 ## Current Boundary Summary
 

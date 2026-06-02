@@ -4,16 +4,18 @@ Status: read-only review
 Ticket: REVIEW-C2G-IMPLEMENTATION-SURFACE-001
 Date: 2026-05-19 (KST)
 
+Role: historical read-only review of likely implementation surfaces. This is not the current implemented contract source; use `docs/decisions/category-to-game-mapping-contract.md` for the current public summary.
+
 이 문서는 category-to-game 후보 구현을 열기 전에, future slice가 검토할 가능성이 높은 repo surface를 정리하는 read-only review다.
 
-이 문서는 schema, SQL, migration, API, runtime, DB write, web behavior, category-to-game mapping implementation, trusted mapping usage, 또는 `Combined` semantics를 승인하지 않는다.
+이 문서는 schema, SQL, migration, API, runtime, DB write, web behavior, candidate-to-trusted promotion, product serving usage, 또는 `Combined` semantics를 승인하지 않는다.
 목적은 current repo boundary를 기준으로 touchpoint와 Human Gate를 식별하는 데 한정한다.
 
 ## Current Durable Boundaries
 
 - `README.md` 기준 current baseline은 Steam-only runtime이며, Chzzk는 category-level observed facts와 read-only `/chzzk/categories/overview` source API로 제한된다.
 - `docs/source-inventory.md` 와 `docs/data-model-spec.md` 는 Chzzk category evidence를 category-only observed source-view로 해석한다. `categoryType=GAME` 은 Chzzk provider category type evidence이며 canonical game identity가 아니다.
-- `docs/decisions/category-to-game-mapping-contract.md` 는 category-to-game mapping을 planning boundary로만 둔다. `candidate`, `unresolved`, `rejected` evidence는 trusted mapping, canonical game semantics, serving semantics, `Combined` KPI에 쓸 수 없다.
+- `docs/decisions/category-to-game-mapping-contract.md` 의 `Current Implemented Contract Summary` 는 canonical current public contract summary다. `candidate`, `unresolved`, `rejected` evidence는 trusted mapping, canonical game semantics, serving semantics, `Combined` KPI에 쓸 수 없다.
 - `docs/decisions/combined-source-view-readiness-contract.md` 는 trusted mapping과 serving semantics가 별도 승인될 때까지 `Combined` 를 blocked/pending 상태로 유지한다.
 - Public docs에는 durable contract만 남긴다. raw provider payload, credentials, private runtime detail, row-level UGC, raw API response는 public boundary 밖이다.
 
@@ -33,7 +35,7 @@ These are review surfaces only. This document does not define final table shape,
 
 - `/chzzk/categories/overview` is the current read-only Chzzk category overview endpoint.
 - `src/api/routers/chzzk.py` and `src/api/services/chzzk_service.py` are the current Chzzk serving touchpoints.
-- Current Chzzk serving is category-only observed evidence. It does not expose Steam mapping, canonical game identity, trusted mapping state, or `Combined` fields.
+- Current `/chzzk/categories/overview` serving is category-only observed evidence. The separate `GET /chzzk/category-game-mappings` API exposes trusted mapping identity rows only and does not open product serving or `Combined` fields.
 - Future planning may need to review whether any new serving contract is required after Human Gate approval.
 
 This review does not define a new endpoint, response shape, query parameter, sorting rule, ranking rule, KPI formula, or API compatibility policy.
@@ -54,7 +56,7 @@ Likely test categories include:
 
 - `categoryType=GAME` is not treated as canonical game identity.
 - `candidate`, `unresolved`, and `rejected` evidence cannot power `Combined`, canonical game semantics, ranking, sorting, or trusted mapping.
-- Trusted mapping usage occurs only after a separately approved gate.
+- Product serving or `Combined` usage of trusted mapping occurs only after a separately approved gate.
 - Chzzk category serving remains category-only until a separate serving contract is approved.
 - Public/private evidence boundary remains enforced.
 
@@ -92,7 +94,7 @@ Each proposal should remain atomic. None of these items should be treated as imp
 - No API response shape change.
 - No web behavior change.
 - No category-to-game mapping implementation.
-- No trusted mapping usage.
+- No product serving or `Combined` usage of trusted mapping.
 - No automatic matching.
 - No `Combined` source view implementation.
 - No generalized provider abstraction.

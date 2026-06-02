@@ -1,7 +1,9 @@
 # Combined Source View Readiness Contract
 
-Status: docs-only planning boundary
+Status: current Combined blocked/readiness guardrail
 Date: 2026-05-19 (KST)
+
+Role: current `Combined` blocked/readiness guardrail, not a `Combined` implementation contract.
 
 이 문서는 `Combined` source view가 구현 전까지 blocked/pending 상태로 남아야 하는 조건을 고정한다.
 

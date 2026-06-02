@@ -1,6 +1,6 @@
 # Category-To-Game Mapping Contract
 
-Status: docs-only planning boundary  
+Status: current public contract summary with historical planning context
 Date: 2026-05-19 (KST)
 
 CATEGORY-MAPPING-TRUSTED-STORAGE-CONTRACT-001 이후, `trusted`는 `chzzk_category_game_mapping.mapping_status`에만 저장되는 값이다. 
@@ -16,6 +16,8 @@ Subsequent `CATEGORY-MAPPING-TRUSTED-MAPPING-API-CONTRACT-001`은 `GET /chzzk/ca
 현재 durable context는 `README.md`, `docs/source-inventory.md`, `docs/data-model-spec.md` 를 따른다.
 
 ## Current Implemented Contract Summary
+
+This section is the canonical current public contract summary. Later sections preserve historical planning context and guardrails.
 
 현재 public contract는 candidate storage, trusted storage, internal serving view, read-only API, future `Combined` boundary를 분리한다.
 
@@ -46,10 +48,12 @@ Candidate evidence는 Combined KPI, canonical game semantics, 또는 serving sem
 - Steam-only baseline은 구현된 현재 runtime baseline이다.
 - Chzzk는 category-level observed facts와 read-only `/chzzk/categories/overview` source API로 제한되어 있다.
 - Chzzk category observed evidence는 category browser evidence일 뿐이며, Steam game mapping, canonical game semantics, Combined KPI로 승격되지 않았다.
-- Steam-Chzzk mapping과 Combined semantics는 아직 구현되지 않았다.
+- Trusted Chzzk-to-Steam identity storage/API/view는 구현됐지만, product serving behavior와 Combined semantics는 아직 구현되지 않았다.
 - `categoryType=GAME` 은 Chzzk provider의 category type evidence이며, `dim_game` 의 canonical game identity가 아니다.
 
 ## Proposed MVP Boundary
+
+Historical note: 이 planning section은 trusted storage/API/view 구현 이전의 MVP direction이다. Candidate evidence와 promotion gate guardrail에는 계속 적용되지만, current implemented contract source는 위 `Current Implemented Contract Summary`다.
 
 MVP mapping boundary는 manual 또는 reviewable workflow first로 둔다.
 

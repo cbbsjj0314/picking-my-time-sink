@@ -4,11 +4,13 @@ Status: docs-only planning boundary with implemented candidate-only foundation n
 Ticket: PLAN-C2G-STORAGE-CONTRACT-001
 Date: 2026-05-23 (KST)
 
+Role: historical storage planning record, superseded in part by the current public contract summary in `docs/decisions/category-to-game-mapping-contract.md`.
+
 Updated by CATEGORY-MAPPING-TRUSTED-STORAGE-CONTRACT-001: `trusted`는 `chzzk_category_game_mapping.mapping_status`에만 저장되는 값이다. `chzzk_category_game_candidate.status`, API/UI state, serving exposure에는 사용하지 않는다.
 
 이 문서는 category-to-game 후보 evidence를 나중에 어디에 둘 수 있는지 비교하는 planning contract다.
 
-이 결정은 schema, SQL, migration, API, runtime, loader, scheduler, web behavior, DB write, backfill, reingest, automatic matching, trusted mapping usage, 또는 `Combined` semantics 구현 승인이 아니다.
+이 결정은 schema, SQL, migration, API, runtime, loader, scheduler, web behavior, DB write, backfill, reingest, automatic matching, candidate-to-trusted promotion, product serving usage, 또는 `Combined` semantics 구현 승인이 아니다.
 
 `CATEGORY-MAPPING-CANDIDATE-STORAGE-001` 이후 repo에는 `chzzk_category_game_candidate` candidate-only storage foundation이 있다.
 
@@ -143,7 +145,7 @@ Docs/file-based review queue는 runtime storage direction이 아니라 비교 ba
 - rejected/unresolved 재검토 rules
 - non-empty storage validation을 넘는 source_kind allowed-value policy
 - API fields, UI fields
-- internal read-only DB serving view contract 밖에서의 trusted mapping usage
+- product serving usage of trusted mapping outside the internal read-only DB serving view contract
 - automatic matching
 - internal DB view contract 밖의 product serving semantics
 - `Combined` serving semantics, ranking, sorting, KPI interpretation, API/UI behavior
@@ -161,7 +163,7 @@ Historical note: 아래 original planning non-goals는 CATEGORY-MAPPING-TRUSTED-
 - API endpoint, API response shape
 - web UI behavior, table column, sort, filter, copy, view behavior
 - automatic matching
-- trusted mapping usage
+- trusted insert, candidate-to-trusted promotion, or product serving usage
 - `trusted` / `approved` persisted state, schema value, API field, UI field
 - `Combined` semantics, `Combined` API, `Combined` UI, ranking, sorting, KPI interpretation
 - generalized provider abstraction
