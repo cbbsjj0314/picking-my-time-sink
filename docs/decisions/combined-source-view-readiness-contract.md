@@ -1,7 +1,9 @@
 # Combined Source View Readiness Contract
 
-Status: docs-only planning boundary
+Status: current Combined blocked/readiness guardrail
 Date: 2026-05-19 (KST)
+
+Role: current `Combined` blocked/readiness guardrail, not a `Combined` implementation contract.
 
 이 문서는 `Combined` source view가 구현 전까지 blocked/pending 상태로 남아야 하는 조건을 고정한다.
 
@@ -18,7 +20,7 @@ Updated by CATEGORY-MAPPING-COMBINED-SOURCE-VIEW-CONTRACT-001:
 - `Combined` API route, SQL serving view, web data surface, web fetch/hook, mapping coverage panel, product ranking, KPI, score, or recommendation behavior를 구현하지 않는다.
 - Proposed future `Combined` row grain은 one row per `dim_game.canonical_game_id` 이다. 이는 future implementation gate의 proposed contract일 뿐이며 현재 API, SQL, web, runtime behavior가 아니다.
 - Current Steam contracts must be compared as candidate inputs only. `srv_game_explore_period_metrics`, `/games/explore/overview`, latest CCU, latest price, latest reviews, and latest rankings may be reviewed as a candidate Steam source contract, but none is selected or implemented as the `Combined` source by this update.
-- `GET /chzzk/category-game-mappings` and `srv_chzzk_category_game_mapping` may be referenced only as a future gated identity input for trusted category-to-game identity rows.
+- `GET /chzzk/category-game-mappings` and `srv_chzzk_category_game_mapping` are current trusted identity surfaces and may be referenced only as future gated identity input candidates for `Combined`.
 - Chzzk viewer metrics are not merged into a `Combined` product table by this update. Chzzk observed fields remain bounded/category evidence and must not imply full live-list population, current unbounded viewers, Steam-equivalent Chzzk baseline, recommendation quality, ranking readiness, KPI readiness, or score semantics.
 - Candidate, unresolved, rejected, `categoryType=GAME`, inferred mapping, guessed mapping, hidden fallback mapping, and synthetic joins remain invalid as `Combined` identity.
 
@@ -43,6 +45,8 @@ Updated by CATEGORY-MAPPING-COMBINED-SOURCE-VIEW-CONTRACT-001:
 `srv_chzzk_category_game_mapping` 같은 internal read-only DB serving view contract는 단독으로 `Combined` readiness gate를 충족하지 않는다.
 
 `GET /chzzk/category-game-mappings` API response shape도 trusted mapping identity rows만 노출하며, 단독으로 `Combined` readiness gate를 충족하지 않는다.
+
+Future backend `Combined` should not need to call `GET /chzzk/category-game-mappings` internally when `srv_chzzk_category_game_mapping` is available as the DB serving view.
 
 Web exposure, product serving behavior, ranking/KPI semantics, and `Combined` semantics remain separate Human Gate items.
 

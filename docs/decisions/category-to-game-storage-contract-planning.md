@@ -4,11 +4,13 @@ Status: docs-only planning boundary with implemented candidate-only foundation n
 Ticket: PLAN-C2G-STORAGE-CONTRACT-001
 Date: 2026-05-23 (KST)
 
+Role: historical storage planning record, superseded in part by the current public contract summary in `docs/decisions/category-to-game-mapping-contract.md`.
+
 Updated by CATEGORY-MAPPING-TRUSTED-STORAGE-CONTRACT-001: `trusted`는 `chzzk_category_game_mapping.mapping_status`에만 저장되는 값이다. `chzzk_category_game_candidate.status`, API/UI state, serving exposure에는 사용하지 않는다.
 
 이 문서는 category-to-game 후보 evidence를 나중에 어디에 둘 수 있는지 비교하는 planning contract다.
 
-이 결정은 schema, SQL, migration, API, runtime, loader, scheduler, web behavior, DB write, backfill, reingest, automatic matching, trusted mapping usage, 또는 `Combined` semantics 구현 승인이 아니다.
+이 결정은 schema, SQL, migration, API, runtime, loader, scheduler, web behavior, DB write, backfill, reingest, automatic matching, candidate-to-trusted promotion, product serving usage, 또는 `Combined` semantics 구현 승인이 아니다.
 
 `CATEGORY-MAPPING-CANDIDATE-STORAGE-001` 이후 repo에는 `chzzk_category_game_candidate` candidate-only storage foundation이 있다.
 
@@ -31,7 +33,7 @@ Historical note: 위 설명은 원래 2026-05-23 planning boundary를 설명한�
 - Chzzk category evidence는 canonical game identity가 아니다.
 - `categoryType=GAME`은 provider category type evidence일 뿐이며, Steam 또는 canonical mapping evidence가 아니다.
 - `candidate`, `unresolved`, `rejected`evidence는 trusted mapping, canonical game semantics, serving semantics, ranking/sorting/KPI, `Combined`에 사용할 수 없다.
-- `trusted` / `approved` 는 후속 Human Gate / promotion gate 용어로만 남긴다. 이 문서는 이를 persisted state, schema value, API field, UI field, runtime behavior로 정의하지 않는다.
+- Historical note: original planning에서 `trusted` / `approved` 는 후속 Human Gate / promotion gate 용어로만 남겼다. 이후 `trusted`는 `chzzk_category_game_mapping.mapping_status`에만 구현됐고, `approved`는 여전히 future terminology다.
 - Updated by CATEGORY-MAPPING-TRUSTED-STORAGE-CONTRACT-001: `trusted`는 `chzzk_category_game_mapping.mapping_status`에만 저장되는 값이다. `chzzk_category_game_candidate.status`, API/UI state, serving exposure에는 사용하지 않는다. `approved`는 여전히 future terminology다.
 - `Combined`는 별도 trusted mapping gate와 serving semantics gate가 승인될 때까지 blocked/pending 상태로 남긴다.
 - `chzzk_category_game_candidate` stores only untrusted review candidates. `game_external_id`를 변경하지 않으며, 현재 API/web/source-view path에서도 읽지 않는다.
@@ -68,6 +70,10 @@ Web exposure, product ranking/KPI semantics, broader serving semantics, `Combine
 이 view는 `chzzk_category_game_candidate`, `game_external_id`, `tracked_game`, tracked_universe, App Catalog surface를 읽지 않는다.
 
 `reviewed_by`, raw manual-hint evidence, candidate status, row-level private evidence도 노출하지 않는다.
+
+`srv_chzzk_category_game_mapping` and `GET /chzzk/category-game-mappings` are current trusted identity surfaces, but they are not sufficient by themselves to open `Combined`.
+
+Future backend `Combined` should not need to call `GET /chzzk/category-game-mappings` internally when this DB serving view is available.
 
 ## Candidate Storage Directions
 
@@ -139,7 +145,7 @@ Docs/file-based review queue는 runtime storage direction이 아니라 비교 ba
 - rejected/unresolved 재검토 rules
 - non-empty storage validation을 넘는 source_kind allowed-value policy
 - API fields, UI fields
-- internal read-only DB serving view contract 밖에서의 trusted mapping usage
+- product serving usage of trusted mapping outside the internal read-only DB serving view contract
 - automatic matching
 - internal DB view contract 밖의 product serving semantics
 - `Combined` serving semantics, ranking, sorting, KPI interpretation, API/UI behavior
@@ -157,7 +163,7 @@ Historical note: 아래 original planning non-goals는 CATEGORY-MAPPING-TRUSTED-
 - API endpoint, API response shape
 - web UI behavior, table column, sort, filter, copy, view behavior
 - automatic matching
-- trusted mapping usage
+- trusted insert, candidate-to-trusted promotion, or product serving usage
 - `trusted` / `approved` persisted state, schema value, API field, UI field
 - `Combined` semantics, `Combined` API, `Combined` UI, ranking, sorting, KPI interpretation
 - generalized provider abstraction

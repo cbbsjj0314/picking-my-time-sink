@@ -4,8 +4,10 @@ Status: docs-only planning boundary
 Ticket: PLAN-C2G-SERVING-CONTRACT-001
 Date: 2026-05-19 (KST)
 
+Role: historical candidate-serving guardrail. This is not the canonical current trusted mapping API/view contract; use `docs/decisions/category-to-game-mapping-contract.md` for the current public summary.
+
 이 문서는 category-to-game candidate evidence가 serving boundary를 넘지 않도록 고정하는 planning contract다.
-이 결정은 schema, SQL, migration, API, runtime, loader, scheduler, web behavior, DB write, backfill, reingest, trusted mapping usage, ranking/sorting/KPI, 또는 `Combined` semantics 구현 승인이 아니다.
+이 결정은 schema, SQL, migration, API, runtime, loader, scheduler, web behavior, DB write, backfill, reingest, candidate-to-trusted promotion, product serving usage, ranking/sorting/KPI, 또는 `Combined` semantics 구현 승인이 아니다.
 
 현재 durable context는 `docs/source-inventory.md`, `docs/data-model-spec.md`, `docs/data-governance.md`, `docs/decisions/category-to-game-mapping-contract.md`, `docs/decisions/category-to-game-implementation-surface-review.md`, `docs/decisions/category-to-game-storage-contract-planning.md`, and `docs/decisions/combined-source-view-readiness-contract.md` 를 따른다.
 
@@ -17,7 +19,7 @@ Date: 2026-05-19 (KST)
 - Chzzk category evidence is not canonical game identity.
 - `categoryType=GAME` is provider category type evidence, not Steam or canonical mapping.
 - `candidate`, `unresolved`, and `rejected` evidence cannot power trusted mapping, canonical game semantics, serving semantics, ranking/sorting/KPI, or `Combined`.
-- `trusted` / `approved` remain future Human Gate / promotion gate terminology only. This document does not define them as persisted state, schema value, API field, UI field, runtime behavior, or serving behavior.
+- Historical note: original planning kept `trusted` / `approved` as future Human Gate / promotion gate terminology only. Later storage work implemented `trusted` only as `chzzk_category_game_mapping.mapping_status`; `approved` remains future terminology.
 - `Combined` remains blocked/pending until trusted mapping, serving semantics, API response shape, regression tests, and Human Gate are separately approved.
 
 ## Candidate Serving Boundary
@@ -43,7 +45,7 @@ This planning contract does not approve or implement:
 - web UI behavior, copy, table column, sort/filter/search behavior, UI fields, route, or source-view behavior
 - runtime, scheduler, live fetch, guarded-write, or local/private operating behavior
 - candidate storage implementation
-- trusted mapping usage
+- product serving or `Combined` usage of trusted mapping
 - automatic matching
 - promotion/demotion rule implementation
 - `Combined` API, UI, data semantics, source-view semantics, ranking, sorting, or KPI interpretation
@@ -67,7 +69,7 @@ The following remain future Human Gate items and are not approved by this planni
 
 - candidate review serving surface decision
 - endpoint, response, query, UI, route, or presentation shape
-- trusted mapping usage
+- product serving or `Combined` usage of trusted mapping
 - promotion/demotion rules
 - serving semantics
 - `Combined` semantics
@@ -75,3 +77,5 @@ The following remain future Human Gate items and are not approved by this planni
 - schema/storage implementation
 
 Any future change that promotes candidate, unresolved, or rejected evidence into trusted mapping, canonical game identity, serving semantics, ranking/sorting/KPI, or `Combined` requires a separate approved implementation slice with Human Gate, related durable docs, and regression tests.
+
+Updated by CATEGORY-MAPPING-PUBLIC-DOCS-CURRENT-CONTRACT-CLEANUP-001: `srv_chzzk_category_game_mapping` and `GET /chzzk/category-game-mappings` are current trusted identity surfaces. They are not sufficient by themselves to open `Combined`, and future backend `Combined` should not need to call the read-only API internally when the DB serving view is available.

@@ -1,6 +1,6 @@
 # Category-To-Game Mapping Contract
 
-Status: docs-only planning boundary  
+Status: current public contract summary with historical planning context
 Date: 2026-05-19 (KST)
 
 CATEGORY-MAPPING-TRUSTED-STORAGE-CONTRACT-001 이후, `trusted`는 `chzzk_category_game_mapping.mapping_status`에만 저장되는 값이다. 
@@ -14,6 +14,24 @@ CATEGORY-MAPPING-TRUSTED-STORAGE-CONTRACT-001 이후, `trusted`는 `chzzk_catego
 Subsequent `CATEGORY-MAPPING-TRUSTED-MAPPING-API-CONTRACT-001`은 `GET /chzzk/category-game-mappings` read-only API만 승인하며, web/product/`Combined` semantics는 계속 제외한다.
 
 현재 durable context는 `README.md`, `docs/source-inventory.md`, `docs/data-model-spec.md` 를 따른다.
+
+## Current Implemented Contract Summary
+
+This section is the canonical current public contract summary. Later sections preserve historical planning context and guardrails.
+
+현재 public contract는 candidate storage, trusted storage, internal serving view, read-only API, future `Combined` boundary를 분리한다.
+
+- `chzzk_category_game_candidate`: review-only candidate storage다. `status`는 `candidate`, `unresolved`, `rejected`만 허용하며 trusted mapping, serving semantics, or `Combined` input이 아니다.
+- `chzzk_category_game_mapping`: trusted mapping storage다. `mapping_status`는 `trusted`만 허용하며 `chzzk_category_id` 하나당 trusted `dim_game.canonical_game_id` mapping 1개를 저장한다.
+- `srv_chzzk_category_game_mapping`: `chzzk_category_game_mapping`에서 `mapping_status = 'trusted'` row만 읽는 internal read-only DB serving view다. Nullable latest `fact_chzzk_category_30m` context를 붙일 수 있지만 `chzzk_category_game_candidate`는 읽지 않는다.
+- `GET /chzzk/category-game-mappings`: `srv_chzzk_category_game_mapping`만 읽는 read-only trusted mapping identity API다. `mapping_status`, `source_kind`, `reviewed_by`, `reviewed_at`, raw manual-hint evidence, candidate status, row-level private evidence는 노출하지 않는다.
+- `Combined`: 아직 구현되지 않았고, 이 contract summary만으로 readiness가 열리지 않는다. Future `Combined` SQL serving view, API route, web surface, Chzzk metric merge, ranking/KPI/score, data write/backfill/reingest, scheduler/runtime job, or live fetch는 별도 ticket과 Human Gate가 필요하다.
+
+`srv_chzzk_category_game_mapping` and `GET /chzzk/category-game-mappings` are current trusted identity surfaces, but they are not sufficient by themselves to open `Combined`.
+
+Future backend `Combined` implementation should not need to call `GET /chzzk/category-game-mappings` internally when `srv_chzzk_category_game_mapping` is available as the DB serving view.
+
+Public guardrail: `candidate`, `unresolved`, `rejected`, guessed/inferred/fuzzy/hidden fallback mapping, private/local row evidence, raw provider payloads, `categoryType=GAME` alone, automatic alias discovery, or automatic matching cannot feed trusted mapping or `Combined`.
 
 ## Purpose
 
@@ -30,10 +48,12 @@ Candidate evidence는 Combined KPI, canonical game semantics, 또는 serving sem
 - Steam-only baseline은 구현된 현재 runtime baseline이다.
 - Chzzk는 category-level observed facts와 read-only `/chzzk/categories/overview` source API로 제한되어 있다.
 - Chzzk category observed evidence는 category browser evidence일 뿐이며, Steam game mapping, canonical game semantics, Combined KPI로 승격되지 않았다.
-- Steam-Chzzk mapping과 Combined semantics는 아직 구현되지 않았다.
+- Trusted Chzzk-to-Steam identity storage/API/view는 구현됐지만, product serving behavior와 Combined semantics는 아직 구현되지 않았다.
 - `categoryType=GAME` 은 Chzzk provider의 category type evidence이며, `dim_game` 의 canonical game identity가 아니다.
 
 ## Proposed MVP Boundary
+
+Historical note: 이 planning section은 trusted storage/API/view 구현 이전의 MVP direction이다. Candidate evidence와 promotion gate guardrail에는 계속 적용되지만, current implemented contract source는 위 `Current Implemented Contract Summary`다.
 
 MVP mapping boundary는 manual 또는 reviewable workflow first로 둔다.
 
