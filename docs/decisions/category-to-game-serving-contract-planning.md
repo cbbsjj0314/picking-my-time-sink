@@ -17,7 +17,7 @@ Date: 2026-05-19 (KST)
 - Chzzk category evidence is not canonical game identity.
 - `categoryType=GAME` is provider category type evidence, not Steam or canonical mapping.
 - `candidate`, `unresolved`, and `rejected` evidence cannot power trusted mapping, canonical game semantics, serving semantics, ranking/sorting/KPI, or `Combined`.
-- `trusted` / `approved` remain future Human Gate / promotion gate terminology only. This document does not define them as persisted state, schema value, API field, UI field, runtime behavior, or serving behavior.
+- Historical note: original planning kept `trusted` / `approved` as future Human Gate / promotion gate terminology only. Later storage work implemented `trusted` only as `chzzk_category_game_mapping.mapping_status`; `approved` remains future terminology.
 - `Combined` remains blocked/pending until trusted mapping, serving semantics, API response shape, regression tests, and Human Gate are separately approved.
 
 ## Candidate Serving Boundary
@@ -75,3 +75,5 @@ The following remain future Human Gate items and are not approved by this planni
 - schema/storage implementation
 
 Any future change that promotes candidate, unresolved, or rejected evidence into trusted mapping, canonical game identity, serving semantics, ranking/sorting/KPI, or `Combined` requires a separate approved implementation slice with Human Gate, related durable docs, and regression tests.
+
+Updated by CATEGORY-MAPPING-PUBLIC-DOCS-CURRENT-CONTRACT-CLEANUP-001: `srv_chzzk_category_game_mapping` and `GET /chzzk/category-game-mappings` are current trusted identity surfaces. They are not sufficient by themselves to open `Combined`, and future backend `Combined` should not need to call the read-only API internally when the DB serving view is available.

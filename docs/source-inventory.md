@@ -209,7 +209,7 @@ Updated by CATEGORY-MAPPING-COMBINED-SOURCE-VIEW-CONTRACT-001:
 - The next `Combined` step remains docs/tests-only planning. It does not add a `Combined` API route, SQL serving view, web data surface, web fetch/hook, mapping coverage panel, product ranking, KPI, score, recommendation behavior, DB write/backfill, or scheduler/runtime job.
 - Future `Combined` may propose one row per `dim_game.canonical_game_id` as proposed future Combined row grain, but that is not current runtime behavior.
 - Existing Steam source contracts must be compared as candidate Steam source contract options only. No current Steam endpoint, service, or serving view is implemented as the `Combined` source by this update.
-- `GET /chzzk/category-game-mappings` and `srv_chzzk_category_game_mapping` are future gated identity input candidates only. Chzzk viewer metrics remain bounded observed category evidence and must not be merged into `Combined` product semantics before a later approved implementation ticket.
+- `GET /chzzk/category-game-mappings` and `srv_chzzk_category_game_mapping` are current trusted identity surfaces and future gated identity input candidates only for `Combined`. Chzzk viewer metrics remain bounded observed category evidence and must not be merged into `Combined` product semantics before a later approved implementation ticket.
 
 ### 2.2 Category 검색 (매핑 보조)
 

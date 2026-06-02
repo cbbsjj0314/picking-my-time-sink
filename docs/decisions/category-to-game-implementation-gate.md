@@ -13,7 +13,7 @@
 - `/chzzk/categories/overview` 는 category-only observed evidence surface다. Steam mapping, canonical game identity, trusted mapping state, 또는 `Combined` field를 노출하지 않는다.
 - `categoryType=GAME` 은 Chzzk provider category type evidence일 뿐이며 canonical game identity나 Steam-Chzzk mapping 근거가 아니다.
 - `candidate`, `unresolved`, `rejected` 는 decision-level review evidence 상태다. 이 상태만으로 trusted mapping, canonical game semantics, serving semantics, ranking/sorting/KPI, 또는 `Combined` 를 만들 수 없다.
-- `trusted` / `approved` 는 future Human Gate / promotion gate 용어로만 둔다. 이 문서는 이를 persisted state, schema value, API field, UI field, runtime behavior로 정의하지 않는다.
+- Historical note: 이 checkpoint 작성 당시 `trusted` / `approved` 는 future Human Gate / promotion gate 용어로만 뒀다. 이후 `trusted`는 `chzzk_category_game_mapping.mapping_status`에만 구현됐고, `approved`는 여전히 future terminology다.
 - `Combined` 는 trusted mapping, serving semantics, API response shape, regression expectations, Human Gate가 별도 승인될 때까지 blocked/pending 상태로 남는다.
 
 ## Existing Docs Reviewed
@@ -71,7 +71,7 @@
 - `candidate`: review 가능한 mapping 가능성이다. Trusted mapping, canonical game semantics, serving semantics, ranking/sorting/KPI, 또는 `Combined` 에 사용할 수 없다.
 - `unresolved`: 판단에 필요한 ambiguity가 남아 있다. Guessed mapping, automatic matching, auto-promotion을 허용하지 않는다.
 - `rejected`: 검토 결과 수용하지 않은 후보다. Rejected evidence도 trusted mapping으로 되살리지 않는다.
-- `trusted` / `approved`: future Human Gate / promotion gate 용어로만 둔다. 이 checkpoint는 trusted state 구현을 승인하지 않는다.
+- `trusted` / `approved`: Historical note 기준으로 future Human Gate / promotion gate 용어였다. 이후 `trusted`는 `chzzk_category_game_mapping.mapping_status`에만 구현됐고, 이 checkpoint는 candidate-to-trusted promotion이나 `approved` state를 승인하지 않는다.
 
 ## Evidence Boundary
 
