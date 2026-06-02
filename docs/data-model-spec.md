@@ -255,7 +255,7 @@
 Updated by CATEGORY-MAPPING-COMBINED-SOURCE-VIEW-CONTRACT-001:
 
 - Proposed future `Combined` row grain is one row per `dim_game.canonical_game_id`, but this remains a future gated contract proposal only. It does not create a `Combined` API, SQL serving view, web data surface, mapping coverage panel, or runtime behavior.
-- Current Steam serving objects are candidate inputs to compare, not implemented `Combined` inputs. `srv_game_explore_period_metrics` / `/games/explore/overview` may be documented as a candidate Steam source contract alongside latest CCU, price, reviews, and rankings contracts, but this document does not select it as an implemented `Combined` source.
+- Updated by CATEGORY-MAPPING-COMBINED-BACKEND-API-CONTRACT-001: the selected first future Steam evidence-base contract family for `Combined` is `srv_game_explore_period_metrics` / `/games/explore/overview`. This is a docs/tests-only future backend contract boundary, not an implemented `Combined` input, not current `Combined` runtime lineage, ranking/KPI/score/recommendation source, or Steam runtime contract change. Latest CCU, price, reviews, and rankings remain possible auxiliary/future evidence sources unless separately approved.
 - `srv_chzzk_category_game_mapping` and `GET /chzzk/category-game-mappings` are current trusted identity surfaces and future gated identity input candidates only for `Combined`. Chzzk category viewer metrics remain observed category evidence and are not merged into `Combined` ranking, KPI, score, or recommendation semantics.
 - Candidate/unresolved/rejected rows, `categoryType=GAME`, inferred mapping, guessed mapping, hidden fallback mapping, and synthetic joins are not valid `Combined` identity.
 

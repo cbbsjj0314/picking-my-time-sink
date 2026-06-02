@@ -133,7 +133,11 @@ Updated by CATEGORY-MAPPING-COMBINED-SOURCE-VIEW-CONTRACT-001:
 
 No `Combined` lineage row is added by this update because no `Combined` API route, SQL serving view, web data surface, mapping coverage panel, ranking/KPI/score semantics, DB write/backfill, or scheduler/runtime job is implemented.
 
-The proposed future `Combined` row grain is one row per `dim_game.canonical_game_id`, but it remains a future gated contract proposal only. Existing Steam source contracts must be compared as candidate Steam source contract options before any implementation. `srv_chzzk_category_game_mapping` and `GET /chzzk/category-game-mappings` are current trusted identity surfaces and remain future gated identity input candidates only for `Combined`, not current `Combined` runtime lineage.
+The proposed future `Combined` row grain is one row per `dim_game.canonical_game_id`, but it remains a future gated contract proposal only.
+
+Updated by CATEGORY-MAPPING-COMBINED-BACKEND-API-CONTRACT-001: the selected first future Steam evidence-base contract family is `srv_game_explore_period_metrics` / `/games/explore/overview`. This selection is docs/tests-only and is not current `Combined` runtime lineage, ranking/KPI/score/recommendation semantics, or Steam runtime contract changes. Latest CCU, price, reviews, and rankings remain possible auxiliary/future evidence sources unless separately approved.
+
+`srv_chzzk_category_game_mapping` is the future backend identity input candidate for `Combined`. `GET /chzzk/category-game-mappings` remains a read-only inspection/API surface and should not become a backend-internal dependency when the DB serving view is available.
 
 Candidate/unresolved/rejected mappings, `categoryType=GAME`, inferred mapping, guessed mapping, hidden fallback mapping, and Chzzk viewer metrics are not valid `Combined` identity or `Combined` product semantics.
 

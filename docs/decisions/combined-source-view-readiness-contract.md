@@ -24,6 +24,20 @@ Updated by CATEGORY-MAPPING-COMBINED-SOURCE-VIEW-CONTRACT-001:
 - Chzzk viewer metrics are not merged into a `Combined` product table by this update. Chzzk observed fields remain bounded/category evidence and must not imply full live-list population, current unbounded viewers, Steam-equivalent Chzzk baseline, recommendation quality, ranking readiness, KPI readiness, or score semantics.
 - Candidate, unresolved, rejected, `categoryType=GAME`, inferred mapping, guessed mapping, hidden fallback mapping, and synthetic joins remain invalid as `Combined` identity.
 
+Updated by CATEGORY-MAPPING-COMBINED-BACKEND-API-CONTRACT-001:
+
+이 update는 approved docs/tests-only backend contract boundary다.
+
+- The first future backend `Combined` API contract boundary is limited to canonical game identity, Steam source availability, and nullable trusted Chzzk mapping identity/context fields.
+- The proposed future row grain remains one row per `dim_game.canonical_game_id`. This is not current SQL/API/runtime behavior and does not add a `Combined` SQL serving view, API route, response model, service query, web fetch/hook, table, mapping coverage panel, DB write/backfill/reingest, scheduler/runtime job, or live fetch.
+- The selected first Steam evidence-base contract family is `srv_game_explore_period_metrics` / `/games/explore/overview`. This selection is only a future evidence-base contract family for `Combined`; it is not a ranking/KPI/score/recommendation source and does not modify current Steam runtime contracts.
+- Latest CCU, latest price, latest reviews, and latest rankings remain possible auxiliary/future evidence sources unless separately approved.
+- The trusted Chzzk identity input for a future backend service/query boundary is `srv_chzzk_category_game_mapping`. `GET /chzzk/category-game-mappings` remains a read-only inspection/API surface and should not be used as a backend-internal dependency when `srv_chzzk_category_game_mapping` is available.
+- `srv_chzzk_category_game_mapping` and `GET /chzzk/category-game-mappings` are not sufficient by themselves to open runtime `Combined`.
+- The first response boundary may describe canonical identity fields, Steam source availability, and nullable trusted Chzzk mapping identity/context fields only as a future contract proposal. It does not define a concrete Pydantic model, OpenAPI schema, route, SQL view, or exact runtime payload.
+- Chzzk viewer/channel metrics, `latest_viewers_observed`, `viewer_hours_observed`, `avg_viewers_observed`, `peak_viewers_observed`, `viewer_per_channel_observed`, `unique_channels_observed`, ranking/KPI/score/recommendation semantics, mapping coverage panel, web surface, automatic matching, platform generalization, and candidate/unresolved/rejected/fallback mapping exposure remain deferred.
+- Candidate, unresolved, rejected, `categoryType=GAME`, inferred mapping, guessed mapping, fuzzy mapping, hidden fallback mapping, synthetic joins, private/local row evidence, raw provider payloads, and automatic matching remain invalid as `Combined` identity.
+
 ## Current Context
 
 - `Combined` 는 web source tab에 존재하지만, 현재는 pending/blocked UI shell이다.
