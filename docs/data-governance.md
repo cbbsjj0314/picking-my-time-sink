@@ -135,9 +135,9 @@ No `Combined` lineage row is added by this update because no `Combined` API rout
 
 The proposed future `Combined` row grain is one row per `dim_game.canonical_game_id`, but it remains a future gated contract proposal only.
 
-Updated by CATEGORY-MAPPING-COMBINED-BACKEND-API-CONTRACT-001: the selected first future Steam evidence-base contract family is `srv_game_explore_period_metrics` / `/games/explore/overview`. This selection is docs/tests-only and is not current `Combined` runtime lineage, ranking/KPI/score/recommendation semantics, or Steam runtime contract changes. Latest CCU, price, reviews, and rankings remain possible auxiliary/future evidence sources unless separately approved.
+Updated by CATEGORY-MAPPING-COMBINED-BACKEND-API-CONTRACT-001: 첫 향후 Steam evidence-base contract family는 `srv_game_explore_period_metrics` / `/games/explore/overview` 로 선택한다. 이 선택은 docs/tests-only이며 current `Combined` runtime lineage, ranking/KPI/score/recommendation semantics, Steam runtime contract change가 아니다. 최신 CCU, price, reviews, rankings는 별도 승인 전까지 보조/향후 evidence source 후보로만 남긴다.
 
-`srv_chzzk_category_game_mapping` is the future backend identity input candidate for `Combined`. `GET /chzzk/category-game-mappings` remains a read-only inspection/API surface and should not become a backend-internal dependency when the DB serving view is available.
+`srv_chzzk_category_game_mapping` 은 `Combined` 의 future backend identity input candidate다. `GET /chzzk/category-game-mappings` 는 read-only inspection/API surface로 남기며, DB serving view를 사용할 수 있을 때 backend-internal dependency가 되면 안 된다.
 
 Candidate/unresolved/rejected mappings, `categoryType=GAME`, inferred mapping, guessed mapping, hidden fallback mapping, and Chzzk viewer metrics are not valid `Combined` identity or `Combined` product semantics.
 

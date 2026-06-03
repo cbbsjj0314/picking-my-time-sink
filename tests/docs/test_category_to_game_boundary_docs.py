@@ -217,7 +217,7 @@ def test_combined_source_view_contract_is_docs_tests_only_and_future_gated() -> 
         span=3200,
     )
 
-    assert "docs/tests-only backend contract boundary" in update_context
+    assert "docs/tests-only backend contract boundary를 기록" in update_context
     assert "`combined` api route" in update_context
     assert "sql serving view" in update_context
     assert "web data surface" in update_context
@@ -231,28 +231,28 @@ def test_combined_source_view_contract_is_docs_tests_only_and_future_gated() -> 
     assert "구현하지 않는다" in update_context or "not merged" in update_context
 
     assert "one row per `dim_game.canonical_game_id`" in update_context
-    assert "not current sql/api/runtime behavior" in update_context
+    assert "현재 sql/api/runtime behavior가 아니" in update_context
 
-    assert "selected first steam evidence-base contract family" in update_context
+    assert "첫 steam evidence-base contract family" in update_context
     assert "srv_game_explore_period_metrics" in update_context
     assert "/games/explore/overview" in update_context
-    assert "not a ranking/kpi/score/recommendation source" in update_context
-    assert "latest ccu" in update_context
-    assert "latest price" in update_context
-    assert "latest reviews" in update_context
-    assert "latest rankings" in update_context
+    assert "ranking/kpi/score/recommendation source가 아니" in update_context
+    assert "최신 ccu" in update_context
+    assert "최신 price" in update_context
+    assert "최신 reviews" in update_context
+    assert "최신 rankings" in update_context
 
     assert "trusted chzzk identity input" in update_context
     assert "srv_chzzk_category_game_mapping" in update_context
     assert "get /chzzk/category-game-mappings" in update_context
-    assert "read-only inspection/api surface" in update_context
+    assert "read-only inspection/api surface로 남" in update_context
     assert "backend-internal dependency" in update_context
-    assert "not sufficient by themselves to open runtime `combined`" in update_context
+    assert "runtime `combined` readiness가 열리지는 않는다" in update_context
 
     assert "canonical identity fields" in update_context
     assert "steam source availability" in update_context
     assert "nullable trusted chzzk mapping identity/context fields" in update_context
-    assert "concrete pydantic model" in update_context
+    assert "구체적인 pydantic model" in update_context
     assert "openapi schema" in update_context
 
 
@@ -283,7 +283,7 @@ def test_combined_source_view_contract_blocks_premature_identity_and_kpi_unlocks
     assert "peak_viewers_observed" in text
     assert "viewer_per_channel_observed" in text
     assert "unique_channels_observed" in text
-    assert "not valid `combined` identity" in text or "invalid as `combined` identity" in text
+    assert "combined` identity로 유효하지 않" in text or "invalid as `combined` identity" in text
 
     assert "chzzk viewer metrics" in text
     assert "full live-list population" in text
@@ -304,20 +304,20 @@ def test_combined_source_view_contract_selects_first_steam_evidence_base_only() 
         ]
     )
 
-    assert "selected first future steam evidence-base contract family" in text
-    assert "selected first steam evidence-base contract family" in text
+    assert "첫 향후 steam evidence-base contract family" in text
+    assert "첫 steam evidence-base contract family" in text
     assert (
-        "not an implemented `combined` input" in text
-        or "not current `combined` runtime lineage" in text
+        "implemented `combined` input" in text
+        or "current `combined` runtime lineage" in text
     )
     assert "srv_game_explore_period_metrics" in text
     assert "/games/explore/overview" in text
     assert "ranking/kpi/score/recommendation source" in text
-    assert "steam runtime contract change" in text
-    assert "latest ccu" in text
-    assert "latest price" in text
-    assert "latest reviews" in text
-    assert "latest rankings" in text
+    assert "steam runtime contract change가 아니다" in text
+    assert "최신 ccu" in text
+    assert "최신 price" in text
+    assert "최신 reviews" in text
+    assert "최신 rankings" in text
 
 
 def test_combined_source_view_contract_keeps_mapping_identity_future_only() -> None:
@@ -334,8 +334,8 @@ def test_combined_source_view_contract_keeps_mapping_identity_future_only() -> N
     assert "get /chzzk/category-game-mappings" in text
     assert "srv_chzzk_category_game_mapping" in text
     assert "trusted mapping identity rows" in text
-    assert "not current `combined` runtime lineage" in text
-    assert "not be merged into `combined` product semantics" in text
+    assert "current `combined` runtime lineage" in text
+    assert "`combined` product semantics로 merge하지 않는다" in text
 
 
 def test_candidate_generation_gate_allows_only_synthetic_dry_run_builder() -> None:
