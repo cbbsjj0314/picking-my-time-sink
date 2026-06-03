@@ -208,8 +208,8 @@ Updated by CATEGORY-MAPPING-COMBINED-SOURCE-VIEW-CONTRACT-001:
 
 - The next `Combined` step remains docs/tests-only planning. It does not add a `Combined` API route, SQL serving view, web data surface, web fetch/hook, mapping coverage panel, product ranking, KPI, score, recommendation behavior, DB write/backfill, or scheduler/runtime job.
 - Future `Combined` may propose one row per `dim_game.canonical_game_id` as proposed future Combined row grain, but that is not current runtime behavior.
-- Existing Steam source contracts must be compared as candidate Steam source contract options only. No current Steam endpoint, service, or serving view is implemented as the `Combined` source by this update.
-- `GET /chzzk/category-game-mappings` and `srv_chzzk_category_game_mapping` are current trusted identity surfaces and future gated identity input candidates only for `Combined`. Chzzk viewer metrics remain bounded observed category evidence and must not be merged into `Combined` product semantics before a later approved implementation ticket.
+- Updated by CATEGORY-MAPPING-COMBINED-BACKEND-API-CONTRACT-001: 첫 향후 Steam evidence-base contract family는 `srv_game_explore_period_metrics` / `/games/explore/overview` 로 선택한다. 이는 current Steam endpoint/service/view implementation as `Combined`, current `Combined` runtime lineage, ranking/KPI/score/recommendation source, runtime contract change가 아니다.
+- `srv_chzzk_category_game_mapping` 은 `Combined` 의 향후 backend identity input candidate다. `GET /chzzk/category-game-mappings` 는 read-only inspection/API surface로 남기며, DB serving view를 사용할 수 있을 때 backend-internal dependency가 아니다. Chzzk viewer/channel metrics는 bounded observed category evidence로 남기고, later approved implementation ticket 전에는 `Combined` product semantics로 merge하지 않는다.
 
 ### 2.2 Category 검색 (매핑 보조)
 

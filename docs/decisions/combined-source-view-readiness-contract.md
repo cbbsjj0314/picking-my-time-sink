@@ -24,6 +24,20 @@ Updated by CATEGORY-MAPPING-COMBINED-SOURCE-VIEW-CONTRACT-001:
 - Chzzk viewer metrics are not merged into a `Combined` product table by this update. Chzzk observed fields remain bounded/category evidence and must not imply full live-list population, current unbounded viewers, Steam-equivalent Chzzk baseline, recommendation quality, ranking readiness, KPI readiness, or score semantics.
 - Candidate, unresolved, rejected, `categoryType=GAME`, inferred mapping, guessed mapping, hidden fallback mapping, and synthetic joins remain invalid as `Combined` identity.
 
+Updated by CATEGORY-MAPPING-COMBINED-BACKEND-API-CONTRACT-001:
+
+이 update는 이미 승인된 docs/tests-only backend contract boundary를 기록한다.
+
+- 첫 향후 backend `Combined` API contract boundary는 canonical game identity, Steam source availability, nullable trusted Chzzk mapping identity/context fields로 제한한다.
+- Proposed future row grain은 one row per `dim_game.canonical_game_id` 로 유지한다. 이는 현재 SQL/API/runtime behavior가 아니며 `Combined` SQL serving view, API route, response model, service query, web fetch/hook, table, mapping coverage panel, DB write/backfill/reingest, scheduler/runtime job, live fetch를 추가하지 않는다.
+- 첫 Steam evidence-base contract family는 `srv_game_explore_period_metrics` / `/games/explore/overview` 로 선택한다. 이 선택은 향후 `Combined` 를 위한 evidence-base contract family일 뿐이며 ranking/KPI/score/recommendation source가 아니고 현재 Steam runtime contract도 바꾸지 않는다.
+- 최신 CCU, 최신 price, 최신 reviews, 최신 rankings는 별도 승인 전까지 보조/향후 evidence source 후보로만 남긴다.
+- 향후 backend service/query boundary의 trusted Chzzk identity input은 `srv_chzzk_category_game_mapping` 이다. `GET /chzzk/category-game-mappings` 는 read-only inspection/API surface로 남기며, `srv_chzzk_category_game_mapping` 을 사용할 수 있을 때 backend-internal dependency로 쓰지 않는다.
+- `srv_chzzk_category_game_mapping` 과 `GET /chzzk/category-game-mappings` 만으로 runtime `Combined` readiness가 열리지는 않는다.
+- 첫 response boundary는 향후 contract proposal로서 canonical identity fields, Steam source availability, nullable trusted Chzzk mapping identity/context fields만 설명할 수 있다. 구체적인 Pydantic model, OpenAPI schema, route, SQL view, exact runtime payload는 정의하지 않는다.
+- Chzzk viewer/channel metrics, `latest_viewers_observed`, `viewer_hours_observed`, `avg_viewers_observed`, `peak_viewers_observed`, `viewer_per_channel_observed`, `unique_channels_observed`, ranking/KPI/score/recommendation semantics, mapping coverage panel, web surface, automatic matching, platform generalization, candidate/unresolved/rejected/fallback mapping exposure는 계속 deferred다.
+- Candidate, unresolved, rejected, `categoryType=GAME`, inferred mapping, guessed mapping, fuzzy mapping, hidden fallback mapping, synthetic joins, private/local row evidence, raw provider payloads, automatic matching은 `Combined` identity로 유효하지 않다.
+
 ## Current Context
 
 - `Combined` 는 web source tab에 존재하지만, 현재는 pending/blocked UI shell이다.

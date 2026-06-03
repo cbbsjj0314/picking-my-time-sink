@@ -213,11 +213,11 @@ def test_combined_source_view_contract_is_docs_tests_only_and_future_gated() -> 
     text = _read_lower(COMBINED_READINESS_CONTRACT)
     update_context = _near(
         text,
-        "updated by category-mapping-combined-source-view-contract-001",
+        "updated by category-mapping-combined-backend-api-contract-001",
         span=3200,
     )
 
-    assert "docs/tests-only planning contract" in update_context
+    assert "docs/tests-only backend contract boundary를 기록" in update_context
     assert "`combined` api route" in update_context
     assert "sql serving view" in update_context
     assert "web data surface" in update_context
@@ -230,14 +230,30 @@ def test_combined_source_view_contract_is_docs_tests_only_and_future_gated() -> 
     assert "does not create" not in update_context
     assert "구현하지 않는다" in update_context or "not merged" in update_context
 
-    assert "proposed future `combined` row grain" in update_context
     assert "one row per `dim_game.canonical_game_id`" in update_context
-    assert "future implementation gate" in update_context
-    assert "현재 api, sql, web, runtime behavior가 아니다" in update_context
+    assert "현재 sql/api/runtime behavior가 아니" in update_context
 
-    assert "candidate steam source contract" in update_context
-    assert "none is selected or implemented" in update_context
-    assert "future gated identity input" in update_context
+    assert "첫 steam evidence-base contract family" in update_context
+    assert "srv_game_explore_period_metrics" in update_context
+    assert "/games/explore/overview" in update_context
+    assert "ranking/kpi/score/recommendation source가 아니" in update_context
+    assert "최신 ccu" in update_context
+    assert "최신 price" in update_context
+    assert "최신 reviews" in update_context
+    assert "최신 rankings" in update_context
+
+    assert "trusted chzzk identity input" in update_context
+    assert "srv_chzzk_category_game_mapping" in update_context
+    assert "get /chzzk/category-game-mappings" in update_context
+    assert "read-only inspection/api surface로 남" in update_context
+    assert "backend-internal dependency" in update_context
+    assert "runtime `combined` readiness가 열리지는 않는다" in update_context
+
+    assert "canonical identity fields" in update_context
+    assert "steam source availability" in update_context
+    assert "nullable trusted chzzk mapping identity/context fields" in update_context
+    assert "구체적인 pydantic model" in update_context
+    assert "openapi schema" in update_context
 
 
 def test_combined_source_view_contract_blocks_premature_identity_and_kpi_unlocks() -> None:
@@ -251,14 +267,23 @@ def test_combined_source_view_contract_blocks_premature_identity_and_kpi_unlocks
     )
 
     assert "candidate/unresolved/rejected" in text
+    assert "candidate, unresolved, rejected" in text
     assert "`categorytype=game`" in text or "`categorytype=game`" in text.replace(
         "`categorytype=game`", "`categorytype=game`"
     )
     assert "inferred mapping" in text
     assert "guessed mapping" in text
+    assert "fuzzy mapping" in text
     assert "hidden fallback mapping" in text
     assert "synthetic joins" in text or "synthetic join" in text
-    assert "not valid `combined` identity" in text or "invalid as `combined` identity" in text
+    assert "automatic matching" in text
+    assert "latest_viewers_observed" in text
+    assert "viewer_hours_observed" in text
+    assert "avg_viewers_observed" in text
+    assert "peak_viewers_observed" in text
+    assert "viewer_per_channel_observed" in text
+    assert "unique_channels_observed" in text
+    assert "combined` identity로 유효하지 않" in text or "invalid as `combined` identity" in text
 
     assert "chzzk viewer metrics" in text
     assert "full live-list population" in text
@@ -269,7 +294,7 @@ def test_combined_source_view_contract_blocks_premature_identity_and_kpi_unlocks
     assert "kpi readiness" in text or "ranking/kpi/score semantics" in text
 
 
-def test_combined_source_view_contract_keeps_steam_source_candidate_only() -> None:
+def test_combined_source_view_contract_selects_first_steam_evidence_base_only() -> None:
     text = "\n".join(
         [
             _read_lower(COMBINED_READINESS_CONTRACT),
@@ -279,20 +304,20 @@ def test_combined_source_view_contract_keeps_steam_source_candidate_only() -> No
         ]
     )
 
-    assert "candidate steam source contract" in text
-    assert "candidate inputs only" in text or "candidate inputs to compare" in text
-    assert "candidate steam source contract options" in text
+    assert "첫 향후 steam evidence-base contract family" in text
+    assert "첫 steam evidence-base contract family" in text
     assert (
-        "not implemented `combined` inputs" in text
-        or "not current `combined` runtime lineage" in text
-    )
-    assert (
-        "no current steam endpoint, service, or serving view is implemented "
-        "as the `combined` source"
-        in text
+        "implemented `combined` input" in text
+        or "current `combined` runtime lineage" in text
     )
     assert "srv_game_explore_period_metrics" in text
     assert "/games/explore/overview" in text
+    assert "ranking/kpi/score/recommendation source" in text
+    assert "steam runtime contract change가 아니다" in text
+    assert "최신 ccu" in text
+    assert "최신 price" in text
+    assert "최신 reviews" in text
+    assert "최신 rankings" in text
 
 
 def test_combined_source_view_contract_keeps_mapping_identity_future_only() -> None:
@@ -309,8 +334,8 @@ def test_combined_source_view_contract_keeps_mapping_identity_future_only() -> N
     assert "get /chzzk/category-game-mappings" in text
     assert "srv_chzzk_category_game_mapping" in text
     assert "trusted mapping identity rows" in text
-    assert "not current `combined` runtime lineage" in text
-    assert "not be merged into `combined` product semantics" in text
+    assert "current `combined` runtime lineage" in text
+    assert "`combined` product semantics로 merge하지 않는다" in text
 
 
 def test_candidate_generation_gate_allows_only_synthetic_dry_run_builder() -> None:
