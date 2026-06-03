@@ -209,51 +209,52 @@ def test_trusted_mapping_serving_view_contract_pins_minimal_api_and_deferrals() 
     assert "readiness gate" in text
 
 
-def test_combined_source_view_contract_is_docs_tests_only_and_future_gated() -> None:
+def test_combined_source_view_contract_records_minimal_backend_api_boundary() -> None:
     text = _read_lower(COMBINED_READINESS_CONTRACT)
     update_context = _near(
         text,
-        "updated by category-mapping-combined-backend-api-contract-001",
+        "updated by category-mapping-combined-minimal-backend-api-001",
         span=3200,
     )
 
-    assert "docs/tests-only backend contract boundary를 기록" in update_context
-    assert "`combined` api route" in update_context
-    assert "sql serving view" in update_context
+    assert "minimal backend-only read-only `combined` api slice" in update_context
+    assert "srv_combined_game_overview" in update_context
+    assert "get /combined/games/overview" in update_context
     assert "web data surface" in update_context
     assert "web fetch/hook" in update_context
+    assert "table" in update_context
     assert "mapping coverage panel" in update_context
-    assert "product ranking" in update_context
+    assert "ranking" in update_context
     assert "kpi" in update_context
     assert "score" in update_context
-    assert "recommendation behavior" in update_context
-    assert "does not create" not in update_context
-    assert "구현하지 않는다" in update_context or "not merged" in update_context
+    assert "recommendation semantics" in update_context
+    assert "deferred" in update_context
 
     assert "one row per `dim_game.canonical_game_id`" in update_context
-    assert "현재 sql/api/runtime behavior가 아니" in update_context
+    assert "selected steam evidence-base" in update_context
 
-    assert "첫 steam evidence-base contract family" in update_context
     assert "srv_game_explore_period_metrics" in update_context
     assert "/games/explore/overview" in update_context
-    assert "ranking/kpi/score/recommendation source가 아니" in update_context
-    assert "최신 ccu" in update_context
-    assert "최신 price" in update_context
-    assert "최신 reviews" in update_context
-    assert "최신 rankings" in update_context
 
-    assert "trusted chzzk identity input" in update_context
+    assert "trusted chzzk identity/context input" in update_context
     assert "srv_chzzk_category_game_mapping" in update_context
     assert "get /chzzk/category-game-mappings" in update_context
-    assert "read-only inspection/api surface로 남" in update_context
-    assert "backend-internal dependency" in update_context
-    assert "runtime `combined` readiness가 열리지는 않는다" in update_context
+    assert "내부 호출하지 않는다" in update_context
 
-    assert "canonical identity fields" in update_context
-    assert "steam source availability" in update_context
-    assert "nullable trusted chzzk mapping identity/context fields" in update_context
-    assert "구체적인 pydantic model" in update_context
-    assert "openapi schema" in update_context
+    assert "canonical_game_id" in update_context
+    assert "canonical_name" in update_context
+    assert "steam_appid" in update_context
+    assert "steam_source_available" in update_context
+    assert "chzzk_mapping_available" in update_context
+    assert "chzzk_category_id" in update_context
+    assert "category_name" in update_context
+    assert "category_type" in update_context
+    assert "latest_bucket_time" in update_context
+
+    assert "deterministic single-row guard" in update_context
+    assert "representative category" in update_context
+    assert "best mapping" in update_context
+    assert "coverage semantics가 아니다" in update_context
 
 
 def test_combined_source_view_contract_blocks_premature_identity_and_kpi_unlocks() -> None:
@@ -306,10 +307,8 @@ def test_combined_source_view_contract_selects_first_steam_evidence_base_only() 
 
     assert "첫 향후 steam evidence-base contract family" in text
     assert "첫 steam evidence-base contract family" in text
-    assert (
-        "implemented `combined` input" in text
-        or "current `combined` runtime lineage" in text
-    )
+    assert "srv_combined_game_overview" in text
+    assert "get /combined/games/overview" in text
     assert "srv_game_explore_period_metrics" in text
     assert "/games/explore/overview" in text
     assert "ranking/kpi/score/recommendation source" in text
@@ -320,7 +319,7 @@ def test_combined_source_view_contract_selects_first_steam_evidence_base_only() 
     assert "최신 rankings" in text
 
 
-def test_combined_source_view_contract_keeps_mapping_identity_future_only() -> None:
+def test_combined_source_view_contract_keeps_mapping_identity_minimal_only() -> None:
     text = "\n".join(
         [
             _read_lower(COMBINED_READINESS_CONTRACT),
@@ -330,12 +329,21 @@ def test_combined_source_view_contract_keeps_mapping_identity_future_only() -> N
         ]
     )
 
-    assert "future gated identity input" in text
+    assert (
+        "trusted chzzk mapping db input" in text
+        or "trusted chzzk mapping identity/context db input" in text
+    )
     assert "get /chzzk/category-game-mappings" in text
     assert "srv_chzzk_category_game_mapping" in text
     assert "trusted mapping identity rows" in text
-    assert "current `combined` runtime lineage" in text
-    assert "`combined` product semantics로 merge하지 않는다" in text
+    assert (
+        "does not call `get /chzzk/category-game-mappings` internally" in text
+        or "내부 호출하지 않는다" in text
+    )
+    assert (
+        "`combined` product semantics로 merge하지 않는다" in text
+        or "not representative-category" in text
+    )
 
 
 def test_candidate_generation_gate_allows_only_synthetic_dry_run_builder() -> None:

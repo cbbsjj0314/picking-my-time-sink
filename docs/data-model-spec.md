@@ -258,6 +258,15 @@ Updated by CATEGORY-MAPPING-COMBINED-SOURCE-VIEW-CONTRACT-001:
 - Updated by CATEGORY-MAPPING-COMBINED-BACKEND-API-CONTRACT-001: 첫 향후 Steam evidence-base contract family는 `srv_game_explore_period_metrics` / `/games/explore/overview` 로 선택한다. 이는 docs/tests-only 향후 backend contract boundary이며, implemented `Combined` input, current `Combined` runtime lineage, ranking/KPI/score/recommendation source, Steam runtime contract change가 아니다. 최신 CCU, price, reviews, rankings는 별도 승인 전까지 보조/향후 evidence source 후보로만 남긴다.
 - `srv_chzzk_category_game_mapping` and `GET /chzzk/category-game-mappings` are current trusted identity surfaces and future gated identity input candidates only for `Combined`. Chzzk category viewer metrics remain observed category evidence and are not merged into `Combined` ranking, KPI, score, or recommendation semantics.
 - Candidate/unresolved/rejected rows, `categoryType=GAME`, inferred mapping, guessed mapping, hidden fallback mapping, and synthetic joins are not valid `Combined` identity.
+- Updated by CATEGORY-MAPPING-COMBINED-MINIMAL-BACKEND-API-001:
+    - view: `srv_combined_game_overview`
+    - endpoint: `GET /combined/games/overview`
+    - read model: `srv_game_explore_period_metrics` is the Steam evidence-base row driver, and `srv_chzzk_category_game_mapping` is the trusted Chzzk mapping identity/context DB input.
+    - columns/fields: `canonical_game_id`, `canonical_name`, `steam_appid`, `steam_source_available`, `chzzk_mapping_available`, nullable `chzzk_category_id`, nullable `category_name`, nullable `category_type`, nullable `latest_bucket_time`.
+    - row grain: one row per selected Steam evidence-base `dim_game.canonical_game_id`.
+    - guard: if multiple trusted mapping rows share one `mapped_canonical_game_id`, a deterministic single-row guard keeps only one row for row-grain safety. This guard is non-semantic: no representative-category, best-mapping, primary-mapping, ranking, product, coverage, or multiple-category exposure semantics.
+    - boundary: backend service reads `srv_combined_game_overview`; it does not call `GET /chzzk/category-game-mappings` internally and does not read `chzzk_category_game_candidate`.
+    - deferred: Chzzk viewer/channel metrics, ranking/KPI/score/recommendation semantics, mapping coverage fields, candidate/unresolved/rejected/fallback mapping exposure, writes/backfills/scheduler/live fetch, and web data surface.
 
 ### 4.3 Steam Price (1시간)
 

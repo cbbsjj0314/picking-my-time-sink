@@ -38,6 +38,18 @@ Updated by CATEGORY-MAPPING-COMBINED-BACKEND-API-CONTRACT-001:
 - Chzzk viewer/channel metrics, `latest_viewers_observed`, `viewer_hours_observed`, `avg_viewers_observed`, `peak_viewers_observed`, `viewer_per_channel_observed`, `unique_channels_observed`, ranking/KPI/score/recommendation semantics, mapping coverage panel, web surface, automatic matching, platform generalization, candidate/unresolved/rejected/fallback mapping exposure는 계속 deferred다.
 - Candidate, unresolved, rejected, `categoryType=GAME`, inferred mapping, guessed mapping, fuzzy mapping, hidden fallback mapping, synthetic joins, private/local row evidence, raw provider payloads, automatic matching은 `Combined` identity로 유효하지 않다.
 
+Updated by CATEGORY-MAPPING-COMBINED-MINIMAL-BACKEND-API-001:
+
+이 update는 첫 minimal backend-only read-only `Combined` API slice를 구현한다.
+
+- SQL serving view는 `srv_combined_game_overview` 이고, API route는 `GET /combined/games/overview` 이다.
+- Row driver는 `srv_game_explore_period_metrics` 이며, output grain은 selected Steam evidence-base 안의 one row per `dim_game.canonical_game_id` 로 유지한다.
+- Trusted Chzzk identity/context input은 DB view `srv_chzzk_category_game_mapping` 이다. Backend service는 `GET /chzzk/category-game-mappings` 를 내부 호출하지 않는다.
+- Response fields는 `canonical_game_id`, `canonical_name`, `steam_appid`, `steam_source_available`, `chzzk_mapping_available`, nullable `chzzk_category_id`, nullable `category_name`, nullable `category_type`, nullable `latest_bucket_time` 만이다.
+- 동일 `mapped_canonical_game_id` 에 trusted mapping row가 여러 개 있으면 deterministic single-row guard로 한 row만 붙인다. 이 guard는 row-grain safety용이며 representative category, best mapping, primary mapping, ranking, product, coverage semantics가 아니다.
+- Chzzk viewer/channel metrics, `latest_viewers_observed`, `viewer_hours_observed`, `avg_viewers_observed`, `peak_viewers_observed`, `viewer_per_channel_observed`, `unique_channels_observed`, ranking/KPI/score/recommendation semantics, mapping coverage fields, candidate/unresolved/rejected/fallback mapping exposure, writes/backfills/scheduler/live fetch, web data surface, web fetch/hook, table, or `PendingSourcePanel` behavior change는 계속 deferred다.
+- 기존 `/games/explore/overview`, `/chzzk/categories/overview`, and `GET /chzzk/category-game-mappings` source endpoints는 각각의 기존 contract로 남으며, 이 slice는 Chzzk viewer metrics를 `Combined` product semantics로 merge하지 않는다.
+
 ## Current Context
 
 - `Combined` 는 web source tab에 존재하지만, 현재는 pending/blocked UI shell이다.
