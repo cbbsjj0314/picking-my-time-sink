@@ -25,7 +25,7 @@ This section is the canonical current public contract summary. Later sections pr
 - `chzzk_category_game_mapping`: trusted mapping storage다. `mapping_status`는 `trusted`만 허용하며 `chzzk_category_id` 하나당 trusted `dim_game.canonical_game_id` mapping 1개를 저장한다.
 - `srv_chzzk_category_game_mapping`: `chzzk_category_game_mapping`에서 `mapping_status = 'trusted'` row만 읽는 internal read-only DB serving view다. Nullable latest `fact_chzzk_category_30m` context를 붙일 수 있지만 `chzzk_category_game_candidate`는 읽지 않는다.
 - `GET /chzzk/category-game-mappings`: `srv_chzzk_category_game_mapping`만 읽는 read-only trusted mapping identity API다. `mapping_status`, `source_kind`, `reviewed_by`, `reviewed_at`, raw manual-hint evidence, candidate status, row-level private evidence는 노출하지 않는다.
-- `Combined`: 아직 구현되지 않았고, 이 contract summary만으로 readiness가 열리지 않는다. Future `Combined` SQL serving view, API route, web surface, Chzzk metric merge, ranking/KPI/score, data write/backfill/reingest, scheduler/runtime job, or live fetch는 별도 ticket과 Human Gate가 필요하다.
+- `Combined`: `CATEGORY-MAPPING-COMBINED-MINIMAL-BACKEND-API-001` 이후 minimal backend-only read-only `srv_combined_game_overview` / `GET /combined/games/overview` 는 구현되었지만, 이 contract summary만으로 broader readiness가 열리지 않는다. Web surface, Chzzk metric merge, ranking/KPI/score, data write/backfill/reingest, scheduler/runtime job, or live fetch는 별도 ticket과 Human Gate가 필요하다.
 
 `srv_chzzk_category_game_mapping` and `GET /chzzk/category-game-mappings` are current trusted identity surfaces, but they are not sufficient by themselves to open `Combined`.
 
@@ -48,7 +48,7 @@ Candidate evidence는 Combined KPI, canonical game semantics, 또는 serving sem
 - Steam-only baseline은 구현된 현재 runtime baseline이다.
 - Chzzk는 category-level observed facts와 read-only `/chzzk/categories/overview` source API로 제한되어 있다.
 - Chzzk category observed evidence는 category browser evidence일 뿐이며, Steam game mapping, canonical game semantics, Combined KPI로 승격되지 않았다.
-- Trusted Chzzk-to-Steam identity storage/API/view는 구현됐지만, product serving behavior와 Combined semantics는 아직 구현되지 않았다.
+- Trusted Chzzk-to-Steam identity storage/API/view와 minimal backend-only `Combined` overview는 구현됐지만, product serving behavior와 broader Combined semantics는 아직 구현되지 않았다.
 - `categoryType=GAME` 은 Chzzk provider의 category type evidence이며, `dim_game` 의 canonical game identity가 아니다.
 
 ## Proposed MVP Boundary

@@ -128,6 +128,7 @@ Local monitoring은 더 엄격한 thresholds, exact scheduler windows, host-spec
 | Chzzk category overview API / source view | direct API service aggregate over `fact_chzzk_category_30m` with optional matching `fact_chzzk_category_channel_30m` unique-channel evidence | `fact_chzzk_category_30m` category observed buckets; optional category-bucket-channel observed rows | local/private `category-result.jsonl` and `channel-result.jsonl` to gold loaders |
 | Chzzk observed channel fact | optional nullable `unique_channels_observed` evidence for Chzzk category overview/source view | `fact_chzzk_category_channel_30m` category-channel observed buckets | local/private `channel-result.jsonl` to gold loader |
 | Chzzk trusted category-game mappings API | `srv_chzzk_category_game_mapping` | `chzzk_category_game_mapping`, `dim_game`, nullable latest context from `fact_chzzk_category_30m` | `GET /chzzk/category-game-mappings` exposes trusted mapping identity rows only; no web/`Combined` exposure |
+| Minimal Combined game overview API | `srv_combined_game_overview` | `srv_game_explore_period_metrics`, `srv_chzzk_category_game_mapping` with deterministic single-row mapping guard | `GET /combined/games/overview`; backend-only read-only identity/source availability slice; no Chzzk viewer metrics, ranking/KPI/score/recommendation, mapping coverage, web surface, writes/backfills/scheduler/live fetch |
 
 Updated by CATEGORY-MAPPING-COMBINED-SOURCE-VIEW-CONTRACT-001:
 
@@ -140,6 +141,10 @@ Updated by CATEGORY-MAPPING-COMBINED-BACKEND-API-CONTRACT-001: 첫 향후 Steam 
 `srv_chzzk_category_game_mapping` 은 `Combined` 의 future backend identity input candidate다. `GET /chzzk/category-game-mappings` 는 read-only inspection/API surface로 남기며, DB serving view를 사용할 수 있을 때 backend-internal dependency가 되면 안 된다.
 
 Candidate/unresolved/rejected mappings, `categoryType=GAME`, inferred mapping, guessed mapping, hidden fallback mapping, and Chzzk viewer metrics are not valid `Combined` identity or `Combined` product semantics.
+
+Updated by CATEGORY-MAPPING-COMBINED-MINIMAL-BACKEND-API-001: `srv_combined_game_overview` and `GET /combined/games/overview` now provide the first minimal backend-only read-only `Combined` slice. The row driver is `srv_game_explore_period_metrics`; trusted Chzzk mapping identity/context comes from `srv_chzzk_category_game_mapping`, not from an internal call to `GET /chzzk/category-game-mappings`. Multiple trusted mappings for one `mapped_canonical_game_id` are collapsed by a deterministic single-row guard for row-grain safety only; this is not representative-category, best-mapping, ranking, product, or coverage semantics.
+
+The implemented fields are limited to canonical identity, Steam source availability, Chzzk mapping availability, nullable Chzzk category identity/context, and nullable latest bucket time. Chzzk viewer/channel metrics, ranking/KPI/score/recommendation semantics, mapping coverage fields, candidate/unresolved/rejected/fallback mapping exposure, writes/backfills/scheduler/live fetch, and web data surface remain deferred.
 
 Chzzk `fact_chzzk_category_30m` 은 provider-specific DDL/parser candidate에서 local/private `category-result.jsonl` artifact-to-Postgres write path와 read-only category overview API로 승격되었다.
 

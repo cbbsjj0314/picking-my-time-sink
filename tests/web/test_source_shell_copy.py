@@ -134,29 +134,30 @@ def test_combined_pending_shell_does_not_gain_mapping_fields() -> None:
         assert needle not in source
 
 
-def test_no_combined_api_or_sql_surface_exists_yet() -> None:
+def test_combined_backend_surface_is_minimal_and_web_surface_stays_blocked() -> None:
     api_source = _read_tree(API_SRC_PATH, "*.py")
     sql_source = _read_tree(SQL_POSTGRES_PATH, "*.sql")
+    combined_sql = Path("sql/postgres/028_srv_combined_game_overview.sql").read_text(
+        encoding="utf-8"
+    )
 
-    for needle in [
-        "/combined",
-        "combined source",
-        "combined_source",
-        "CombinedResponse",
-        "CombinedOverview",
-        "list_combined",
-        "combined_router",
-    ]:
+    assert 'prefix="/combined"' in api_source
+    assert '"/games/overview"' in api_source
+    assert "srv_combined_game_overview" in sql_source
+
+    for needle in ["combined_source", "CombinedSource", "MappingCoverage"]:
         assert needle not in api_source
 
     for needle in [
-        "srv_combined",
         "combined_source",
-        "combined source",
         "create or replace view combined",
         "create or replace view srv_game_combined",
+        "mapping_coverage",
+        "latest_viewers_observed",
+        "viewer_hours_observed",
+        "candidate_status",
     ]:
-        assert needle not in sql_source.lower()
+        assert needle not in combined_sql.lower()
 
 
 def test_no_combined_web_data_surface_or_mapping_coverage_panel_exists_yet() -> None:
