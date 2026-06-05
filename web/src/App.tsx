@@ -1,6 +1,6 @@
 import { startTransition, useDeferredValue, useEffect, useState } from 'react'
 import { ChzzkCategoryTable } from './components/ChzzkCategoryTable'
-import { PendingSourcePanel } from './components/PendingSourcePanel'
+import { CombinedGameOverviewTable } from './components/CombinedGameOverviewTable'
 import { SourceTabsRow } from './components/SourceTabsRow'
 import { SteamDiscoverModeRow } from './components/SteamDiscoverModeRow'
 import { SteamDetailPanel } from './components/SteamDetailPanel'
@@ -8,6 +8,7 @@ import { SteamExploreTable } from './components/SteamExploreTable'
 import { SteamRankingList } from './components/SteamRankingList'
 import { StickyShell } from './components/StickyShell'
 import { useChzzkCategoryOverview } from './hooks/useChzzkCategoryOverview'
+import { useCombinedGameOverview } from './hooks/useCombinedGameOverview'
 import { useSteamExploreOverview } from './hooks/useSteamExploreOverview'
 import { useSteamOverview } from './hooks/useSteamOverview'
 import type { RangeOption, SourceTab, SteamChartRange, SteamDiscoverMode } from './types'
@@ -36,7 +37,7 @@ const getSearchPlaceholder = (sourceTab: SourceTab, steamDiscoverMode: SteamDisc
     return 'Search Chzzk observed categories'
   }
 
-  return 'Search current source'
+  return 'Search Combined identity rows'
 }
 
 function App() {
@@ -81,6 +82,17 @@ function App() {
     requestSort: requestChzzkCategorySort,
   } = useChzzkCategoryOverview({
     enabled: sourceTab === 'Chzzk',
+    searchQuery: deferredSearch,
+  })
+  const {
+    rows: combinedGameRows,
+    totalRowCount: combinedGameTotalRowCount,
+    loading: combinedGameLoading,
+    error: combinedGameError,
+    sortState: combinedGameSortState,
+    requestSort: requestCombinedGameSort,
+  } = useCombinedGameOverview({
+    enabled: sourceTab === 'Combined',
     searchQuery: deferredSearch,
   })
   const activeGames = steamGames
@@ -214,7 +226,15 @@ function App() {
             totalRowCount={chzzkCategoryTotalRowCount}
           />
         ) : (
-          <PendingSourcePanel sourceTab={sourceTab} />
+          <CombinedGameOverviewTable
+            error={combinedGameError}
+            loading={combinedGameLoading}
+            onSortChange={requestCombinedGameSort}
+            rows={combinedGameRows}
+            searchQuery={deferredSearch}
+            sortState={combinedGameSortState}
+            totalRowCount={combinedGameTotalRowCount}
+          />
         )}
       </main>
     </div>

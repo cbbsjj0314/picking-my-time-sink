@@ -3,8 +3,11 @@ from __future__ import annotations
 from pathlib import Path
 
 APP_PATH = Path("web/src/App.tsx")
-PENDING_SOURCE_PANEL_PATH = Path("web/src/components/PendingSourcePanel.tsx")
 SOURCE_TABS_ROW_PATH = Path("web/src/components/SourceTabsRow.tsx")
+COMBINED_API_PATH = Path("web/src/api/combined.ts")
+COMBINED_HOOK_PATH = Path("web/src/hooks/useCombinedGameOverview.ts")
+COMBINED_TABLE_PATH = Path("web/src/components/CombinedGameOverviewTable.tsx")
+COMBINED_VIEW_MODEL_PATH = Path("web/src/lib/combinedGameOverviewViewModel.ts")
 WEB_SRC_PATH = Path("web/src")
 API_SRC_PATH = Path("src/api")
 SQL_POSTGRES_PATH = Path("sql/postgres")
@@ -18,37 +21,17 @@ def _read_tree(path: Path, pattern: str) -> str:
     )
 
 
-def test_pending_source_panel_is_combined_only() -> None:
-    source = PENDING_SOURCE_PANEL_PATH.read_text(encoding="utf-8")
-
-    assert "sourceTab: Extract<SourceTab, 'Combined'>" in source
-    assert (
-        "Record<Extract<SourceTab, 'Combined'>, "
-        "{ title: string; body: string; note: string }>"
-        in source
+def _combined_web_surface_source() -> str:
+    return "\n".join(
+        [
+            APP_PATH.read_text(encoding="utf-8"),
+            SOURCE_TABS_ROW_PATH.read_text(encoding="utf-8"),
+            COMBINED_API_PATH.read_text(encoding="utf-8"),
+            COMBINED_HOOK_PATH.read_text(encoding="utf-8"),
+            COMBINED_TABLE_PATH.read_text(encoding="utf-8"),
+            COMBINED_VIEW_MODEL_PATH.read_text(encoding="utf-8"),
+        ]
     )
-    assert "Combined 소스는 아직 준비 중" in source
-    assert (
-        "Steam과 Chzzk 관측 데이터를 하나의 판단 화면으로 합치는 기능은 아직 준비 중이다."
-        in source
-    )
-    assert (
-        "현재는 Steam source view와 Chzzk observed source view를 각각 분리해서 제공한다."
-        in source
-    )
-    assert "Chzzk:" not in source
-
-
-def test_stale_chzzk_pending_copy_is_removed() -> None:
-    source = PENDING_SOURCE_PANEL_PATH.read_text(encoding="utf-8")
-
-    stale_copy = [
-        "Chzzk 소스는 아직 준비 중",
-        "Chzzk 실데이터 경로는 아직 연결되지 않음",
-        "현재는 Steam만 실제 데이터로 연결되어 있음",
-    ]
-    for copy in stale_copy:
-        assert copy not in source
 
 
 def test_chzzk_route_stays_connected_to_observed_source_view() -> None:
@@ -56,13 +39,28 @@ def test_chzzk_route_stays_connected_to_observed_source_view() -> None:
 
     assert "sourceTab === 'Chzzk'" in source
     assert "<ChzzkCategoryTable" in source
-    assert "<PendingSourcePanel sourceTab={sourceTab} />" in source
+    assert "enabled: sourceTab === 'Chzzk'" in source
+
+
+def test_combined_route_uses_minimal_backend_overview_surface() -> None:
+    app_source = APP_PATH.read_text(encoding="utf-8")
+    api_source = COMBINED_API_PATH.read_text(encoding="utf-8")
+    hook_source = COMBINED_HOOK_PATH.read_text(encoding="utf-8")
+
+    assert "sourceTab === 'Combined'" in app_source
+    assert "<CombinedGameOverviewTable" in app_source
+    assert "PendingSourcePanel" not in app_source
+    assert "'/combined/games/overview'" in api_source
+    assert "requestJson<CombinedGameOverview[]>" in api_source
+    assert "limit: options.limit ?? 50" in api_source
+    assert "enabled: sourceTab === 'Combined'" in app_source
+    assert "combinedApi.listGameOverview" in hook_source
 
 
 def test_source_tabs_explain_current_source_boundaries() -> None:
     source = SOURCE_TABS_ROW_PATH.read_text(encoding="utf-8")
 
-    assert "Combined source is planned." in source
+    assert "Combined minimal identity/source availability view." in source
     assert "Steam source view" in source
     assert "Chzzk observed source view" in source
     assert "aria-label={boundaryCopy}" in source
@@ -83,58 +81,108 @@ def test_source_tabs_expose_selected_state_semantics() -> None:
     assert 'role="tab"' not in source
 
 
-def test_source_shell_copy_does_not_claim_deferred_work_is_implemented() -> None:
-    shell_source = "\n".join(
-        [
-            PENDING_SOURCE_PANEL_PATH.read_text(encoding="utf-8"),
-            SOURCE_TABS_ROW_PATH.read_text(encoding="utf-8"),
-        ]
-    )
+def test_combined_web_api_exposes_only_approved_fields() -> None:
+    source = COMBINED_API_PATH.read_text(encoding="utf-8")
 
-    forbidden_claims = [
-        "Combined semantics",
-        "Combined KPI",
-        "trusted mapping",
-        "category-to-game",
-        "Steam-equivalent",
-        "completed baseline",
-        "scheduler",
-        "live fetch",
-        "DB write",
-    ]
-    for claim in forbidden_claims:
-        assert claim not in shell_source
-
-
-def test_combined_pending_shell_does_not_gain_mapping_fields() -> None:
-    source = "\n".join(
-        [
-            APP_PATH.read_text(encoding="utf-8"),
-            PENDING_SOURCE_PANEL_PATH.read_text(encoding="utf-8"),
-            SOURCE_TABS_ROW_PATH.read_text(encoding="utf-8"),
-        ]
-    )
-
-    assert "<PendingSourcePanel sourceTab={sourceTab} />" in source
-    assert "sourceTab: Extract<SourceTab, 'Combined'>" in source
-    for needle in [
+    for field in [
         "canonical_game_id",
+        "canonical_name",
         "steam_appid",
-        "mapped_steam_game",
+        "steam_source_available",
+        "chzzk_mapping_available",
+        "chzzk_category_id",
+        "category_name",
+        "category_type",
+        "latest_bucket_time",
+    ]:
+        assert field in source
+
+    for forbidden_field in [
         "mapping_status",
-        "mapping_method",
-        "mapping_confidence",
-        "canonicalGame",
-        "mappedSteamGame",
-        "mappingStatus",
-        "mappingMethod",
-        "mappingConfidence",
-        "category-game-mappings",
+        "source_kind",
+        "reviewed_by",
+        "reviewed_at",
+        "candidate_id",
+        "candidate_status",
+        "latest_viewers_observed",
+        "viewer_hours_observed",
+        "avg_viewers_observed",
+        "peak_viewers_observed",
+        "viewer_per_channel_observed",
+        "unique_channels_observed",
+        "rank",
+        "ranking",
+        "kpi",
+        "score",
+        "recommendation",
+        "mapping_coverage",
+        "fallback_mapping",
+        "unresolved_mapping",
+        "rejected_mapping",
+    ]:
+        assert forbidden_field not in source
+
+
+def test_combined_web_surface_uses_only_combined_overview_endpoint() -> None:
+    source = _combined_web_surface_source()
+
+    assert "/combined/games/overview" in source
+    for forbidden_endpoint in [
+        "/chzzk/category-game-mappings",
+        "/chzzk/categories/overview",
+        "/games/explore/overview",
+        "/games/rankings/latest",
+        "/games/ccu/latest",
+        "/games/price/latest",
+        "/games/reviews/latest",
+    ]:
+        assert forbidden_endpoint not in source
+
+
+def test_combined_table_links_canonical_name_to_steam_store_without_visible_appid_support() -> None:
+    source = COMBINED_TABLE_PATH.read_text(encoding="utf-8")
+    view_model_source = COMBINED_VIEW_MODEL_PATH.read_text(encoding="utf-8")
+
+    assert "https://store.steampowered.com/app/${row.steam_appid}" in view_model_source
+    assert "href={row.steamStoreUrl}" in source
+    assert 'target="_blank"' in source
+    assert 'rel="noreferrer"' in source
+    assert "steam_appid {row.steamAppidLabel}" not in source
+
+
+def test_combined_web_surface_does_not_expose_metrics_or_product_semantics() -> None:
+    source = _combined_web_surface_source().lower()
+
+    for needle in [
+        "latest_viewers_observed",
+        "viewer_hours_observed",
+        "avg_viewers_observed",
+        "peak_viewers_observed",
+        "viewer_per_channel_observed",
+        "unique_channels_observed",
+        "mapping coverage",
+        "mapping_coverage",
+        "candidate mapping",
+        "unresolved mapping",
+        "rejected mapping",
+        "fallback mapping",
+        "candidate_status",
+        "categorytype=game",
+        "inferred mapping",
+        "guessed mapping",
+        "kpi",
+        "score",
+        "recommendation",
+        "recommended",
+        "ranked combined",
+        "combined ranking",
+        "popularity",
+        "freshness score",
     ]:
         assert needle not in source
 
 
-def test_combined_backend_surface_is_minimal_and_web_surface_stays_blocked() -> None:
+def test_combined_backend_surface_remains_minimal() -> None:
     api_source = _read_tree(API_SRC_PATH, "*.py")
     sql_source = _read_tree(SQL_POSTGRES_PATH, "*.sql")
     combined_sql = Path("sql/postgres/028_srv_combined_game_overview.sql").read_text(
@@ -160,44 +208,10 @@ def test_combined_backend_surface_is_minimal_and_web_surface_stays_blocked() -> 
         assert needle not in combined_sql.lower()
 
 
-def test_no_combined_web_data_surface_or_mapping_coverage_panel_exists_yet() -> None:
+def test_no_legacy_pending_combined_shell_remains_wired() -> None:
     app_source = APP_PATH.read_text(encoding="utf-8")
     web_source = _read_tree(WEB_SRC_PATH, "*.tsx") + "\n" + _read_tree(WEB_SRC_PATH, "*.ts")
 
-    assert "<PendingSourcePanel sourceTab={sourceTab} />" in app_source
+    assert "PendingSourcePanel" not in app_source
+    assert "Combined 소스는 아직 준비 중" not in web_source
     assert "CombinedWhySurfacedNow" not in app_source
-    assert "useCombined" not in web_source
-    assert "combinedApi" not in web_source
-    assert "CombinedTable" not in web_source
-    assert "CombinedSourceTable" not in web_source
-    assert "MappingCoverage" not in web_source
-    assert "mapping coverage" not in web_source.lower()
-    assert "category-game-mappings" not in web_source
-
-
-def test_combined_shell_does_not_gain_ranking_kpi_or_score_semantics() -> None:
-    source = "\n".join(
-        [
-            APP_PATH.read_text(encoding="utf-8"),
-            PENDING_SOURCE_PANEL_PATH.read_text(encoding="utf-8"),
-            SOURCE_TABS_ROW_PATH.read_text(encoding="utf-8"),
-        ]
-    ).lower()
-
-    for needle in [
-        "kpi",
-        "score",
-        "recommendation",
-        "recommended",
-        "ranked combined",
-        "combined ranking",
-        "mapping coverage",
-        "candidate mapping",
-        "unresolved mapping",
-        "rejected mapping",
-        "categorytype=game",
-        "inferred mapping",
-        "guessed mapping",
-        "fallback mapping",
-    ]:
-        assert needle not in source

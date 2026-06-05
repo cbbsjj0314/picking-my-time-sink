@@ -266,7 +266,8 @@ Updated by CATEGORY-MAPPING-COMBINED-SOURCE-VIEW-CONTRACT-001:
     - row grain: one row per selected Steam evidence-base `dim_game.canonical_game_id`.
     - guard: if multiple trusted mapping rows share one `mapped_canonical_game_id`, a deterministic single-row guard keeps only one row for row-grain safety. This guard is non-semantic: no representative-category, best-mapping, primary-mapping, ranking, product, coverage, or multiple-category exposure semantics.
     - boundary: backend service reads `srv_combined_game_overview`; it does not call `GET /chzzk/category-game-mappings` internally and does not read `chzzk_category_game_candidate`.
-    - deferred: Chzzk viewer/channel metrics, ranking/KPI/score/recommendation semantics, mapping coverage fields, candidate/unresolved/rejected/fallback mapping exposure, writes/backfills/scheduler/live fetch, and web data surface.
+    - Updated by CATEGORY-MAPPING-COMBINED-WEB-SURFACE-001: the first minimal web data surface is open as a read-only identity/source availability table using only `GET /combined/games/overview`.
+    - deferred: Chzzk viewer/channel metrics, ranking/KPI/score/recommendation semantics, mapping coverage fields, candidate/unresolved/rejected/fallback mapping exposure, backend SQL/API/schema changes, and writes/backfills/scheduler/live fetch.
 
 ### 4.3 Steam Price (1시간)
 

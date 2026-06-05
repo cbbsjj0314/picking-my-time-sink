@@ -33,7 +33,7 @@ def test_app_defines_placeholders_for_current_source_search_boundaries() -> None
     assert "Search Steam games" in source
     assert "Search Steam top sellers" in source
     assert "Search Chzzk observed categories" in source
-    assert "Search current source" in source
+    assert "Search Combined identity rows" in source
 
 
 def test_chzzk_search_placeholder_stays_observed_category_scoped() -> None:

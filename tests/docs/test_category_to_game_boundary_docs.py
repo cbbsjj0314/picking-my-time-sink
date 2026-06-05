@@ -209,52 +209,68 @@ def test_trusted_mapping_serving_view_contract_pins_minimal_api_and_deferrals() 
     assert "readiness gate" in text
 
 
-def test_combined_source_view_contract_records_minimal_backend_api_boundary() -> None:
+def test_combined_source_view_contract_records_minimal_backend_and_web_boundary() -> None:
     text = _read_lower(COMBINED_READINESS_CONTRACT)
-    update_context = _near(
+    backend_update_context = _near(
         text,
         "updated by category-mapping-combined-minimal-backend-api-001",
         span=3200,
     )
+    web_update_context = _near(
+        text,
+        "updated by category-mapping-combined-web-surface-001",
+        span=2200,
+    )
 
-    assert "minimal backend-only read-only `combined` api slice" in update_context
-    assert "srv_combined_game_overview" in update_context
-    assert "get /combined/games/overview" in update_context
-    assert "web data surface" in update_context
-    assert "web fetch/hook" in update_context
-    assert "table" in update_context
-    assert "mapping coverage panel" in update_context
-    assert "ranking" in update_context
-    assert "kpi" in update_context
-    assert "score" in update_context
-    assert "recommendation semantics" in update_context
-    assert "deferred" in update_context
+    assert "minimal backend-only read-only `combined` api slice" in backend_update_context
+    assert "srv_combined_game_overview" in backend_update_context
+    assert "get /combined/games/overview" in backend_update_context
+    assert "mapping coverage panel" in backend_update_context
+    assert "ranking" in backend_update_context
+    assert "kpi" in backend_update_context
+    assert "score" in backend_update_context
+    assert "recommendation semantics" in backend_update_context
+    assert "deferred" in backend_update_context
 
-    assert "one row per `dim_game.canonical_game_id`" in update_context
-    assert "selected steam evidence-base" in update_context
+    assert "one row per `dim_game.canonical_game_id`" in backend_update_context
+    assert "selected steam evidence-base" in backend_update_context
 
-    assert "srv_game_explore_period_metrics" in update_context
-    assert "/games/explore/overview" in update_context
+    assert "srv_game_explore_period_metrics" in backend_update_context
+    assert "/games/explore/overview" in backend_update_context
 
-    assert "trusted chzzk identity/context input" in update_context
-    assert "srv_chzzk_category_game_mapping" in update_context
-    assert "get /chzzk/category-game-mappings" in update_context
-    assert "내부 호출하지 않는다" in update_context
+    assert "trusted chzzk identity/context input" in backend_update_context
+    assert "srv_chzzk_category_game_mapping" in backend_update_context
+    assert "get /chzzk/category-game-mappings" in backend_update_context
+    assert "내부 호출하지 않는다" in backend_update_context
 
-    assert "canonical_game_id" in update_context
-    assert "canonical_name" in update_context
-    assert "steam_appid" in update_context
-    assert "steam_source_available" in update_context
-    assert "chzzk_mapping_available" in update_context
-    assert "chzzk_category_id" in update_context
-    assert "category_name" in update_context
-    assert "category_type" in update_context
-    assert "latest_bucket_time" in update_context
+    for field in [
+        "canonical_game_id",
+        "canonical_name",
+        "steam_appid",
+        "steam_source_available",
+        "chzzk_mapping_available",
+        "chzzk_category_id",
+        "category_name",
+        "category_type",
+        "latest_bucket_time",
+    ]:
+        assert field in backend_update_context
+        assert field in web_update_context
 
-    assert "deterministic single-row guard" in update_context
-    assert "representative category" in update_context
-    assert "best mapping" in update_context
-    assert "coverage semantics가 아니다" in update_context
+    assert "deterministic single-row guard" in backend_update_context
+    assert "representative category" in backend_update_context
+    assert "best mapping" in backend_update_context
+    assert "coverage semantics가 아니다" in backend_update_context
+
+    assert "첫 minimal read-only `combined` web source surface" in web_update_context
+    assert "web source view는 `get /combined/games/overview` 만 호출한다" in web_update_context
+    assert "identity/source availability table" in web_update_context
+    assert "freshness score" in web_update_context
+    assert "popularity" in web_update_context
+    assert "viewer activity" in web_update_context
+    assert "candidate/unresolved/rejected/fallback mapping exposure" in web_update_context
+    assert "backend sql/api/schema changes" in web_update_context
+    assert "writes/backfills/reingest/scheduler/live fetch" in web_update_context
 
 
 def test_combined_source_view_contract_blocks_premature_identity_and_kpi_unlocks() -> None:

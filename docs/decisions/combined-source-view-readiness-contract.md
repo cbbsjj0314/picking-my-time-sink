@@ -1,17 +1,17 @@
 # Combined Source View Readiness Contract
 
-Status: current Combined blocked/readiness guardrail
+Status: current minimal Combined identity/source-availability guardrail
 Date: 2026-05-19 (KST)
 
-Role: current `Combined` blocked/readiness guardrail, not a `Combined` implementation contract.
+Role: current `Combined` identity/source-availability guardrail, not a broader `Combined` product semantics contract.
 
-이 문서는 `Combined` source view가 구현 전까지 blocked/pending 상태로 남아야 하는 조건을 고정한다.
+이 문서는 첫 minimal `Combined` web surface 이후에도 broader `Combined` product semantics가 닫혀 있어야 하는 조건을 고정한다.
 
-이 결정은 schema, API, runtime, loader, scheduler, web behavior, DB write, category-to-game trusted mapping, 또는 `Combined` semantics 구현 승인이 아니다.
+이 결정은 schema, API, runtime, loader, scheduler, DB write, category-to-game trusted mapping, 또는 broader `Combined` semantics 구현 승인이 아니다.
 
 현재 durable context는 `README.md`, `docs/source-inventory.md`, `docs/data-model-spec.md`, `docs/decisions/category-to-game-mapping-contract.md` 를 따른다.
 
-목적은 trusted mapping과 serving semantics가 별도 승인될 때까지 `Combined` 를 blocked/pending 상태로 유지하는 것이다.
+목적은 approved minimal identity/source-availability surface 밖에서 trusted mapping과 serving semantics가 별도 승인될 때까지 broader `Combined` product semantics를 blocked 상태로 유지하는 것이다.
 
 Updated by CATEGORY-MAPPING-COMBINED-SOURCE-VIEW-CONTRACT-001:
 
@@ -47,13 +47,25 @@ Updated by CATEGORY-MAPPING-COMBINED-MINIMAL-BACKEND-API-001:
 - Trusted Chzzk identity/context input은 DB view `srv_chzzk_category_game_mapping` 이다. Backend service는 `GET /chzzk/category-game-mappings` 를 내부 호출하지 않는다.
 - Response fields는 `canonical_game_id`, `canonical_name`, `steam_appid`, `steam_source_available`, `chzzk_mapping_available`, nullable `chzzk_category_id`, nullable `category_name`, nullable `category_type`, nullable `latest_bucket_time` 만이다.
 - 동일 `mapped_canonical_game_id` 에 trusted mapping row가 여러 개 있으면 deterministic single-row guard로 한 row만 붙인다. 이 guard는 row-grain safety용이며 representative category, best mapping, primary mapping, ranking, product, coverage semantics가 아니다.
-- Chzzk viewer/channel metrics, `latest_viewers_observed`, `viewer_hours_observed`, `avg_viewers_observed`, `peak_viewers_observed`, `viewer_per_channel_observed`, `unique_channels_observed`, ranking/KPI/score/recommendation semantics, mapping coverage fields, candidate/unresolved/rejected/fallback mapping exposure, writes/backfills/scheduler/live fetch, web data surface, web fetch/hook, table, or `PendingSourcePanel` behavior change는 계속 deferred다.
+- Chzzk viewer/channel metrics, `latest_viewers_observed`, `viewer_hours_observed`, `avg_viewers_observed`, `peak_viewers_observed`, `viewer_per_channel_observed`, `unique_channels_observed`, ranking/KPI/score/recommendation semantics, mapping coverage fields, candidate/unresolved/rejected/fallback mapping exposure, writes/backfills/scheduler/live fetch, and web data surface는 이 backend-only slice에서는 deferred였다.
 - 기존 `/games/explore/overview`, `/chzzk/categories/overview`, and `GET /chzzk/category-game-mappings` source endpoints는 각각의 기존 contract로 남으며, 이 slice는 Chzzk viewer metrics를 `Combined` product semantics로 merge하지 않는다.
+
+Updated by CATEGORY-MAPPING-COMBINED-WEB-SURFACE-001:
+
+이 update는 첫 minimal read-only `Combined` web source surface를 구현한다.
+
+- Web source view는 `GET /combined/games/overview` 만 호출한다.
+- Web surface는 identity/source availability table로 제한한다.
+- Visible fields는 canonical identity, Steam source availability, nullable trusted Chzzk mapping identity/context, nullable `latest_bucket_time` 이다.
+- `latest_bucket_time` 은 nullable trusted Chzzk mapping/context timestamp로만 표시하며 freshness score, popularity, ranking, coverage, viewer activity, or recommendation evidence가 아니다.
+- Chzzk viewer/channel metrics, ranking/KPI/score/recommendation semantics, mapping coverage panel, candidate/unresolved/rejected/fallback mapping exposure, backend SQL/API/schema changes, writes/backfills/reingest/scheduler/live fetch는 계속 deferred다.
+- `GET /chzzk/category-game-mappings`, `/chzzk/categories/overview`, Steam provider APIs, Chzzk provider/live APIs를 이 web surface에서 호출하지 않는다.
+- `PendingSourcePanel` 은 active `Combined` source tab에서 제거된다.
 
 ## Current Context
 
-- `Combined` 는 web source tab에 존재하지만, 현재는 pending/blocked UI shell이다.
-- `PendingSourcePanel` 은 `Combined` 를 준비 중인 source로 표시한다.
+- `Combined` 는 web source tab에 존재하며, 현재 minimal identity/source-availability table을 제공한다.
+- 이 table은 `GET /combined/games/overview` 만 사용하는 read-only web source surface다.
 - Steam source view와 Chzzk source view는 현재 분리되어 있다.
 - Chzzk category evidence는 observed source evidence이며 canonical game identity가 아니다.
 - Candidate category-to-game evidence는 trusted mapping이 아니다.
@@ -61,12 +73,12 @@ Updated by CATEGORY-MAPPING-COMBINED-MINIMAL-BACKEND-API-001:
 
 ## Blocked-State Rule
 
-`Combined` 는 아래 readiness gates가 모두 별도 승인될 때까지 blocked/pending 상태로 남아야 한다.
+Broader `Combined` product semantics는 아래 readiness gates가 모두 별도 승인될 때까지 blocked 상태로 남아야 한다.
 
 - `candidate`, `unresolved`, `rejected` category-to-game evidence는 `Combined` row, KPI, ranking, sorting, game identity를 만들거나 보강하는 데 사용할 수 없다.
 - `categoryType=GAME` 만으로는 `Combined` row, canonical game relationship, Steam-Chzzk mapping을 만들 수 없다.
 - hidden inferred mapping, synthetic join, fallback mapping, guessed mapping은 허용하지 않는다.
-- Trusted mapping과 serving semantics가 승인되기 전까지 `Combined` data semantics는 없다.
+- Approved minimal identity/source-availability fields 밖에서는 trusted mapping과 serving semantics가 승인되기 전까지 `Combined` product semantics가 없다.
 
 `srv_chzzk_category_game_mapping` 같은 internal read-only DB serving view contract는 단독으로 `Combined` readiness gate를 충족하지 않는다.
 
@@ -74,11 +86,11 @@ Updated by CATEGORY-MAPPING-COMBINED-MINIMAL-BACKEND-API-001:
 
 Future backend `Combined` should not need to call `GET /chzzk/category-game-mappings` internally when `srv_chzzk_category_game_mapping` is available as the DB serving view.
 
-Web exposure, product serving behavior, ranking/KPI semantics, and `Combined` semantics remain separate Human Gate items.
+Product serving behavior, ranking/KPI semantics, Chzzk metric merge, mapping coverage, and broader `Combined` semantics remain separate Human Gate items.
 
 ## Readiness Gates
 
-나중에 `Combined` 를 blocked/pending 상태 밖으로 옮기려면 아래 조건을 checklist 수준에서 모두 만족해야 한다.
+나중에 broader `Combined` product semantics를 blocked 상태 밖으로 옮기려면 아래 조건을 checklist 수준에서 모두 만족해야 한다.
 
 - Trusted category-to-game mapping contract와 promotion rules가 승인되어야 한다.
 - Serving semantics가 별도 승인되어야 한다.
@@ -88,22 +100,23 @@ Web exposure, product serving behavior, ranking/KPI semantics, and `Combined` se
 - Human Gate approval이 필요하다.
 - Implementation ticket은 관련 durable docs와 tests를 같은 slice에서 갱신해야 한다.
 
-## Allowed While Blocked
+## Allowed While Product Semantics Are Blocked
 
-`Combined` 가 blocked/pending 상태인 동안 허용되는 작업은 planning boundary에 한정한다.
+Broader `Combined` product semantics가 blocked 상태인 동안 허용되는 작업은 아래 boundary에 한정한다.
 
-- Public pending/blocked explanation
+- Public product-semantics blocked explanation
 - Durable readiness checklist
 - Read-only review 또는 planning-contract follow-up
 - Separate Steam and Chzzk source views
-- No `Combined` data semantics
+- Minimal read-only identity/source-availability table using `GET /combined/games/overview`
+- No broader `Combined` product semantics
 
 ## Explicit Non-Goals
 
 이 문서는 아래 작업을 승인하거나 구현하지 않는다.
 
-- `Combined` UI implementation
-- `Combined` API 또는 response shape
+- Broader `Combined` UI implementation beyond the minimal identity/source-availability table
+- `Combined` API 또는 response shape changes
 - Schema, SQL, migration, DDL
 - DB write, backfill, reingest, bootstrap
 - Live fetch
@@ -112,7 +125,6 @@ Web exposure, product serving behavior, ranking/KPI semantics, and `Combined` se
 - Trusted mapping usage
 - Generalized provider abstraction
 - `gold_stream_game_30m`
-- `PendingSourcePanel` copy 또는 behavior change
 - KPI formula, ranking/sort semantics, table grain, storage shape, UI field behavior
 
 ## Public/Private Boundary
