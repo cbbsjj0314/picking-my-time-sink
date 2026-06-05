@@ -159,8 +159,18 @@ export function CombinedGameOverviewTable({
               {rows.map((row) => (
                 <tr key={row.id} className="transition hover:bg-[rgba(255,249,239,0.42)]">
                   <td className="min-w-[240px] px-4 py-3 align-top">
-                    <div className="font-semibold leading-snug text-[var(--text-primary)]">{row.canonicalName}</div>
-                    <div className="mt-1 text-xs text-[var(--text-muted)]">steam_appid {row.steamAppidLabel}</div>
+                    {row.steamStoreUrl ? (
+                      <a
+                        className="font-semibold leading-snug text-[var(--text-primary)] underline decoration-[var(--ghost-border-strong)] underline-offset-4 transition hover:text-[var(--text-secondary)]"
+                        href={row.steamStoreUrl}
+                        rel="noreferrer"
+                        target="_blank"
+                      >
+                        {row.canonicalName}
+                      </a>
+                    ) : (
+                      <div className="font-semibold leading-snug text-[var(--text-primary)]">{row.canonicalName}</div>
+                    )}
                   </td>
                   <CombinedCell value={String(row.canonicalGameId)} />
                   <CombinedCell title={row.steamSourceTitle} value={row.steamSourceLabel} />

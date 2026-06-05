@@ -24,6 +24,7 @@ export interface CombinedGameOverviewTableRow {
   canonicalGameId: number
   canonicalName: string
   steamAppidLabel: string
+  steamStoreUrl: string | null
   steamSourceLabel: string
   steamSourceTitle: string
   chzzkMappingLabel: string
@@ -87,6 +88,7 @@ const buildCombinedGameOverviewTableRow = (row: CombinedGameOverview): CombinedG
   canonicalGameId: row.canonical_game_id,
   canonicalName: row.canonical_name,
   steamAppidLabel: row.steam_appid === null ? EMPTY_CELL : String(row.steam_appid),
+  steamStoreUrl: row.steam_appid === null ? null : `https://store.steampowered.com/app/${row.steam_appid}`,
   steamSourceLabel: row.steam_source_available ? 'Steam source available' : 'Steam source unavailable',
   steamSourceTitle: 'Steam source availability from the Combined overview endpoint.',
   chzzkMappingLabel: row.chzzk_mapping_available ? 'Trusted mapping available' : 'No trusted Chzzk mapping',

@@ -139,6 +139,17 @@ def test_combined_web_surface_uses_only_combined_overview_endpoint() -> None:
         assert forbidden_endpoint not in source
 
 
+def test_combined_table_links_canonical_name_to_steam_store_without_visible_appid_support() -> None:
+    source = COMBINED_TABLE_PATH.read_text(encoding="utf-8")
+    view_model_source = COMBINED_VIEW_MODEL_PATH.read_text(encoding="utf-8")
+
+    assert "https://store.steampowered.com/app/${row.steam_appid}" in view_model_source
+    assert "href={row.steamStoreUrl}" in source
+    assert 'target="_blank"' in source
+    assert 'rel="noreferrer"' in source
+    assert "steam_appid {row.steamAppidLabel}" not in source
+
+
 def test_combined_web_surface_does_not_expose_metrics_or_product_semantics() -> None:
     source = _combined_web_surface_source().lower()
 
