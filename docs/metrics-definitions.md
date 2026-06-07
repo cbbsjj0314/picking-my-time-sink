@@ -673,6 +673,8 @@ host, port, Docker Compose, local artifact path, credentials, smoke commands는 
   `[window_start, window_end)`의 KST 30분 collection integrity를 반복 판정한다.
 - source는 local/private sanitized guarded-write wrapper evidence와 explicit read-only
   transaction에서 조회한 Postgres `fact_chzzk_category_30m`의 distinct `bucket_time`이다.
+- `no-write-result.json`은 wrapper가 사용하는 기존 success contract를 만족해야 하며,
+  JSON object여도 해당 contract가 깨지면 `degraded`로 판정한다.
 - classification은 다음 세 값만 사용한다.
     - `clean`: expected scheduler-wrapper interval이 정확히 한 번씩 성공했고 positive category
       committed-row evidence가 있으며 global category fact bucket이 모두 존재한다.

@@ -225,6 +225,38 @@ def _category_committed_state(guarded: JsonArtifact) -> tuple[str, int | None]:
     return ("positive" if value > 0 else "zero"), value
 
 
+def _no_write_success_contract_valid(no_write: JsonArtifact) -> bool:
+    if no_write.payload is None:
+        return False
+    payload = no_write.payload
+    action_policy = payload.get("action_policy")
+    artifact_checks = payload.get("artifact_checks")
+    live_fetch = payload.get("live_fetch")
+    if not all(
+        isinstance(value, Mapping)
+        for value in (action_policy, artifact_checks, live_fetch)
+    ):
+        return False
+    category_check = artifact_checks.get("category")
+    channel_check = artifact_checks.get("channel")
+    if not isinstance(category_check, Mapping) or not isinstance(channel_check, Mapping):
+        return False
+    run_id = payload.get("run_id")
+    return bool(
+        payload.get("status") == "success"
+        and payload.get("success") is True
+        and payload.get("failure_class") is None
+        and live_fetch.get("invocation_count") == 1
+        and action_policy.get("db_write_enabled") is False
+        and action_policy.get("scheduler_registration_enabled") is False
+        and category_check.get("status") == "present"
+        and channel_check.get("status") == "present"
+        and isinstance(run_id, str)
+        and run_id
+        and payload.get("selected_artifact_run_id") == run_id
+    )
+
+
 def audit_wrapper_evidence(base_dir: Path, window: WindowSpec) -> WrapperAudit:
     """Aggregate sanitized guarded-write wrapper evidence for one window."""
 
@@ -239,9 +271,11 @@ def audit_wrapper_evidence(base_dir: Path, window: WindowSpec) -> WrapperAudit:
     degraded: set[str] = set()
     incomplete: set[str] = set()
     mapped: list[dt.datetime] = []
+    retained_buckets: list[dt.datetime] = []
     mapping_unavailable = 0
     conflict_count = 0
     confirmed_failure_count = 0
+    no_write_contract_invalid_count = 0
 
     try:
         children = list(base_dir.iterdir())
@@ -254,6 +288,7 @@ def audit_wrapper_evidence(base_dir: Path, window: WindowSpec) -> WrapperAudit:
             "duplicate_mapped_interval_count": 0,
             "mapping_unavailable_run_count": 0,
             "retention_covers_window": False,
+            "no_write_success_contract_invalid_count": 0,
             "exit_code_counts": exit_counts,
             "artifact_state_counts": state_counts,
             "guarded_status_counts": status_counts,
@@ -283,6 +318,7 @@ def audit_wrapper_evidence(base_dir: Path, window: WindowSpec) -> WrapperAudit:
                 mapping_unavailable += 1
             continue
         bucket = floor_to_kst_half_hour(boundary)
+        retained_buckets.append(bucket)
         if not (window.start_kst <= bucket < window.end_kst):
             continue
 
@@ -303,6 +339,13 @@ def audit_wrapper_evidence(base_dir: Path, window: WindowSpec) -> WrapperAudit:
                 incomplete.add(reason)
             else:
                 degraded.add(reason)
+
+        no_write = artifacts["no_write_result"]
+        if no_write.state == "present_valid" and not _no_write_success_contract_valid(
+            no_write
+        ):
+            no_write_contract_invalid_count += 1
+            degraded.add("wrapper_no_write_result_semantic_invalid")
 
         trace_payload = artifacts["trace_end"].payload
         raw_exit = trace_payload.get("exit_code", _MISSING) if trace_payload else _MISSING
@@ -345,9 +388,9 @@ def audit_wrapper_evidence(base_dir: Path, window: WindowSpec) -> WrapperAudit:
     expected_set = frozenset(window.expected_buckets)
     missing_count = len(expected_set - mapped_set)
     retention_covers_window = bool(
-        mapped_set
-        and window.expected_buckets[0] in mapped_set
-        and window.expected_buckets[-1] in mapped_set
+        retained_buckets
+        and min(retained_buckets) <= window.expected_buckets[0]
+        and max(retained_buckets) >= window.expected_buckets[-1]
     )
     if missing_count:
         if retention_covers_window:
@@ -363,6 +406,7 @@ def audit_wrapper_evidence(base_dir: Path, window: WindowSpec) -> WrapperAudit:
         "duplicate_mapped_interval_count": duplicate_count,
         "mapping_unavailable_run_count": mapping_unavailable,
         "retention_covers_window": retention_covers_window,
+        "no_write_success_contract_invalid_count": no_write_contract_invalid_count,
         "exit_code_counts": exit_counts,
         "artifact_state_counts": state_counts,
         "guarded_status_counts": status_counts,

@@ -38,7 +38,23 @@ def write_run(
     run_dir = base_dir / boundary.strftime(audit.BOUNDARY_ID_FORMAT)
     write_json(run_dir / "trace" / "end.json", {"exit_code": exit_code})
     if no_write is None:
-        no_write = {"status": "success", "private_value": "not-exported"}
+        no_write = {
+            "status": "success",
+            "success": True,
+            "failure_class": None,
+            "live_fetch": {"invocation_count": 1},
+            "action_policy": {
+                "db_write_enabled": False,
+                "scheduler_registration_enabled": False,
+            },
+            "artifact_checks": {
+                "category": {"status": "present"},
+                "channel": {"status": "present"},
+            },
+            "run_id": "private-no-write-run-id",
+            "selected_artifact_run_id": "private-no-write-run-id",
+            "private_value": "not-exported",
+        }
     if no_write != "missing":
         if no_write == "empty":
             (run_dir / "no-write-result.json").parent.mkdir(parents=True, exist_ok=True)
@@ -223,6 +239,94 @@ def test_missing_internal_wrapper_interval_is_degraded(tmp_path: Path) -> None:
     assert "wrapper_expected_interval_missing" in report["reasons"]
 
 
+def test_missing_first_interval_with_surrounding_evidence_is_degraded(
+    tmp_path: Path,
+) -> None:
+    window = make_window(3)
+    write_run(tmp_path / "wrapper", window.start_kst - audit.INTERVAL)
+    for bucket in window.expected_buckets[1:]:
+        write_run(tmp_path / "wrapper", bucket)
+    write_run(tmp_path / "wrapper", window.end_kst)
+
+    report = build_report(tmp_path, window)
+
+    assert report["classification"] == "degraded"
+    assert report["wrapper"]["retention_covers_window"] is True
+    assert report["wrapper"]["missing_expected_interval_count"] == 1
+    assert "wrapper_expected_interval_missing" in report["reasons"]
+
+
+def test_missing_last_interval_with_surrounding_evidence_is_degraded(
+    tmp_path: Path,
+) -> None:
+    window = make_window(3)
+    write_run(tmp_path / "wrapper", window.start_kst - audit.INTERVAL)
+    for bucket in window.expected_buckets[:-1]:
+        write_run(tmp_path / "wrapper", bucket)
+    write_run(tmp_path / "wrapper", window.end_kst)
+
+    report = build_report(tmp_path, window)
+
+    assert report["classification"] == "degraded"
+    assert report["wrapper"]["retention_covers_window"] is True
+    assert report["wrapper"]["missing_expected_interval_count"] == 1
+    assert "wrapper_expected_interval_missing" in report["reasons"]
+
+
+def test_retained_evidence_starting_inside_window_is_incomplete(tmp_path: Path) -> None:
+    window = make_window(3)
+    for bucket in window.expected_buckets[1:]:
+        write_run(tmp_path / "wrapper", bucket)
+    write_run(tmp_path / "wrapper", window.end_kst)
+
+    report = build_report(tmp_path, window)
+
+    assert report["classification"] == "incomplete_evidence"
+    assert report["wrapper"]["retention_covers_window"] is False
+    assert "wrapper_window_evidence_incomplete" in report["reasons"]
+
+
+def test_retained_evidence_ending_inside_window_is_incomplete(tmp_path: Path) -> None:
+    window = make_window(3)
+    write_run(tmp_path / "wrapper", window.start_kst - audit.INTERVAL)
+    for bucket in window.expected_buckets[:-1]:
+        write_run(tmp_path / "wrapper", bucket)
+
+    report = build_report(tmp_path, window)
+
+    assert report["classification"] == "incomplete_evidence"
+    assert report["wrapper"]["retention_covers_window"] is False
+    assert "wrapper_window_evidence_incomplete" in report["reasons"]
+
+
+def test_complete_window_with_surrounding_evidence_stays_clean(tmp_path: Path) -> None:
+    window = make_window(3)
+    write_run(tmp_path / "wrapper", window.start_kst - audit.INTERVAL)
+    for bucket in window.expected_buckets:
+        write_run(tmp_path / "wrapper", bucket)
+    write_run(tmp_path / "wrapper", window.end_kst)
+
+    report = build_report(tmp_path, window)
+
+    assert report["classification"] == "clean"
+    assert report["wrapper"]["retention_covers_window"] is True
+
+
+def test_surrounding_evidence_is_excluded_from_target_counts(tmp_path: Path) -> None:
+    window = make_window(3)
+    write_run(tmp_path / "wrapper", window.start_kst - audit.INTERVAL)
+    for bucket in window.expected_buckets:
+        write_run(tmp_path / "wrapper", bucket)
+    write_run(tmp_path / "wrapper", window.end_kst)
+
+    report = build_report(tmp_path, window)
+
+    assert report["wrapper"]["recognized_run_directory_count"] == 3
+    assert report["wrapper"]["unique_mapped_interval_count"] == 3
+    assert report["wrapper"]["duplicate_mapped_interval_count"] == 0
+    assert report["wrapper"]["exit_code_counts"]["zero"] == 3
+
+
 def test_duplicate_wrapper_interval_is_degraded(tmp_path: Path) -> None:
     window = make_window(1)
     write_run(tmp_path / "wrapper", window.expected_buckets[0])
@@ -282,6 +386,29 @@ def test_unknown_wrapper_status_is_counted_separately(tmp_path: Path) -> None:
     assert report["classification"] == "degraded"
     assert report["wrapper"]["guarded_status_counts"]["unknown"] == 1
     assert report["wrapper"]["guarded_status_counts"]["unrecognized"] == 0
+
+
+@pytest.mark.parametrize(
+    "no_write",
+    [
+        {},
+        {"status": "hard_failure"},
+        {"status": "success", "success": False},
+        {"status": "success", "artifact_checks": {"category": 1}},
+    ],
+)
+def test_no_write_success_contract_failure_is_degraded(
+    tmp_path: Path,
+    no_write: dict[str, object],
+) -> None:
+    window = make_window(1)
+    write_run(tmp_path / "wrapper", window.expected_buckets[0], no_write=no_write)
+
+    report = build_report(tmp_path, window)
+
+    assert report["classification"] == "degraded"
+    assert report["wrapper"]["no_write_success_contract_invalid_count"] == 1
+    assert "wrapper_no_write_result_semantic_invalid" in report["reasons"]
 
 
 def test_wrapper_base_missing_is_incomplete(tmp_path: Path) -> None:
