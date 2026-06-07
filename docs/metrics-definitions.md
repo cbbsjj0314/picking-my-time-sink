@@ -1,8 +1,8 @@
 # 지표 정의서
 
 문서 목적: 용어/지표/Δ 기준을 고정해 구현 중 재해석을 방지
-버전: v0.28 (public 한국어 톤 정리)
-최종 수정일: 2026-04-24 (KST)
+버전: v0.29 (Chzzk collection window integrity audit)
+최종 수정일: 2026-06-07 (KST)
 
 ## 0. 시간/기간 프리셋
 
@@ -666,3 +666,26 @@ host, port, Docker Compose, local artifact path, credentials, smoke commands는 
 - DB metrics:
     - `chzzk_db_dataset_freshness_age_seconds{dataset}`: scrape timestamp와 latest `bucket_time` 사이의 seconds. 대상 dataset은 `category_30m`, `category_channel_30m`이다.
     - `chzzk_db_latest_bucket_rows{dataset}`: 각 Chzzk fact table의 latest `bucket_time` 기준 row count.
+
+#### 8.5.1 Chzzk collection window integrity audit
+
+- `python -m chzzk.observability.audit_collection_window`는 timezone-aware fixed window
+  `[window_start, window_end)`의 KST 30분 collection integrity를 반복 판정한다.
+- source는 local/private sanitized guarded-write wrapper evidence와 explicit read-only
+  transaction에서 조회한 Postgres `fact_chzzk_category_30m`의 distinct `bucket_time`이다.
+- `no-write-result.json`은 wrapper가 사용하는 기존 success contract를 만족해야 하며,
+  JSON object여도 해당 contract가 깨지면 `degraded`로 판정한다.
+- classification은 다음 세 값만 사용한다.
+    - `clean`: expected scheduler-wrapper interval이 정확히 한 번씩 성공했고 positive category
+      committed-row evidence가 있으며 global category fact bucket이 모두 존재한다.
+    - `degraded`: missing/duplicate interval, nonzero exit, non-success status, invalid required
+      artifact, zero committed rows, missing DB bucket 또는 confirmed evidence contradiction이 있다.
+    - `incomplete_evidence`: confirmed degradation은 없지만 retention, mapping, filesystem 또는
+      DB query/relation availability 때문에 clean 여부를 확정할 수 없다.
+- `clean`은 해당 window의 scheduler-wrapper-global category fact collection evidence가
+  완전하고 내부적으로 일관된다는 뜻만 가진다. Full live-list population, pagination
+  exhaustion, 모든 category 관측, category별 coverage, trusted mapping completeness,
+  Combined readiness 또는 comparative scatter readiness를 증명하지 않는다.
+- 관측되지 않은 category를 viewers `0`으로 해석하지 않는다.
+- 이 command는 schema, scheduler, wrapper contract, fetch/load behavior, API 또는 web surface를
+  변경하지 않으며 DB write/backfill/reingest를 수행하지 않는다.
