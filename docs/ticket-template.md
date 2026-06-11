@@ -1,6 +1,6 @@
 # Ticket Template
 
-One ticket should normally map to one PR.
+하나의 ticket은 일반적으로 하나의 PR에 대응한다.
 
 ## Ticket ID
 
@@ -12,7 +12,7 @@ Atomic ticket / Bounded polish batch / Read-only review / Planning-contract tick
 
 ## Batch Items
 
-Use `N/A` for non-batch tickets.
+non-batch ticket에는 `N/A`를 사용한다.
 
 ## Goal
 
@@ -50,11 +50,11 @@ Low / Medium / High
 
 Yes / No
 
-Human Gate is required for operationally meaningful changes, including API response shape or durable data semantics, DB/schema/migration, scheduler mutation, live fetch/write, secrets/auth/deploy, CI permissions beyond read-only, category-to-game trusted semantics, Combined semantics, and broad tooling adoption.
+API response 구조, durable data semantics, DB/schema/migration, scheduler mutation, live fetch/write, secrets/auth/deploy, read-only를 넘어서는 CI permissions, category-to-game trusted semantics, Combined semantics, broad tooling adoption처럼 운영상 의미 있는 변경에는 Human Gate가 필요하다.
 
 ## Public Repo Safety
 
-- Do not include raw provider payloads, credentials, private runtime detail, host/path detail, scheduler XML/stdout, or row-level UGC.
+- raw provider payloads, credentials, private runtime detail, host/path detail, scheduler XML/stdout 또는 row-level UGC를 포함하지 않는다.
 
 ## Suggested Branch Name
 
