@@ -4,8 +4,7 @@
 Snapshot date: 2026-05-14 (KST)  
 `tracked_game` query timestamp: 2026-05-14 14:24:37 KST
 
-이 문서는 product feature list가 아니라, 면접/리뷰 시 inventory count의
-산출 기준을 확인하기 위한 최소 evidence snapshot이다.
+이 문서는 product feature list가 아니라, 면접/review에서 inventory count 산출 기준을 확인하기 위한 최소 evidence snapshot이다.
 
 ## 기준 repo/ref
 
@@ -17,25 +16,25 @@ Snapshot date: 2026-05-14 (KST)
 
 | Item | Count | Basis |
 | --- | ---: | --- |
-| API endpoints | 10 | Registered FastAPI `method + path`, excluding automatic docs endpoints |
-| PostgreSQL tables | 10 | DDL-defined `CREATE TABLE IF NOT EXISTS` objects in `sql/postgres/*.sql` |
-| PostgreSQL views | 5 | DDL-defined `CREATE OR REPLACE VIEW` objects in `sql/postgres/*.sql` |
-| PostgreSQL tables + views | 15 | Tables + views |
-| pytest test items | 337 | `pytest --collect-only -q` collection result |
-| test files | 52 | pytest-collected files under `tests/` |
-| `tracked_game` total rows | 146 | Read-only query against the `.env`-selected Postgres target |
+| API endpoints | 10 | automatic docs endpoint를 제외하고 FastAPI에 등록된 `method + path` |
+| PostgreSQL tables | 10 | `sql/postgres/*.sql`에 정의된 `CREATE TABLE IF NOT EXISTS` DDL object |
+| PostgreSQL views | 5 | `sql/postgres/*.sql`에 정의된 `CREATE OR REPLACE VIEW` DDL object |
+| PostgreSQL tables + views | 15 | table + view 합계 |
+| pytest test items | 337 | `pytest --collect-only -q` collection 결과 |
+| test files | 52 | `tests/` 아래에서 pytest가 collect한 test file |
+| `tracked_game` total rows | 146 | `.env`가 선택한 Postgres target에 대한 read-only query |
 | `tracked_game` active rows | 135 | `tracked_game.is_active = true` |
 | `tracked_game` inactive rows | 11 | `tracked_game.is_active = false` |
 
 ## Counting criteria
 
-- API endpoint count is based on `method + path` routes registered on the FastAPI app.
-- FastAPI automatic docs endpoints are excluded: `/docs`, `/redoc`, `/openapi.json`, and `/docs/oauth2-redirect`.
-- PostgreSQL table/view counts are based on DDL objects defined in `sql/postgres/*.sql`.
-- PostgreSQL table/view counts are not a live `information_schema` inventory.
-- Test count is based on pytest collect-only output.
-- `tracked_game` counts are a live read-only snapshot from the Postgres DB selected by `.env` at the query timestamp above.
-- `tracked_game` counts are not statically reproducible from repo files and may change over time.
+- API endpoint count는 FastAPI app에 등록된 `method + path` route 기준이다.
+- FastAPI automatic docs endpoint인 `/docs`, `/redoc`, `/openapi.json`, `/docs/oauth2-redirect`는 제외한다.
+- PostgreSQL table/view count는 `sql/postgres/*.sql`에 정의된 DDL object 기준이다.
+- PostgreSQL table/view count는 live `information_schema` inventory가 아니다.
+- test count는 pytest collect-only output 기준이다.
+- `tracked_game` count는 위 query timestamp에 `.env`가 선택한 Postgres DB의 live read-only snapshot이다.
+- `tracked_game` count는 repo file만으로 정적으로 재현할 수 없으며, 시간이 지나면 달라질 수 있다.
 
 ## Representative command/query
 
@@ -89,8 +88,8 @@ Views:
 
 ## Caveats
 
-- This is an inventory evidence snapshot, not a README claim or product readiness statement.
-- API, DDL, and pytest counts are tied to the target SHA above.
-- At the time this document was prepared, the committed difference from the target SHA to current `main` was limited to `README.md`.
-- `tracked_game` counts are live DB snapshot evidence only; later DB state may differ.
-- No DB host, credential, `.env` value, private path, raw provider payload, or UGC-heavy content is included here.
+- 이 문서는 inventory evidence snapshot이지 README claim이나 product readiness statement가 아니다.
+- API, DDL, pytest count는 위 target SHA를 기준으로 한다.
+- 이 문서를 작성할 당시 target SHA와 current `main` 사이의 committed difference는 `README.md` 변경뿐이었다.
+- `tracked_game` count는 live DB snapshot evidence일 뿐이며, 이후 DB state는 달라질 수 있다.
+- 이 문서에는 DB host, credential, `.env` value, private path, raw provider payload, UGC-heavy content를 포함하지 않는다.
