@@ -8,8 +8,7 @@ Role: 구현 가능성이 있는 surface에 대한 historical read-only review. 
 
 이 문서는 category-to-game 후보 구현을 열기 전에, future slice가 검토할 가능성이 높은 repo surface를 정리하는 read-only review다.
 
-이 문서는 schema, SQL, migration, API, runtime, DB write, web behavior, candidate-to-trusted promotion, product serving usage, 또는 `Combined` semantics를 승인하지 않는다.
-목적은 current repo boundary를 기준으로 touchpoint와 Human Gate를 식별하는 데 한정한다.
+이 문서는 schema, SQL, migration, API, runtime, DB write, web behavior, candidate-to-trusted promotion, product serving usage, 또는 `Combined` semantics를 승인하지 않는다. 목적은 current repo boundary를 기준으로 touchpoint와 Human Gate를 식별하는 데 한정한다.
 
 ## Current Durable Boundaries
 
@@ -51,8 +50,7 @@ Role: 구현 가능성이 있는 surface에 대한 historical read-only review. 
 
 ## Likely Future Tests And Durable Docs
 
-향후 implementation planning에는 trusted semantics를 사용하기 전에 regression coverage와 durable docs가 포함되어야 한다.
-검토할 가능성이 높은 test category는 다음과 같다.
+향후 implementation planning에는 trusted semantics를 사용하기 전에 regression coverage와 durable docs가 포함되어야 한다. 검토할 가능성이 높은 test category는 다음과 같다.
 
 - `categoryType=GAME`은 canonical game identity로 취급하지 않는다.
 - `candidate`, `unresolved`, `rejected` evidence는 `Combined`, canonical game semantics, ranking, sorting, trusted mapping에 사용할 수 없다.
@@ -60,8 +58,7 @@ Role: 구현 가능성이 있는 surface에 대한 historical read-only review. 
 - Chzzk category serving은 별도 serving contract가 승인될 때까지 category-only로 유지된다.
 - Public/private evidence boundary를 계속 강제한다.
 
-현재 관련 test surface에는 `/chzzk/categories/overview` API test, Chzzk fact boundary 관련 SQL test, Chzzk source view와 `Combined` pending 상태 관련 web test가 포함된다.
-이 PR은 test를 추가하거나 수정하지 않는다.
+현재 관련 test surface에는 `/chzzk/categories/overview` API test, Chzzk fact boundary 관련 SQL test, Chzzk source view와 `Combined` pending 상태 관련 web test가 포함된다. 이 PR은 test를 추가하거나 수정하지 않는다.
 
 ## Human Gate / Risk
 

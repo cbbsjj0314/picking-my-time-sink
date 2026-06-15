@@ -6,8 +6,7 @@ Date: 2026-05-19 (KST)
 
 Role: historical candidate-serving guardrail이다. 이 문서는 canonical current trusted mapping API/view contract가 아니며, 현재 public summary는 `docs/decisions/category-to-game-mapping-contract.md`를 따른다.
 
-이 문서는 category-to-game candidate evidence가 serving boundary를 넘지 않도록 고정하는 planning contract다.
-이 결정은 schema, SQL, migration, API, runtime, loader, scheduler, web behavior, DB write, backfill, reingest, candidate-to-trusted promotion, product serving usage, ranking/sorting/KPI, 또는 `Combined` semantics 구현 승인이 아니다.
+이 문서는 category-to-game candidate evidence가 serving boundary를 넘지 않도록 고정하는 planning contract다. 이 결정은 schema, SQL, migration, API, runtime, loader, scheduler, web behavior, DB write, backfill, reingest, candidate-to-trusted promotion, product serving usage, ranking/sorting/KPI, 또는 `Combined` semantics 구현 승인이 아니다.
 
 현재 durable context는 `docs/source-inventory.md`, `docs/data-model-spec.md`, `docs/data-governance.md`, `docs/decisions/category-to-game-mapping-contract.md`, `docs/decisions/category-to-game-implementation-surface-review.md`, `docs/decisions/category-to-game-storage-contract-planning.md`, `docs/decisions/combined-source-view-readiness-contract.md`를 따른다.
 
@@ -24,15 +23,11 @@ Role: historical candidate-serving guardrail이다. 이 문서는 canonical curr
 
 ## Candidate Serving Boundary
 
-Candidate evidence는 향후 review planning에 활용할 수 있다.
-이는 serving contract, trusted mapping contract, canonical identity contract, ranking contract, KPI contract 또는 `Combined` contract가 아니다.
+Candidate evidence는 향후 review planning에 활용할 수 있다. 이는 serving contract, trusted mapping contract, canonical identity contract, ranking contract, KPI contract 또는 `Combined` contract가 아니다.
 
-candidate, unresolved, rejected evidence를 현재 source API, web source view, ranking/sorting/KPI 또는 `Combined`를 통해 trusted data로 노출해서는 안 된다.
-또한 canonical game identity를 추론하거나, hidden join을 생성하거나, 현재 source view를 game-level evidence로 보강하거나, Human Gate를 대체하는 데 사용해서는 안 된다.
+candidate, unresolved, rejected evidence를 현재 source API, web source view, ranking/sorting/KPI 또는 `Combined`를 통해 trusted data로 노출해서는 안 된다. 또한 canonical game identity를 추론하거나, hidden join을 생성하거나, 현재 source view를 game-level evidence로 보강하거나, Human Gate를 대체하는 데 사용해서는 안 된다.
 
-향후 candidate review serving surface가 필요하다면 별도의 Human Gate와 implementation ticket이 필요하다.
-그 향후 작업은 구현 전에 자체 approval scope, durable docs, regression expectations, public/private evidence boundary를 정의해야 한다.
-이 문서는 향후 endpoint path, response field, query params, UI fields, table grain, storage 구조, operational workflow, schema, runtime 동작을 정의하지 않는다.
+향후 candidate review serving surface가 필요하다면 별도의 Human Gate와 implementation ticket이 필요하다. 그 향후 작업은 구현 전에 자체 approval scope, durable docs, regression expectations, public/private evidence boundary를 정의해야 한다. 이 문서는 향후 endpoint path, response field, query params, UI fields, table grain, storage 구조, operational workflow, schema, runtime 동작을 정의하지 않는다.
 
 ## Explicit Non-Goals
 
@@ -57,11 +52,9 @@ candidate, unresolved, rejected evidence를 현재 source API, web source view, 
 
 ## Public / Private Safety Boundary
 
-Public docs에는 durable planning constraints와 sanitized categories만 기술할 수 있다.
-Public docs에는 raw provider payloads, 실제 category/channel/display values, live titles, thumbnails, row-level UGC, screenshots, raw API responses, credentials, private runtime evidence, host/path 세부사항, scheduler XML/stdout, local docs, private 운영 세부사항을 포함해서는 안 된다.
+Public docs에는 durable planning constraints와 sanitized categories만 기술할 수 있다. Public docs에는 raw provider payloads, 실제 category/channel/display values, live titles, thumbnails, row-level UGC, screenshots, raw API responses, credentials, private runtime evidence, host/path 세부사항, scheduler XML/stdout, local docs, private 운영 세부사항을 포함해서는 안 된다.
 
-개념이 필요하지만 public에 부적절하다면 추상화하거나 익명화해야 한다.
-Raw/private 자료는 public repo docs와 PR text 외부에 유지해야 한다.
+개념이 필요하지만 public에 부적절하다면 추상화하거나 익명화해야 한다. Raw/private 자료는 public repo docs와 PR text 외부에 유지해야 한다.
 
 ## Deferred Human Gate Items
 

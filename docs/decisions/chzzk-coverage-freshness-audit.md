@@ -153,7 +153,7 @@ Unknown:
 
 그 전까지는 candidate-only implementation planning에서 boundary를 논의할 수는 있지만, real observed category data를 사용하는 implementation은 current evidence 부족으로 인해 blocked 상태로 둔다.
 
-## 보류 항목 (Deferred Items)
+## Deferred
 
 - current sanitized evidence가 확보된 뒤 real observed-data candidate implementation planning
 - 향후 승인된 implementation ticket이 열릴 경우 candidate evidence test-only guardrail
