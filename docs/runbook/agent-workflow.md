@@ -1,86 +1,86 @@
 # Agent Workflow Runbook
 
-This repo uses a small PR-native workflow:
+이 repo는 작은 PR-native workflow를 사용한다.
 
 Spec -> Ticket -> Agent implementation -> PR -> CI -> Review -> Human Gate -> Release.
 
-## Roles
+## 역할
 
-- ChatGPT/planning sessions define product specs, split work into tickets, and clarify acceptance criteria.
-- Codex implements one ticket at a time, prepares a focused branch/commit, and opens a small PR when the ticket is approved for PR-native execution.
-- Humans approve risky scope, review PRs, decide merges, and control releases.
+- ChatGPT/planning session은 product spec을 정의하고, 작업을 ticket으로 나누며, acceptance criteria를 명확히 한다.
+- Codex는 한 번에 하나의 ticket을 구현하고, 집중된 branch/commit을 준비하며, ticket이 PR-native 실행으로 승인되면 작은 PR을 연다.
+- 사람은 위험한 scope를 승인하고, PR을 review하며, merge를 결정하고, release를 제어한다.
 
-## Ticket Contents
+## Ticket 내용
 
-A ticket should name the goal, scope, out of scope, requirements, acceptance criteria, required checks, manual QA, risk level, Human Gate requirement, suggested branch name, and suggested PR title.
+Ticket은 goal, scope, out of scope, requirements, acceptance criteria, required checks, manual QA, risk level, Human Gate requirement, suggested branch name, suggested PR title을 명시해야 한다.
 
-One ticket normally maps to one PR. Split work before implementation when a ticket mixes unrelated runtime, schema, API, web, or operations changes.
+하나의 ticket은 보통 하나의 PR에 대응한다. Ticket이 서로 관련 없는 runtime, schema, API, web, operations 변경을 섞고 있다면 구현 전에 작업을 나눈다.
 
-## Ticket Types
+## Ticket 유형
 
-Use explicit ticket types so planning, review, and execution boundaries are clear:
+Planning, review, execution boundary가 명확하도록 명시적인 ticket 유형을 사용한다.
 
-- `Atomic ticket`: the default unit; normally maps to one PR.
-- `Bounded polish batch`: multiple related low/medium-risk items in one PR when they share the same screen/user flow/product boundary and can be reviewed under the same validation scope.
-- `Read-only review`: review-only work that must not be expanded into implementation in the same ticket.
-- `Planning-contract ticket`: planning-only work to lock scope/acceptance/validation that must not be expanded into implementation in the same ticket.
+- `Atomic ticket`: 기본 단위이며, 보통 하나의 PR에 대응한다.
+- `Bounded polish batch`: 같은 screen/user flow/product boundary를 공유하고 같은 validation scope 아래에서 review할 수 있는 여러 관련 low/medium-risk 항목을 하나의 PR에 담는 유형이다.
+- `Read-only review`: 같은 ticket 안에서 구현으로 확장해서는 안 되는 review-only 작업이다.
+- `Planning-contract ticket`: scope/acceptance/validation을 확정하기 위한 planning-only 작업이며, 같은 ticket 안에서 구현으로 확장해서는 안 된다.
 
-High-risk work should usually start as a `Planning-contract ticket` or `Read-only review`. Do not convert high-risk work directly into implementation unless the approved ticket explicitly defines implementation scope and Human Gate approval.
+High-risk 작업은 보통 `Planning-contract ticket` 또는 `Read-only review`로 시작해야 한다. 승인된 ticket이 implementation scope와 Human Gate approval을 명시적으로 정의하지 않는 한 high-risk 작업을 곧바로 구현으로 전환하지 않는다.
 
-## Codex Boundaries
+## Codex 경계
 
-Codex should:
+Codex는 다음을 수행해야 한다.
 
-- Work from the ticket and keep the diff focused.
-- Preserve existing MVP, security, and validation guardrails.
-- State assumptions when implementation depends on interpretation.
-- Run `./scripts/check.sh` from the repo root for code changes.
-- Create a branch, commit, push, and open a PR when the ticket is approved for PR-native execution.
+- Ticket을 기준으로 작업하고 diff를 집중된 상태로 유지한다.
+- 기존 MVP, security, validation guardrail을 보존한다.
+- 구현이 해석에 의존할 때는 assumption을 명시한다.
+- Code change에는 repo root에서 `./scripts/check.sh`를 실행한다.
+- Ticket이 PR-native 실행으로 승인되면 branch 생성, commit, push, PR 생성을 수행한다.
 
 ### Codex Preflight
 
-Before editing:
+편집 전에 다음을 수행한다.
 
-- Confirm repo/branch.
-- Run `git status --short`.
-- Stop if unrelated dirty changes are present.
+- repo/branch를 확인한다.
+- `git status --short`를 실행한다.
+- 관련 없는 dirty change가 있으면 중단한다.
 
-Codex should not:
+Codex는 다음을 수행해서는 안 된다.
 
-- Expand into adjacent product features without a ticket.
-- Change scheduler, DB, provider fetches, schema, API, or web behavior unless the ticket explicitly asks for it.
-- Treat local or private runtime evidence as live scheduler authority unless current docs say so.
-- Create local checkpoints or cleanup `docs/local/NEXT.md` by default.
+- Ticket 없이 인접한 product feature로 scope를 확장하지 않는다.
+- Ticket이 명시적으로 요구하지 않는 한 scheduler, DB, provider fetch, schema, API, web behavior를 변경하지 않는다.
+- 현재 docs가 그렇게 말하지 않는 한 local 또는 private runtime evidence를 live scheduler authority로 취급하지 않는다.
+- 기본적으로 local checkpoint를 만들거나 `docs/local/NEXT.md`를 cleanup하지 않는다.
 
 ## Human Gate
 
-Human Gate is required for risky or operationally meaningful decisions, including:
+다음을 포함해 위험하거나 운영상 의미 있는 결정에는 Human Gate가 필요하다.
 
-- DB schema, migration, or persistent data semantics.
-- Scheduler mutation or production-like recurring runtime changes.
-- Live fetch/write, backfill, reingest, bootstrap, or DDL.
-- Secrets, auth, deploy, CI permissions beyond read-only, or release decisions.
-- Category-to-game trusted semantics, Combined semantics, or broad tooling adoption.
+- DB schema, migration, persistent data semantics.
+- Scheduler mutation 또는 production-like recurring runtime 변경.
+- Live fetch/write, backfill, reingest, bootstrap, DDL.
+- Secrets, auth, deploy, read-only를 넘는 CI permission, release decision.
+- Category-to-game trusted semantics, Combined semantics, broad tooling adoption.
 
-## Checks
+## Check 규칙
 
-For code changes, the default repo-root local check is:
+Code change에 대한 기본 repo-root local check는 다음과 같다.
 
 ```bash
 ./scripts/check.sh
 ```
 
-This is the full gate and runs the focused Python and web checks in order. Codex may run a ticket-relevant focused check first:
+이것이 full gate이며, focused Python check와 web check를 순서대로 실행한다. Codex는 ticket과 관련된 focused check를 먼저 실행할 수 있다.
 
 ```bash
 ./scripts/check-python.sh
 ./scripts/check-web.sh
 ```
 
-`./scripts/check-web.sh` runs web ESLint lint and then the TypeScript/Vite build.
+`./scripts/check-web.sh`는 web ESLint lint를 실행한 뒤 TypeScript/Vite build를 실행한다.
 
-In Codex, run `./scripts/check.sh` with sandbox escalation/approval. Restricted sandbox execution has previously stalled during FastAPI/Starlette TestClient pytest cases, while approved `./scripts/check.sh` and GitHub Actions CI passed. If the approved run or CI fails, treat it as a real validation failure.
+Codex에서는 sandbox escalation/approval을 사용해 `./scripts/check.sh`를 실행한다. Restricted sandbox 실행은 과거 FastAPI/Starlette TestClient pytest case에서 멈춘 적이 있지만, 승인된 `./scripts/check.sh`와 GitHub Actions CI는 통과했다. 승인된 실행 또는 CI가 실패하면 실제 validation failure로 취급한다.
 
-## Local Docs And Checkpoints
+## Local Docs 및 Checkpoint
 
-Local docs and checkpoints are not default deliverables. Create them only for large slice completion, risky operational evidence, or explicit user request. Do not propose checkpoint index sync or NEXT hygiene as default follow-up work.
+Local docs와 checkpoint는 기본 deliverable이 아니다. 큰 slice 완료, 위험한 operational evidence, 명시적인 사용자 요청이 있을 때만 만든다. Checkpoint index sync 또는 NEXT hygiene을 기본 follow-up work로 제안하지 않는다.
