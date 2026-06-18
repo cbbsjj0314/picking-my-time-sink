@@ -312,9 +312,44 @@ historical checkpoint나 planning doc은 과거 상태를 말할 수 있다. 단
 
 ## 문서 분류
 
-문서 작업 전에는 대상 파일을 분류한다.
+문서 작업 전에는 대상 파일을 먼저 분류한다.
 
-권장 분류:
+### Primary reader
+
+문서 번역 여부는 파일 확장자나 위치만으로 결정하지 않고, primary reader를 기준으로 판단한다.
+
+권장 reader 분류:
+
+- `operator_facing`: 사람이 직접 실행·점검·운영 판단에 사용하는 문서다. 예: manual runbook, smoke 절차, scheduler 점검, local operation note, troubleshooting guide.
+- `agent_facing`: Codex나 coding agent가 작업 방식, scope, validation, repo convention을 이해하기 위해 읽는 문서다. 예: `AGENTS.md`, agent workflow, implementation prompt, task execution rule.
+- `public_facing`: repo 방문자나 reviewer가 project purpose, current behavior, API/data contract, setup 방법을 이해하기 위해 읽는 tracked public 문서다. 예: `README.md`, public architecture docs, public decision docs.
+- `developer_facing`: repo contributor가 code, test, build, architecture를 이해하기 위해 읽는 문서다. 예: development setup, architecture note, testing guide.
+- `mixed_reader`: operator, agent, developer, reviewer가 함께 읽는 문서다. 이 경우 section 단위로 독자를 나누고, 전체 번역 여부를 임의로 결정하지 않는다.
+
+### Translation decision
+
+Primary reader를 분류한 뒤 translation decision을 따로 정한다.
+
+권장 decision 분류:
+
+- `translate_korean_first`: human-facing prose를 한국어 중심으로 번역한다.
+- `keep_english`: 문서의 primary reader, 외부 독자, ecosystem convention 때문에 English를 유지한다.
+- `preserve_literals_only`: 설명 문장은 한국어화할 수 있지만 command, identifier, route, config, status literal은 그대로 유지한다.
+- `split_by_section`: mixed-reader 문서에서 section별로 번역 여부를 다르게 판단한다.
+- `defer_to_separate_scope`: UI copy, API/client-visible message, operator CLI/help output, source comment/docstring처럼 별도 PR로 분리한다.
+
+기본 판단:
+
+- Korean-speaking human operator가 직접 읽는 문서는 `translate_korean_first` 우선순위가 높다.
+- `agent_facing` 문서는 무조건 번역하지 않는다. agent가 정확히 따라야 하는 command, constraint, validation rule, repo convention은 English technical literal을 보존하고, 필요할 때만 Korean-first 설명을 추가한다.
+- `public_facing` 문서는 repo의 예상 독자에 따라 결정한다. 현재 repo가 한국어 사용자/운영자 중심이면 `translate_korean_first`가 적절하고, 외부 English reader를 우선하면 `keep_english`가 적절할 수 있다.
+- `mixed_reader` 문서는 `split_by_section`을 기본값으로 둔다.
+
+### Inventory classification
+
+Repo-wide audit에서는 primary reader와 translation decision을 정한 뒤, 대상 파일을 작업 단위로 다시 분류한다.
+
+권장 inventory 분류:
 
 - `public_docs_candidate`
 - `ui_localization_candidate`
@@ -327,7 +362,7 @@ historical checkpoint나 planning doc은 과거 상태를 말할 수 있다. 단
 - `generated_or_excluded`
 - `manual_review_needed`
 
-문서 번역 PR에서는 기본적으로 `public_docs_candidate`만 mutation 대상으로 삼는다.
+문서 번역 PR에서는 기본적으로 `public_docs_candidate` 중 `translate_korean_first`로 판단된 항목만 mutation 대상으로 삼는다.
 
 `ui_localization_candidate`, `api_or_client_message_candidate`, `operator_facing_candidate`, `comment_or_docstring_review_only`는 별도 작업으로 분리한다.
 
