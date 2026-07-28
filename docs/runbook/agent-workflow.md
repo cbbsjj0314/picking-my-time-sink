@@ -12,7 +12,9 @@ Spec -> Ticket -> Agent implementation -> PR -> CI -> Review -> Human Gate -> Re
 
 ## Ticket 내용
 
-Ticket은 goal, scope, out of scope, requirements, acceptance criteria, required checks, manual QA, risk level, Human Gate requirement, suggested branch name, suggested PR title을 명시해야 한다.
+Ticket은 `User Decision`, scope, out of scope, requirements, acceptance criteria, required checks, manual QA, `Risk Level`, `Human Gate Required`, `Review Level`, `Review Reason`, suggested branch name, suggested PR title을 명시해야 한다. Behavior 또는 semantics에 적용할 수 있으면 `User Acceptance Examples`도 포함한다.
+
+`Risk Level`, `Human Gate Required`, `Review Level`은 implementation 전에 확정한다. Implementation agent는 사전 결정된 세 값을 임의로 낮추지 않는다. 구현 중 scope 또는 위험이 커져 더 강한 gate가 필요해지면 구현을 계속하거나 자체 재분류하지 않고 planning 흐름으로 되돌린다.
 
 하나의 ticket은 보통 하나의 PR에 대응한다. Ticket이 서로 관련 없는 runtime, schema, API, web, operations 변경을 섞고 있다면 구현 전에 작업을 나눈다.
 
@@ -52,6 +54,46 @@ Codex는 다음을 수행해서는 안 된다.
 - 현재 docs가 그렇게 말하지 않는 한 local 또는 private runtime evidence를 live scheduler authority로 취급하지 않는다.
 - 기본적으로 local checkpoint를 만들거나 `docs/local/NEXT.md`를 cleanup하지 않는다.
 
+## Review
+
+`Fresh-context` review는 implementation conversation과 분리된 별도 read-only conversation에서 수행한다. Reviewer는 accepted contract, ticket, diff, tests, validation evidence를 검토하되 파일을 직접 수정하지 않고 다음을 보고한다.
+
+- Blocking findings.
+- Non-blocking findings.
+- Missing required evidence.
+- Remaining uncertainty.
+- Final status.
+
+수정이 필요하면 원래 implementation 흐름으로 되돌린다. Implementation agent가 수정했다는 사실만으로 review를 통과한 것으로 보지 않는다. 수정 뒤 Fresh-context reviewer가 blocking findings와 required evidence가 해결됐는지 다시 확인해야 한다.
+
+Fresh-context review의 원본 ChatGPT conversation은 public independent review evidence로 사용하지 않는다. 대신 검토한 contract와 ticket, blocking findings, missing evidence, remaining uncertainty, final status를 포함한 짧은 review 결과를 human-authored GitHub PR comment 또는 GitHub review로 기록한다. Implementation agent 자신의 완료 보고, 자체 검토 또는 자체 수정 결과는 independent review evidence가 될 수 없다.
+
+### Fresh-context trigger 후보
+
+다음은 implementation 전에 Fresh-context review 여부를 판단하는 후보다.
+
+- Canonical identity와 trusted mapping.
+- Steam–Chzzk join, row grain, cardinality.
+- `Combined` semantics.
+- KPI, score, recommendation.
+- Incomplete, unknown, `partial_success` 의미.
+- DB schema, migration, deletion, backfill, reingest.
+- Scheduler, retry, concurrency, recurring 또는 automatic write.
+- Privacy와 public/private evidence boundary.
+
+Trigger 후보는 자동 의무가 아니며 모든 PR에 Fresh-context review를 요구하지 않는다. 최종 `Review Level`은 ticket에서 implementation 전에 확정한다. Trigger 후보에 해당하지만 `Standard`를 선택하면 `Review Reason`에 기존 contract를 그대로 따르는 이유를 적는다.
+
+### Independent Review Status
+
+다음 네 값만 사용한다.
+
+- `Not required`: `Review Level: Standard`이며 `Independent Review Evidence: N/A`를 사용한다.
+- `Pending`: Fresh-context review가 필요하지만 아직 완료되지 않았다. `Independent Review Evidence`에는 아직 evidence가 없음을 표시한다.
+- `Findings open`: Blocking finding 또는 required evidence 누락이 남아 있다. `Independent Review Evidence`는 finding이 기록된 human-authored GitHub PR comment 또는 GitHub review를 가리킨다.
+- `Passed`: Fresh-context reviewer가 blocking findings와 required evidence가 해결됐음을 최종 재확인했다. `Independent Review Evidence`는 최종 재확인 결과가 기록된 human-authored GitHub PR comment 또는 GitHub review를 가리킨다.
+
+Implementation agent가 수정한 사실만으로 `Passed`가 되지 않으며, Fresh-context reviewer의 재확인 없이 `Findings open`을 `Passed`로 바꾸지 않는다. Implementation agent 자신의 완료 보고나 자체 수정 결과, Fresh-context review의 원본 ChatGPT conversation은 independent review evidence가 아니다.
+
 ## Human Gate
 
 다음을 포함해 위험하거나 운영상 의미 있는 결정에는 Human Gate가 필요하다.
@@ -61,6 +103,10 @@ Codex는 다음을 수행해서는 안 된다.
 - Live fetch/write, backfill, reingest, bootstrap, DDL.
 - Secrets, auth, deploy, read-only를 넘는 CI permission, release decision.
 - Category-to-game trusted semantics, Combined semantics, broad tooling adoption.
+
+`Human Gate Required: Yes`의 실제 approval evidence는 human-authored GitHub PR comment 또는 human-authored GitHub review로 제한한다. PR 본문에 기입된 상태값이나 implementation agent의 자기 보고만으로는 Human Gate approval을 증명할 수 없다. ChatGPT conversation, ChatGPT conversation을 가리키는 모호한 decision reference, implementation agent의 완료 보고도 approval evidence가 아니다.
+
+Human-authored GitHub approval evidence가 없으면 Human Gate는 `Pending`이다. Pending 상태의 PR은 accepted 또는 merge-ready로 취급하지 않는다.
 
 ## Check 규칙
 

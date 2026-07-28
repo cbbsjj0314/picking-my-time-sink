@@ -12,6 +12,12 @@
 - If a task changes current status or closes a Now/Next item, update `docs/local/NEXT.md` in the same slice when that local board is present.
 - If a change alters schema, API, or data semantics, update the related durable doc and regression tests in the same slice.
 - Follow the default delivery flow: Spec -> Ticket -> Agent implementation -> PR -> CI -> Review -> Human Gate -> Release.
+- Before implementation, confirm `Risk Level`, `Human Gate Required`, and `Review Level` in the ticket.
+- The implementation agent must not lower the pre-decided risk, gate, or review level. Return to planning if a stronger gate becomes necessary.
+- Do not treat work requiring Fresh-context review as accepted until `Independent Review Status: Passed`.
+- Use `Passed` only after the Fresh-context reviewer reconfirms that blocking findings and required evidence are resolved.
+- The implementation agent's completion report or self-fix result cannot be independent review evidence.
+- Follow `docs/runbook/agent-workflow.md` for review triggers, evidence formats, and detailed status definitions.
 - Treat ChatGPT/planning sessions as the place to define product specs and tickets.
 - Treat Codex implementation sessions as one-ticket-at-a-time execution toward a focused branch/commit and PR when the ticket is approved for PR-native execution.
 - Codex must not merge PRs, create releases/tags, force-push, or push directly to `main`; humans own those decisions unless the user explicitly overrides this for a specific task.
@@ -89,7 +95,7 @@
 - Avoid speculative abstractions unless they are required by the current task.
 - Prefer repo-grounded facts and existing boundaries over early generalization.
 - Separate implemented scope from explicitly deferred follow-ups.
-- Do not pull in the “next natural slice” unless it is required for the current task.
+- Do not pull in the “next natural slice” or automatically promote the next `Now` item without the user's explicit choice.
 - Do not introduce heavy new tooling unless explicitly requested.
 
 ## Surgical edits
