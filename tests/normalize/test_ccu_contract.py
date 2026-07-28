@@ -54,6 +54,13 @@ def test_normalize_bronze_record_marks_missing_or_invalid_ccu(
     assert normalized["missing_reason"] == "missing_ccu"
 
 
+def test_normalize_bronze_record_preserves_zero_ccu_as_observed_value() -> None:
+    normalized = normalize_bronze_record(make_bronze_row(ccu=0))
+
+    assert normalized["ccu"] == 0
+    assert normalized["missing_reason"] is None
+
+
 @pytest.mark.parametrize("reverse_order", [False, True])
 def test_dedupe_prefers_valid_ccu_over_missing_evidence(reverse_order: bool) -> None:
     missing = make_silver_row(
@@ -73,6 +80,29 @@ def test_dedupe_prefers_valid_ccu_over_missing_evidence(reverse_order: bool) -> 
     assert len(deduped) == 1
     assert deduped[0]["ccu"] == 42
     assert deduped[0]["marker"] == "valid-earlier"
+
+
+@pytest.mark.parametrize("reverse_order", [False, True])
+def test_dedupe_prefers_zero_ccu_over_later_missing_evidence(
+    reverse_order: bool,
+) -> None:
+    missing = make_silver_row(
+        ccu=None,
+        collected_at="2026-03-07T12:10:00+09:00",
+        marker="missing-later",
+    )
+    zero = make_silver_row(
+        ccu=0,
+        collected_at="2026-03-07T12:05:00+09:00",
+        marker="zero-earlier",
+    )
+    records = [missing, zero] if reverse_order else [zero, missing]
+
+    deduped = dedupe_silver_records(records)
+
+    assert len(deduped) == 1
+    assert deduped[0]["ccu"] == 0
+    assert deduped[0]["marker"] == "zero-earlier"
 
 
 @pytest.mark.parametrize(
@@ -129,3 +159,27 @@ def test_missing_silver_ccu_is_skipped_without_storage_calls() -> None:
     assert results[0]["delta_ccu_day"] is None
     upsert_row.assert_not_called()
     fetch_prev_day_ccu.assert_not_called()
+
+
+def test_zero_silver_ccu_uses_gold_storage_path() -> None:
+    upsert_row = Mock()
+    fetch_prev_day_ccu = Mock(return_value=15)
+
+    results = process_silver_rows(
+        [
+            make_silver_row(
+                ccu=0,
+                collected_at="2026-03-07T12:05:00+09:00",
+                marker="zero",
+            )
+        ],
+        upsert_row=upsert_row,
+        fetch_prev_day_ccu=fetch_prev_day_ccu,
+    )
+
+    assert len(results) == 1
+    assert results[0]["ccu"] == 0
+    assert results[0]["skipped"] is False
+    upsert_row.assert_called_once()
+    fetch_prev_day_ccu.assert_called_once()
+    assert upsert_row.call_args.args[2] == 0
