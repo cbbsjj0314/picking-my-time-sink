@@ -12,6 +12,7 @@ PR 본문은 한국어로 작성한다.
 설명 문장은 간결한 한국어로 쓰고, 객체명 / endpoint / route / loader / table / view / CLI 명령은 번역하지 않고 실제 코드 표기를 유지한다.
 docs-only PR이면 Validation section은 남기고 `- Not run (docs-only change)`라고 적는다.
 Ticket / Spec reference, Human Gate Required, Risk / Assumptions, Required Checks / CI result는 짧게 적는다.
+Ticket 내용을 PR 본문에 장문으로 반복하지 않는다.
 해당하지 않으면 `- N/A`로 두거나 section을 지운다.
 
 PR title guidance:
@@ -69,16 +70,42 @@ view, table, endpoint, file path 같은 실제 객체명을 우선 쓴다.
 
 ---
 
-## Risk / Human Gate
+## Risk / Review / Human Gate
 
 <!--
-Human Gate Required는 Yes / No로 적는다.
+Independent Review Status는 다음 의미로 사용한다.
+- Not required: Review Level은 Standard이고 Independent Review Evidence는 N/A다.
+- Pending: Fresh-context review가 필요하지만 아직 완료되지 않았으며, Independent Review Evidence에는 아직 evidence가 없음을 표시한다.
+- Findings open: Blocking finding 또는 required evidence 누락이 남아 있으며, Independent Review Evidence는 finding이 기록된 GitHub PR comment 또는 GitHub review를 가리킨다.
+- Passed: Fresh-context reviewer가 blocking findings와 required evidence 해결을 최종 재확인했으며, Independent Review Evidence는 최종 재확인 결과가 기록된 GitHub PR comment 또는 GitHub review를 가리킨다.
+
+Implementation agent가 수정한 사실만으로 Passed를 사용할 수 없다.
+Fresh-context reviewer의 재확인 없이 Findings open을 Passed로 바꾸지 않는다.
+Implementation agent 자신의 완료 보고나 자체 수정 결과는 independent review evidence가 아니다.
+Fresh-context review의 원본 ChatGPT conversation은 public independent review evidence가 아니다.
+Fresh-context review 결과는 reviewed contract and ticket, blocking findings, missing evidence, remaining uncertainty, final status를 포함한 짧은 human-authored GitHub PR comment 또는 GitHub review로 기록한다.
+
+Human Gate Required는 Yes / No로 적는다. Yes일 때만 Human Decision Status, Confirmed decision, Remaining risk, Rollback / Mitigation field를 남긴다.
+Human Gate Required가 Yes일 때 실제 approval evidence는 human-authored GitHub PR comment 또는 human-authored GitHub review로 제한한다.
+Confirmed decision은 human-authored GitHub PR comment 또는 GitHub review를 가리켜야 한다.
+PR 본문에 기입된 상태값이나 implementation agent의 자기 보고만으로는 Human Gate approval을 증명할 수 없다.
+ChatGPT conversation, 이를 가리키는 모호한 reference, implementation agent의 완료 보고는 Human Gate approval evidence가 아니다.
+Human-authored approval evidence가 아직 없으면 Human Decision Status는 Pending, Confirmed decision은 `Pending — requires a human-authored GitHub PR comment or review`로 유지한다.
+
 위험한 가정, runtime/schema/API/scheduler/DB/deploy 관련 caveat가 있으면 한 줄로 적는다.
-없으면 `- Human Gate Required: No`와 `- Risk / Assumptions: N/A` 정도로 짧게 둔다.
+없으면 `- Human Gate Required: No`와 `- Risk / Assumptions: N/A` 정도로 짧게 둔다. Human Gate Required가 No이면 Human Decision field를 지운다.
 -->
 
+- Risk Level: Low / Medium / High
+- Review Level: Standard / Fresh-context
+- Independent Review Status: Not required / Pending / Findings open / Passed
+- Independent Review Evidence: N/A / GitHub comment or review reference
 - Human Gate Required: Yes / No
 - Risk / Assumptions: N/A
+- Human Decision Status: Pending / Approved / Approved with conditions / Rejected
+- Confirmed decision: Pending — requires a human-authored GitHub PR comment or review
+- Remaining risk: N/A
+- Rollback / Mitigation: N/A
 
 ---
 
@@ -96,6 +123,9 @@ CI가 돌았다면 Required Checks / CI result도 짧게 적는다.
 - `command 1`: result
 - `command 2`: result
 - Required Checks / CI: result
+- Acceptance evidence:
+  - AC-1 → test, command, smoke, review 또는 document evidence
+  - AC-2 → ...
 
 ---
 

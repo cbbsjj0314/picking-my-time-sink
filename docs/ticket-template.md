@@ -14,9 +14,12 @@ Atomic ticket / Bounded polish batch / Read-only review / Planning-contract tick
 
 non-batch ticket에는 `N/A`를 사용한다.
 
-## Goal
+## User Decision
 
--
+- Problem:
+- Why now:
+- Observable success:
+- Must not change:
 
 ## Scope
 
@@ -32,7 +35,16 @@ non-batch ticket에는 `N/A`를 사용한다.
 
 ## Acceptance Criteria
 
--
+- AC-1:
+- AC-2:
+
+### User Acceptance Examples
+
+Behavior 또는 semantics가 바뀌지 않는 작은 작업에는 `N/A`를 사용한다.
+
+- Expected case:
+- Boundary case:
+- Must not happen:
 
 ## Required Checks
 
@@ -46,9 +58,19 @@ non-batch ticket에는 `N/A`를 사용한다.
 
 Low / Medium / High
 
+## Review Level
+
+Standard / Fresh-context
+
+## Review Reason
+
+-
+
 ## Human Gate Required
 
 Yes / No
+
+Implementation 전에 `Risk Level`, `Human Gate Required`, `Review Level`을 확정한다. Implementation agent는 사전 결정된 세 값을 낮추지 않는다. 더 강한 gate가 필요해지면 구현을 계속하거나 자체 재분류하지 않고 planning 흐름으로 되돌린다.
 
 API response 구조, durable data semantics, DB/schema/migration, scheduler mutation, live fetch/write, secrets/auth/deploy, read-only를 넘어서는 CI permissions, category-to-game trusted semantics, Combined semantics, broad tooling adoption처럼 운영상 의미 있는 변경에는 Human Gate가 필요하다.
 
