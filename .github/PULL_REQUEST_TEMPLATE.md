@@ -99,7 +99,7 @@ Human-authored approval evidence가 아직 없으면 Human Decision Status는 Pe
 - Risk Level: Low / Medium / High
 - Review Level: Standard / Fresh-context
 - Independent Review Status: Not required / Pending / Findings open / Passed
-- Independent Review Evidence: N/A / GitHub comment or review reference
+- Independent Review Evidence: N/A / Pending — review not completed / GitHub comment or review reference
 - Human Gate Required: Yes / No
 - Risk / Assumptions: N/A
 - Human Decision Status: Pending / Approved / Approved with conditions / Rejected
