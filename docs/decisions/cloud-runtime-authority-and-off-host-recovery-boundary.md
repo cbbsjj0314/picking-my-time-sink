@@ -198,17 +198,24 @@ of the database as a shared consumer artifact.
 - Selecting production VM sizing or claiming ARM compatibility.
 - Mirroring all of `tmp/` or expanding the existing selected Steam artifact
   inventory, key shape, or consumer contract.
-- Selecting, installing, or implementing Dagster or Airflow; rewriting existing
-  collectors or pipelines; or combining authority cutover with orchestration
-  migration.
+- Implementing Dagster or approving its adoption timing in this ticket;
+  installing Dagster or Airflow; rewriting existing collectors or pipelines;
+  or combining authority cutover with orchestration migration.
 - Introducing managed PostgreSQL, Kubernetes, load balancers, queues,
   autoscaling, CDN, authentication, public deployment, or traffic sizing.
 - Changing schema, API, product semantics, CI, credentials, or current runtime.
 
-The existing orchestration decision records an earlier Dagster target direction.
-This ADR neither implements nor re-accepts that choice as part of cloud authority.
-Any Dagster/Airflow selection or reconfirmation belongs to a later ticket after a
-stable Linux authority baseline.
+The existing
+[`orchestration-and-artifact-storage-direction.md`](./orchestration-and-artifact-storage-direction.md)
+decision remains in force: Dagster OSS is the accepted target orchestration
+direction after a stable thin scheduler/CLI baseline, while Airflow is not the
+current default target. This ADR does not supersede that decision or authorize
+Dagster adoption timing or implementation. The initial Linux authority must
+first validate the existing PMTS entrypoints with a thin Linux-native scheduler.
+After a stable Linux authority baseline, a separate review should assess
+readiness to adopt Dagster as the operational orchestration layer. Reopening
+Airflow as the default would require a separate decision that explicitly
+supersedes the existing orchestration decision.
 
 ## Migration / Rollout Boundary
 
@@ -234,7 +241,7 @@ roadmap:
 5. Database migration rehearsal plus backup/restore validation.
 6. Operational authority cutover under a separate Human Gate.
 7. Stable Linux authority observation.
-8. Dagster/Airflow evaluation.
+8. Dagster adoption readiness review.
 9. Public Web/API serving planning, only when explicitly opened.
 
 Cutover and orchestration migration must remain separate. No scheduler, cloud,
@@ -248,7 +255,8 @@ Revisit this proposal when one of the following becomes concrete:
 - restore validation or recovery requirements require a different state layout;
 - selected-artifact consumers require a reviewed inventory or semantics change;
 - ARM compatibility is demonstrated and there is a reason to expand the target;
-- stable Linux operation creates a grounded need for Dagster/Airflow evaluation;
+- stable Linux operation creates a grounded trigger for Dagster adoption
+  readiness review;
 - explicit public Web/API traffic, security, or SLO requirements require a
   separate serving architecture decision;
 - provider constraints force a material dependency that conflicts with the
