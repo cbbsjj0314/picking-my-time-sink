@@ -2,11 +2,12 @@
 
 ## Status
 
-Status: proposed
+Status: accepted target direction, docs-only
 Ticket / Spec: `CLOUD-RUNTIME-AUTHORITY-RECOVERY-ADR-001`
 
-Fresh-context review and the Human Gate remain pending. This document does not
-authorize runtime changes.
+The accepted scope is the architecture direction only. Cloud resource creation,
+PostgreSQL migration, scheduler changes, authority cutover, and production VM
+sizing remain behind the follow-up gates.
 
 ## Date
 
@@ -21,7 +22,7 @@ and workstation availability.
 
 The project already has a narrow S3-compatible contract for selected retained
 Steam artifacts. It does not cover PostgreSQL recovery, the full local run
-directory, or a general remote filesystem. The proposed decision separates the
+directory, or a general remote filesystem. The accepted decision separates the
 long-term operational authority from personal workstations while preserving that
 portable object boundary.
 
@@ -29,12 +30,12 @@ Three states must remain distinct:
 
 - Current runtime authority: Windows 11 Pro, Ubuntu WSL2, x86_64, and Windows
   Task Scheduler.
-- Proposed target authority: a provider-portable x86_64 Linux cloud host.
+- Accepted target direction: a provider-portable x86_64 Linux cloud host.
 - Cutover status: not performed.
 
 ## Current Runtime Evidence
 
-The 2026-08-12 read-only audit is load-bearing evidence for this proposal:
+The 2026-08-12 read-only audit is load-bearing evidence for this decision:
 
 - Task Scheduler has six PMTS tasks, four active. The active set includes the
   Steam 30-minute CCU, hourly price, and daily jobs, plus the recurring
@@ -78,10 +79,10 @@ remain local-state dependencies. ARM compatibility is not proven.
 - Avoid coupling authority migration to an orchestration rewrite or hypothetical
   public-serving topology.
 
-## Proposed Target Direction
+## Accepted Target Direction
 
-Subject to review and Human Gate approval, PMTS should separate workstation use
-from operational authority as follows:
+The accepted target direction separates workstation use from operational
+authority as follows:
 
 - Personal Windows and Mac workstations serve development, review, SSH, and
   administration roles.
@@ -97,8 +98,9 @@ from operational authority as follows:
 - Compute, scheduler, database, and object access should avoid unnecessary
   provider-proprietary contracts.
 
-This is a conceptual proposal. No cloud VM, migrated database, Linux scheduler,
-backup automation, or authority cutover currently exists.
+This is an architecture direction, not an implementation approval. No cloud VM,
+migrated database, Linux scheduler, backup automation, or authority cutover
+currently exists.
 
 ## Authority Boundary
 
@@ -115,7 +117,7 @@ not sufficient evidence of cutover readiness.
 
 ## Persistent / Bounded / Off-host State Boundary
 
-| State class | Proposed responsibility |
+| State class | Target responsibility |
 | --- | --- |
 | Persistent operational state | PostgreSQL facts, dimensions, mappings, and serving views remain authoritative database state. |
 | Bounded local operational evidence | Run results, logs, silver evidence, Chzzk raw/derived/results, and observability evidence are retention candidates, not an indefinite local archive. Some point-in-time provider evidence cannot be fetched identically again. |
@@ -124,13 +126,13 @@ not sufficient evidence of cutover readiness.
 | Off-host recovery state | PostgreSQL recovery backups become a separate responsibility to define in the backup/restore contract. |
 | Off-host retained artifacts | Only the selected retained-artifact inventory governed by the existing S3-compatible contract is published. |
 
-The proposal does not copy all of `tmp/` to object storage. Backup cadence,
+The decision does not copy all of `tmp/` to object storage. Backup cadence,
 format, RPO, RTO, retention periods, and restore procedures remain undefined
 until the recovery and retention follow-up contracts pass their gates.
 
 ## Relationship to `garage-shared-artifact-contract.md`
 
-This proposal does not replace
+This decision does not replace
 [`garage-shared-artifact-contract.md`](./garage-shared-artifact-contract.md).
 Their relationship is explicit:
 
@@ -144,7 +146,7 @@ Their relationship is explicit:
     to the off-host boundary;
   - this ADR does not define its format, cadence, RPO, RTO, retention, or restore
     procedure.
-- Supersede for the proposed long-term topology:
+- Supersede for the accepted target topology:
   - the assumption that the desktop authority must remain the operational writer.
 - Do not silently supersede:
   - the existing Steam selected-artifact inventory;
@@ -169,7 +171,7 @@ of the database as a shared consumer artifact.
    - Adds migration and operating responsibility, but directly separates
      authority from workstations and allows a small, measurable single-host
      pilot without making one compute provider a durable contract. This is the
-     proposed direction.
+     accepted direction.
 4. Start with a managed-service-heavy cloud topology.
    - Could provide managed operational features, but introduces more services,
      cost, provider coupling, and migration surfaces than the current evidence
@@ -249,7 +251,7 @@ database, or recovery implementation is authorized by this ADR.
 
 ## Revisit Triggers
 
-Revisit this proposal when one of the following becomes concrete:
+Revisit this decision when one of the following becomes concrete:
 
 - pilot telemetry disproves a practical single-host topology;
 - restore validation or recovery requirements require a different state layout;
