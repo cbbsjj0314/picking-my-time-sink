@@ -60,7 +60,18 @@ For a stable process-tree snapshot, each live node contributes its own
 Before accepting a sample, the observer verifies that tree membership and each
 reachable parent's child-time counters stayed stable over the read. A child
 exit/reap transition can otherwise double-count or omit CPU in a non-atomic
-`/proc` view. Unstable snapshots are discarded rather than estimated.
+`/proc` view. Unstable snapshots are discarded rather than estimated. Each
+sampling cycle makes one initial read plus at most two immediate additional
+retries after a handoff instability; this fixed bound limits observer work
+within the 100ms target budget.
+
+The CPU counters have distinct meanings: `handoff_retry_count` counts only
+additional attempts actually made after an unstable handoff read;
+`handoff_unstable_snapshot_count` counts discarded raw attempts with a tree or
+child-time transition; `invalid_snapshot_count` counts sampling cycles with no
+accepted snapshot after that bounded retry. A recovered retry remains a valid
+sample and does not by itself make evidence partial. Retry exhaustion records
+`cpu_handoff_snapshot_unstable`; CPU is never estimated or interpolated.
 
 Elapsed duration, sample gap, lifecycle tolerance, and overlap duration use
 Linux `CLOCK_BOOTTIME`. Persisted UTC timestamps are human-readable context and
@@ -81,9 +92,13 @@ Any threshold-exceeding gap prevents `complete` and adds
 `sampling_gap_exceeded`. `complete` means `no_known_observation_contract_gap`,
 not a kernel-exact resource peak.
 
-`observed_overlap_lower_bound_ms` includes only monotonic intervals in which
-both target runs appear in consecutive valid samples with no threshold-exceeding
-gap. The overlap scope is limited to the four recognized PMTS workloads.
+`observed_overlap_lower_bound_ms` includes only the monotonic intersection of
+two runs' intervals between consecutive valid samples, when neither valid-sample
+gap exceeds the threshold. The active-process registry alone is not overlap
+evidence: exited, identity-mismatched, missing, or invalid current samples do
+not update `observed`, `workload_ids`, `peak_other_run_count`, `sample_count`,
+or overlap timestamps. The overlap scope is limited to the four recognized PMTS
+workloads.
 
 ## Private output and smoke usage
 

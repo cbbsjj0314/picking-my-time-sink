@@ -8,7 +8,11 @@ from observability.linux_proc import (
     parse_stat,
     parse_vmrss_bytes,
 )
-from observability.resource_envelope import StableTreeSample, stable_tree_sample
+from observability.resource_envelope import (
+    HANDOFF_ADDITIONAL_RETRY_LIMIT,
+    StableTreeSample,
+    stable_tree_sample,
+)
 
 
 def header(
@@ -82,8 +86,8 @@ def test_direct_child_cpu_handoff_is_counted_once_before_and_after_reap() -> Non
     reaped_reader = FakeReader([{10: root_reaped}] * 2, {10: 100})
     reaped = stable_tree_sample(reaped_reader, root_reaped.identity, now_ns=lambda: 200)
 
-    assert live is not None and reaped is not None
-    assert live.cpu_ticks == reaped.cpu_ticks == (12, 5)
+    assert live.sample is not None and reaped.sample is not None
+    assert live.sample.cpu_ticks == reaped.sample.cpu_ticks == (12, 5)
 
 
 def test_nested_descendant_handoff_is_counted_once_at_each_stable_state() -> None:
@@ -110,20 +114,57 @@ def test_nested_descendant_handoff_is_counted_once_at_each_stable_state() -> Non
         now_ns=lambda: 300,
     )
 
-    assert all_live is not None and grandchild_reaped is not None and child_reaped is not None
-    assert all_live.cpu_ticks == grandchild_reaped.cpu_ticks == child_reaped.cpu_ticks == (6, 0)
+    assert (
+        all_live.sample is not None
+        and grandchild_reaped.sample is not None
+        and child_reaped.sample is not None
+    )
+    assert (
+        all_live.sample.cpu_ticks
+        == grandchild_reaped.sample.cpu_ticks
+        == child_reaped.sample.cpu_ticks
+        == (6, 0)
+    )
 
 
-def test_handoff_transition_snapshot_is_rejected() -> None:
+def test_handoff_instability_retries_and_recovers_a_valid_sample() -> None:
+    root_before = header(10, user=1)
+    child = header(11, ppid=10, user=3)
+    root_after = header(10, user=1, child_user=3)
+    root_stable = header(10, user=1)
+    reader = FakeReader(
+        [
+            {10: root_before, 11: child},
+            {10: root_after},
+            {10: root_stable},
+            {10: root_stable},
+        ],
+        {10: 1, 11: 1},
+    )
+
+    result = stable_tree_sample(reader, root_before.identity, now_ns=lambda: 100)
+
+    assert result.sample is not None
+    assert result.handoff_retry_count == 1
+    assert result.handoff_unstable_snapshot_count == 1
+
+
+def test_handoff_instability_exhausts_the_fixed_retry_bound() -> None:
     root_before = header(10, user=1)
     child = header(11, ppid=10, user=3)
     root_after = header(10, user=1, child_user=3)
     reader = FakeReader(
-        [{10: root_before, 11: child}, {10: root_after}],
+        [{10: root_before, 11: child}, {10: root_after}]
+        * (HANDOFF_ADDITIONAL_RETRY_LIMIT + 1),
         {10: 1, 11: 1},
     )
 
-    assert stable_tree_sample(reader, root_before.identity, now_ns=lambda: 100) is None
+    result = stable_tree_sample(reader, root_before.identity, now_ns=lambda: 100)
+
+    assert result.sample is None
+    assert result.handoff_retry_count == HANDOFF_ADDITIONAL_RETRY_LIMIT
+    assert result.handoff_unstable_snapshot_count == HANDOFF_ADDITIONAL_RETRY_LIMIT + 1
+    assert result.handoff_retry_exhausted is True
 
 
 def test_peak_rss_is_the_sum_of_live_tree_vmrss_samples() -> None:

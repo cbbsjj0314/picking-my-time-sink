@@ -27,6 +27,7 @@ DEFAULT_CHZZK_WRAPPER_DIR = Path("tmp/chzzk/guarded-write-scheduler-wrapper")
 TARGET_INTERVAL_MS = 100
 DISCOVERY_INTERVAL_MS = 250
 ARTIFACT_INTERVAL_MS = 1000
+HANDOFF_ADDITIONAL_RETRY_LIMIT = 2
 ARTIFACT_TOLERANCE_SECONDS = 2.0
 STEAM_STATUSES = frozenset({"success", "partial_success", "lock_busy", "hard_failure"})
 CHZZK_STATUSES = frozenset({"success", "partial_success", "hard_failure"})
@@ -186,38 +187,84 @@ class StableTreeSample:
         return user, system
 
 
+@dataclass(frozen=True, slots=True)
+class TreeSampleResult:
+    """One sampling cycle's accepted snapshot and discarded handoff attempts."""
+
+    sample: StableTreeSample | None
+    handoff_retry_count: int = 0
+    handoff_unstable_snapshot_count: int = 0
+    handoff_retry_exhausted: bool = False
+
+
+def _stable_tree_sample_attempt(
+    reader: LinuxProcReader,
+    root: ProcessIdentity,
+    *,
+    now_ns: Callable[[], int],
+) -> tuple[StableTreeSample | None, bool]:
+    """Return one proc snapshot and whether a CPU-handoff race invalidated it."""
+
+    before = reader.headers()
+    pids = tree_pids(root, before)
+    if pids is None:
+        return None, False
+    samples: list[ProcessSample] = []
+    for pid in pids:
+        sample = reader.sample(before[pid])
+        if sample is None:
+            return None, False
+        samples.append(sample)
+    after = reader.headers()
+    after_pids = tree_pids(root, after)
+    if after_pids != pids:
+        return None, True
+    for pid in pids:
+        prior = before[pid]
+        current = after[pid]
+        if prior.identity != current.identity or prior.child_cpu_ticks != current.child_cpu_ticks:
+            return None, True
+    return StableTreeSample(completed_boottime_ns=now_ns(), samples=tuple(samples)), False
+
+
 def stable_tree_sample(
     reader: LinuxProcReader,
     root: ProcessIdentity,
     *,
     now_ns: Callable[[], int] = boottime_ns,
-) -> StableTreeSample | None:
-    """Read a tree only when child CPU handoff cannot double-count it.
+) -> TreeSampleResult:
+    """Read a tree with at most two additional retries for CPU handoff races.
 
     A child-time change or membership transition while the tree is read makes the
-    assembled proc view non-coherent. Callers discard that attempted interval.
+    assembled proc view non-coherent. The two immediate retries keep observer
+    perturbation bounded within the 100ms target sampling budget.
     """
 
-    before = reader.headers()
-    pids = tree_pids(root, before)
-    if pids is None:
-        return None
-    samples: list[ProcessSample] = []
-    for pid in pids:
-        sample = reader.sample(before[pid])
-        if sample is None:
-            return None
-        samples.append(sample)
-    after = reader.headers()
-    after_pids = tree_pids(root, after)
-    if after_pids != pids:
-        return None
-    for pid in pids:
-        prior = before[pid]
-        current = after[pid]
-        if prior.identity != current.identity or prior.child_cpu_ticks != current.child_cpu_ticks:
-            return None
-    return StableTreeSample(completed_boottime_ns=now_ns(), samples=tuple(samples))
+    retries = 0
+    unstable = 0
+    while True:
+        sample, handoff_unstable = _stable_tree_sample_attempt(reader, root, now_ns=now_ns)
+        if sample is not None:
+            return TreeSampleResult(
+                sample=sample,
+                handoff_retry_count=retries,
+                handoff_unstable_snapshot_count=unstable,
+            )
+        if not handoff_unstable:
+            return TreeSampleResult(
+                sample=None,
+                handoff_retry_count=retries,
+                handoff_unstable_snapshot_count=unstable,
+            )
+        unstable += 1
+        if retries >= HANDOFF_ADDITIONAL_RETRY_LIMIT:
+            return TreeSampleResult(
+                sample=None,
+                handoff_retry_count=retries,
+                handoff_unstable_snapshot_count=unstable,
+                handoff_retry_exhausted=True,
+            )
+        retries += 1
 
 
 def gap_threshold_ms(target_interval_ms: int) -> int:
@@ -232,6 +279,8 @@ class SamplingStats:
     valid_sample_count: int = 0
     sample_attempt_count: int = 0
     invalid_snapshot_count: int = 0
+    handoff_retry_count: int = 0
+    handoff_unstable_snapshot_count: int = 0
     observed_sample_gap_count: int = 0
     max_observed_sample_gap_ms: int = 0
     over_threshold_sample_gap_count: int = 0
@@ -239,18 +288,22 @@ class SamplingStats:
     max_snapshot_read_duration_ms: int = 0
     _previous_completion_ns: int | None = None
 
-    def record(self, sample: StableTreeSample | None, *, started_ns: int) -> None:
+    def record(self, result: TreeSampleResult, *, started_ns: int) -> None:
         """Record one attempt and actual monotonic completion gap."""
 
         self.sample_attempt_count += 1
+        self.handoff_retry_count += result.handoff_retry_count
+        self.handoff_unstable_snapshot_count += result.handoff_unstable_snapshot_count
         completed_ns = boottime_ns()
         self.max_snapshot_read_duration_ms = max(
             self.max_snapshot_read_duration_ms,
             int((completed_ns - started_ns) / 1_000_000),
         )
-        if sample is None:
-            self.invalid_snapshot_count += 1
+        if result.sample is None:
+            if result.handoff_retry_exhausted:
+                self.invalid_snapshot_count += 1
             return
+        sample = result.sample
         if self._previous_completion_ns is not None:
             gap_ms = int((sample.completed_boottime_ns - self._previous_completion_ns) / 1_000_000)
             threshold = gap_threshold_ms(self.target_interval_ms)
@@ -287,6 +340,7 @@ class ActiveRun:
     overlap_first_utc: str | None = None
     overlap_last_utc: str | None = None
     overlap_lower_bound_ms: int = 0
+    last_valid_sample_cycle: int | None = None
 
     def record_sample(self, sample: StableTreeSample, *, at_utc: str) -> None:
         if self.first_sample_boottime_ns is None:
@@ -307,6 +361,16 @@ class ActiveRun:
         ):
             self.cpu_user_ticks = user
             self.cpu_system_ticks = system
+
+
+@dataclass(frozen=True, slots=True)
+class ValidCycleSample:
+    """The current valid sample and its immediately preceding valid evidence."""
+
+    active: ActiveRun
+    completed_boottime_ns: int
+    previous_completed_boottime_ns: int | None
+    previous_cycle: int | None
 
 
 def _steam_correlation(
@@ -450,7 +514,7 @@ def build_run_summary(
 
     if active.stats.over_threshold_sample_gap_count:
         active.reasons.add("sampling_gap_exceeded")
-    if active.stats.invalid_snapshot_count:
+    if active.stats.handoff_unstable_snapshot_count and active.stats.invalid_snapshot_count:
         active.reasons.add("cpu_handoff_snapshot_unstable")
     state = "incomplete" if active.stats.valid_sample_count == 0 else "complete"
     if active.reasons or correlation.get("state") not in {"matched", "not_applicable"}:
@@ -510,8 +574,8 @@ def build_run_summary(
             "total_seconds": (
                 user_seconds + system_seconds if active.cpu_user_ticks is not None else None
             ),
-            "handoff_retry_count": active.stats.invalid_snapshot_count,
-            "handoff_unstable_snapshot_count": active.stats.invalid_snapshot_count,
+            "handoff_retry_count": active.stats.handoff_retry_count,
+            "handoff_unstable_snapshot_count": active.stats.handoff_unstable_snapshot_count,
         },
         "sampling": {
             "measurement_method": "periodic_linux_proc_process_tree_snapshot",
@@ -628,22 +692,52 @@ class ResourceEnvelopeObserver:
                     stats=SamplingStats(self.target_interval_ms),
                 )
 
-    def _record_overlap(self, now: int, at_utc: str) -> None:
-        active = list(self.active.values())
-        for run in active:
-            others = [other for other in active if other is not run]
-            if not others:
+    def _record_overlap(
+        self,
+        valid_samples: Mapping[ProcessIdentity, ValidCycleSample],
+        *,
+        cycle: int,
+        at_utc: str,
+    ) -> None:
+        """Accumulate only intervals bounded by consecutive valid samples on both runs."""
+
+        threshold_ns = gap_threshold_ms(self.target_interval_ms) * 1_000_000
+        valid = list(valid_samples.values())
+        for run in valid:
+            qualifying: list[tuple[ValidCycleSample, int]] = []
+            for other in valid:
+                if other.active is run.active:
+                    continue
+                if run.previous_cycle != cycle - 1 or other.previous_cycle != cycle - 1:
+                    continue
+                if (
+                    run.previous_completed_boottime_ns is None
+                    or other.previous_completed_boottime_ns is None
+                ):
+                    continue
+                run_gap_ns = run.completed_boottime_ns - run.previous_completed_boottime_ns
+                other_gap_ns = other.completed_boottime_ns - other.previous_completed_boottime_ns
+                if run_gap_ns > threshold_ns or other_gap_ns > threshold_ns:
+                    continue
+                interval_start = max(
+                    run.previous_completed_boottime_ns,
+                    other.previous_completed_boottime_ns,
+                )
+                interval_end = min(run.completed_boottime_ns, other.completed_boottime_ns)
+                duration_ms = max(0, int((interval_end - interval_start) / 1_000_000))
+                if duration_ms:
+                    qualifying.append((other, duration_ms))
+            if not qualifying:
                 continue
-            run.overlap_ids.update(other.spec.workload_id for other in others)
-            run.peak_other_run_count = max(run.peak_other_run_count, len(others))
-            run.overlap_sample_count += 1
-            run.overlap_first_utc = run.overlap_first_utc or at_utc
-            run.overlap_last_utc = at_utc
-            if run.last_sample_boottime_ns is not None:
-                previous = run.last_sample_boottime_ns
-                gap_ms = int((now - previous) / 1_000_000)
-                if gap_ms <= gap_threshold_ms(self.target_interval_ms):
-                    run.overlap_lower_bound_ms += gap_ms
+            run.active.overlap_ids.update(other.active.spec.workload_id for other, _ in qualifying)
+            run.active.peak_other_run_count = max(
+                run.active.peak_other_run_count,
+                len(qualifying),
+            )
+            run.active.overlap_sample_count += 1
+            run.active.overlap_first_utc = run.active.overlap_first_utc or at_utc
+            run.active.overlap_last_utc = at_utc
+            run.active.overlap_lower_bound_ms += min(duration for _, duration in qualifying)
 
     def _finish(self, active: ActiveRun, *, at_ns: int, at_utc: str) -> None:
         active.exit_detected_boottime_ns = at_ns
@@ -774,7 +868,9 @@ class ResourceEnvelopeObserver:
         deadline_ns = started_ns + int(self.duration_seconds * 1_000_000_000)
         clock_ticks_per_second()
         observer_failure: str | None = None
+        cycle = 0
         while boottime_ns() < deadline_ns:
+            cycle += 1
             loop_started = boottime_ns()
             now_utc = utc_now_iso()
             try:
@@ -785,7 +881,7 @@ class ResourceEnvelopeObserver:
                     active.reasons.add(observer_failure)
                 break
             self._discover(headers, loop_started)
-            self._record_overlap(loop_started, now_utc)
+            valid_samples: dict[ProcessIdentity, ValidCycleSample] = {}
             for identity, active in list(self.active.items()):
                 if identity.pid not in headers or headers[identity.pid].identity != identity:
                     self._finish(active, at_ns=loop_started, at_utc=now_utc)
@@ -793,13 +889,23 @@ class ResourceEnvelopeObserver:
                     continue
                 sample_started = boottime_ns()
                 try:
-                    sample = stable_tree_sample(self.reader, identity)
+                    result = stable_tree_sample(self.reader, identity)
                 except Exception:
-                    sample = None
+                    result = TreeSampleResult(sample=None)
                     active.reasons.add("proc_snapshot_unavailable")
-                active.stats.record(sample, started_ns=sample_started)
-                if sample is not None:
-                    active.record_sample(sample, at_utc=now_utc)
+                active.stats.record(result, started_ns=sample_started)
+                if result.sample is not None:
+                    valid_samples[identity] = ValidCycleSample(
+                        active=active,
+                        completed_boottime_ns=result.sample.completed_boottime_ns,
+                        previous_completed_boottime_ns=active.last_sample_boottime_ns,
+                        previous_cycle=active.last_valid_sample_cycle,
+                    )
+                    active.record_sample(result.sample, at_utc=now_utc)
+                    active.last_valid_sample_cycle = cycle
+                elif not result.handoff_unstable_snapshot_count:
+                    active.reasons.add("proc_snapshot_unavailable")
+            self._record_overlap(valid_samples, cycle=cycle, at_utc=now_utc)
             elapsed_ns = boottime_ns() - loop_started
             remaining_ns = self.target_interval_ms * 1_000_000 - elapsed_ns
             if remaining_ns > 0:

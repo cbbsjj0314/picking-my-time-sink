@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import datetime as dt
 import json
+import stat
 from pathlib import Path
 
 from observability.linux_proc import ProcessHeader, ProcessIdentity, ProcessSample
@@ -10,9 +11,12 @@ from observability.resource_envelope import (
     ResourceEnvelopeObserver,
     SamplingStats,
     StableTreeSample,
+    TreeSampleResult,
+    ValidCycleSample,
     WorkloadSpec,
     _chzzk_correlation,
     _steam_correlation,
+    _write_private_json,
     build_run_summary,
     gap_threshold_ms,
     match_workloads,
@@ -40,13 +44,206 @@ def test_sampling_gap_uses_excess_over_threshold_only(monkeypatch) -> None:
     monkeypatch.setattr("observability.resource_envelope.boottime_ns", lambda: next(clock))
     stats = SamplingStats(target_interval_ms=100)
 
-    stats.record(sample(0), started_ns=0)
-    stats.record(sample(400_000_000), started_ns=100_000_000)
+    stats.record(TreeSampleResult(sample(0)), started_ns=0)
+    stats.record(TreeSampleResult(sample(400_000_000)), started_ns=100_000_000)
 
     assert gap_threshold_ms(100) == 250
     assert stats.max_observed_sample_gap_ms == 400
     assert stats.over_threshold_sample_gap_count == 1
     assert stats.total_sample_gap_excess_ms == 150
+
+
+def active_run(workload_id: str, *, pid: int, start: int = 1) -> ActiveRun:
+    return ActiveRun(
+        spec=WorkloadSpec(workload_id, "synthetic"),
+        root=ProcessIdentity(pid, start),
+        root_pid=pid,
+        started_boottime_ns=0,
+        stats=SamplingStats(100),
+    )
+
+
+def valid_cycle_sample(
+    active: ActiveRun,
+    *,
+    previous_ns: int,
+    completed_ns: int,
+    previous_cycle: int = 1,
+) -> ValidCycleSample:
+    return ValidCycleSample(
+        active=active,
+        previous_completed_boottime_ns=previous_ns,
+        completed_boottime_ns=completed_ns,
+        previous_cycle=previous_cycle,
+    )
+
+
+def test_overlap_records_only_consecutive_valid_sample_intersections(tmp_path: Path) -> None:
+    observer = ResourceEnvelopeObserver(
+        reader=None,  # type: ignore[arg-type]
+        output_dir=tmp_path,
+        duration_seconds=1,
+    )
+    left = active_run("steam.ccu-30m", pid=10)
+    right = active_run("steam.price-1h", pid=20)
+    observer.active = {left.root: left, right.root: right}
+
+    observer._record_overlap(
+        {
+            left.root: valid_cycle_sample(
+                left, previous_ns=100_000_000, completed_ns=200_000_000
+            ),
+            right.root: valid_cycle_sample(
+                right, previous_ns=105_000_000, completed_ns=205_000_000
+            ),
+        },
+        cycle=2,
+        at_utc="2026-01-01T00:00:00Z",
+    )
+
+    for run, other_id in ((left, "steam.price-1h"), (right, "steam.ccu-30m")):
+        assert run.overlap_ids == {other_id}
+        assert run.overlap_sample_count == 1
+        assert run.peak_other_run_count == 1
+        assert run.overlap_first_utc == "2026-01-01T00:00:00Z"
+        assert run.overlap_last_utc == "2026-01-01T00:00:00Z"
+        assert run.overlap_lower_bound_ms == 95
+
+    left.stats.valid_sample_count = 2
+    summary = build_run_summary(
+        left,
+        session_id="session",
+        observation_id="observation",
+        ticks_per_second=1,
+        correlation={"state": "not_applicable", "contract": "synthetic_pid_smoke"},
+    )
+    assert summary["overlap"] == {
+        "observed": True,
+        "workload_ids": ["steam.price-1h"],
+        "peak_other_run_count": 1,
+        "first_observed_at_utc": "2026-01-01T00:00:00Z",
+        "last_observed_at_utc": "2026-01-01T00:00:00Z",
+        "sample_count": 1,
+        "observed_overlap_lower_bound_ms": 95,
+        "duration_clock": "linux_clock_boottime",
+    }
+
+
+def test_overlap_excludes_an_invalid_current_interval(tmp_path: Path) -> None:
+    observer = ResourceEnvelopeObserver(
+        reader=None,  # type: ignore[arg-type]
+        output_dir=tmp_path,
+        duration_seconds=1,
+    )
+    left = active_run("steam.ccu-30m", pid=10)
+    right = active_run("steam.price-1h", pid=20)
+    observer.active = {left.root: left, right.root: right}
+
+    observer._record_overlap(
+        {left.root: valid_cycle_sample(left, previous_ns=0, completed_ns=100_000_000)},
+        cycle=2,
+        at_utc="2026-01-01T00:00:00Z",
+    )
+
+    assert left.overlap_ids == set()
+    assert left.overlap_sample_count == 0
+    assert left.peak_other_run_count == 0
+    assert left.overlap_lower_bound_ms == 0
+
+
+def test_overlap_excludes_an_exited_run_left_in_the_active_registry(tmp_path: Path) -> None:
+    observer = ResourceEnvelopeObserver(
+        reader=None,  # type: ignore[arg-type]
+        output_dir=tmp_path,
+        duration_seconds=1,
+    )
+    left = active_run("steam.ccu-30m", pid=10)
+    stale = active_run("steam.price-1h", pid=20)
+    observer.active = {left.root: left, stale.root: stale}
+
+    observer._record_overlap(
+        {left.root: valid_cycle_sample(left, previous_ns=0, completed_ns=100_000_000)},
+        cycle=2,
+        at_utc="2026-01-01T00:00:00Z",
+    )
+
+    assert left.overlap_ids == set()
+    assert left.overlap_sample_count == 0
+    assert left.peak_other_run_count == 0
+    assert left.overlap_lower_bound_ms == 0
+
+
+def test_overlap_excludes_valid_samples_with_a_threshold_exceeding_gap(tmp_path: Path) -> None:
+    observer = ResourceEnvelopeObserver(
+        reader=None,  # type: ignore[arg-type]
+        output_dir=tmp_path,
+        duration_seconds=1,
+    )
+    left = active_run("steam.ccu-30m", pid=10)
+    right = active_run("steam.price-1h", pid=20)
+
+    observer._record_overlap(
+        {
+            left.root: valid_cycle_sample(left, previous_ns=0, completed_ns=300_000_000),
+            right.root: valid_cycle_sample(right, previous_ns=0, completed_ns=300_000_000),
+        },
+        cycle=2,
+        at_utc="2026-01-01T00:00:00Z",
+    )
+
+    assert left.overlap_ids == right.overlap_ids == set()
+    assert left.overlap_lower_bound_ms == right.overlap_lower_bound_ms == 0
+
+
+def test_recovered_handoff_retry_keeps_a_sampling_cycle_complete(monkeypatch) -> None:
+    monkeypatch.setattr("observability.resource_envelope.boottime_ns", lambda: 0)
+    active = active_run("synthetic.smoke", pid=10)
+    active.stats.record(
+        TreeSampleResult(sample(0), handoff_retry_count=1, handoff_unstable_snapshot_count=1),
+        started_ns=0,
+    )
+
+    summary = build_run_summary(
+        active,
+        session_id="session",
+        observation_id="observation",
+        ticks_per_second=1,
+        correlation={"state": "not_applicable", "contract": "synthetic_pid_smoke"},
+    )
+
+    assert summary["cpu"]["handoff_retry_count"] == 1
+    assert summary["cpu"]["handoff_unstable_snapshot_count"] == 1
+    assert summary["sampling"]["invalid_snapshot_count"] == 0
+    assert summary["completeness"]["state"] == "complete"
+
+
+def test_unresolved_handoff_retry_marks_partial_without_cpu_estimate(monkeypatch) -> None:
+    monkeypatch.setattr("observability.resource_envelope.boottime_ns", lambda: 0)
+    active = active_run("synthetic.smoke", pid=10)
+    active.stats.record(
+        TreeSampleResult(
+            sample=None,
+            handoff_retry_count=2,
+            handoff_unstable_snapshot_count=3,
+            handoff_retry_exhausted=True,
+        ),
+        started_ns=0,
+    )
+
+    summary = build_run_summary(
+        active,
+        session_id="session",
+        observation_id="observation",
+        ticks_per_second=1,
+        correlation={"state": "not_applicable", "contract": "synthetic_pid_smoke"},
+    )
+
+    assert summary["cpu"]["handoff_retry_count"] == 2
+    assert summary["cpu"]["handoff_unstable_snapshot_count"] == 3
+    assert summary["sampling"]["invalid_snapshot_count"] == 1
+    assert summary["cpu"]["total_seconds"] is None
+    assert summary["completeness"]["state"] == "incomplete"
+    assert "cpu_handoff_snapshot_unstable" in summary["completeness"]["reasons"]
 
 
 def test_summary_marks_sampling_gap_partial_and_keeps_vmrss_caveats() -> None:
@@ -145,6 +342,55 @@ def test_existing_wall_timestamps_do_not_control_observed_elapsed() -> None:
     )
 
     assert summary["timing"]["observed_elapsed_ms"] == 2000
+
+
+def test_pid_reuse_creates_a_distinct_active_run_identity(tmp_path: Path) -> None:
+    observer = ResourceEnvelopeObserver(
+        reader=None,  # type: ignore[arg-type]
+        output_dir=tmp_path,
+        duration_seconds=1,
+        explicit_pid=10,
+        explicit_workload_id="synthetic.smoke",
+    )
+    original = header(10, start=1)
+    reused = header(10, start=2)
+
+    observer._discover({10: original}, now=1)
+    observer._discover({10: reused}, now=2)
+
+    assert set(observer.active) == {original.identity, reused.identity}
+    assert observer.active[original.identity].root != observer.active[reused.identity].root
+
+
+def test_late_attach_cannot_be_complete() -> None:
+    active = active_run("synthetic.smoke", pid=10)
+    active.stats.valid_sample_count = 1
+    active.record_sample(sample(300_000_000), at_utc="2026-01-01T00:00:00Z")
+
+    summary = build_run_summary(
+        active,
+        session_id="session",
+        observation_id="observation",
+        ticks_per_second=1,
+        correlation={"state": "not_applicable", "contract": "synthetic_pid_smoke"},
+    )
+
+    assert summary["completeness"]["state"] == "partial"
+    assert "late_attach" in summary["completeness"]["reasons"]
+
+
+def test_private_json_write_uses_restrictive_modes_and_leaves_no_temp_file(tmp_path: Path) -> None:
+    output = tmp_path / "private" / "run.json"
+    payload = {"workload": {"id": "synthetic.smoke"}, "measurement": 1}
+
+    _write_private_json(output, payload)
+
+    assert stat.S_IMODE(output.parent.stat().st_mode) == 0o700
+    assert stat.S_IMODE(output.stat().st_mode) == 0o600
+    assert not list(output.parent.glob(".*.tmp"))
+    written = output.read_text(encoding="utf-8")
+    for forbidden in ("cmdline", "POSTGRES_PASSWORD", "/home/user", "hostname"):
+        assert forbidden not in written
 
 
 def test_steam_correlation_uses_unique_time_and_workload_match(tmp_path: Path) -> None:
