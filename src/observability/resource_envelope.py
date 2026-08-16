@@ -195,6 +195,24 @@ class TreeSampleResult:
     handoff_retry_count: int = 0
     handoff_unstable_snapshot_count: int = 0
     handoff_retry_exhausted: bool = False
+    failure_reason: str | None = None
+
+
+def _tree_inventory_changed(
+    root: ProcessIdentity,
+    before: Mapping[int, ProcessHeader],
+    before_pids: tuple[int, ...],
+    after: Mapping[int, ProcessHeader],
+) -> bool:
+    """Identify membership, identity, or waited-child CPU handoff transitions."""
+
+    if tree_pids(root, after) != before_pids:
+        return True
+    return any(
+        after[pid].identity != before[pid].identity
+        or after[pid].child_cpu_ticks != before[pid].child_cpu_ticks
+        for pid in before_pids
+    )
 
 
 def _stable_tree_sample_attempt(
@@ -208,22 +226,17 @@ def _stable_tree_sample_attempt(
     before = reader.headers()
     pids = tree_pids(root, before)
     if pids is None:
-        return None, False
+        return None, True
     samples: list[ProcessSample] = []
     for pid in pids:
         sample = reader.sample(before[pid])
         if sample is None:
-            return None, False
+            after = reader.headers()
+            return None, _tree_inventory_changed(root, before, pids, after)
         samples.append(sample)
     after = reader.headers()
-    after_pids = tree_pids(root, after)
-    if after_pids != pids:
+    if _tree_inventory_changed(root, before, pids, after):
         return None, True
-    for pid in pids:
-        prior = before[pid]
-        current = after[pid]
-        if prior.identity != current.identity or prior.child_cpu_ticks != current.child_cpu_ticks:
-            return None, True
     return StableTreeSample(completed_boottime_ns=now_ns(), samples=tuple(samples)), False
 
 
@@ -255,6 +268,7 @@ def stable_tree_sample(
                 sample=None,
                 handoff_retry_count=retries,
                 handoff_unstable_snapshot_count=unstable,
+                failure_reason="proc_snapshot_unavailable",
             )
         unstable += 1
         if retries >= HANDOFF_ADDITIONAL_RETRY_LIMIT:
@@ -263,6 +277,7 @@ def stable_tree_sample(
                 handoff_retry_count=retries,
                 handoff_unstable_snapshot_count=unstable,
                 handoff_retry_exhausted=True,
+                failure_reason="cpu_handoff_snapshot_unstable",
             )
         retries += 1
 
@@ -891,8 +906,10 @@ class ResourceEnvelopeObserver:
                 try:
                     result = stable_tree_sample(self.reader, identity)
                 except Exception:
-                    result = TreeSampleResult(sample=None)
-                    active.reasons.add("proc_snapshot_unavailable")
+                    result = TreeSampleResult(
+                        sample=None,
+                        failure_reason="proc_snapshot_unavailable",
+                    )
                 active.stats.record(result, started_ns=sample_started)
                 if result.sample is not None:
                     valid_samples[identity] = ValidCycleSample(
@@ -903,8 +920,8 @@ class ResourceEnvelopeObserver:
                     )
                     active.record_sample(result.sample, at_utc=now_utc)
                     active.last_valid_sample_cycle = cycle
-                elif not result.handoff_unstable_snapshot_count:
-                    active.reasons.add("proc_snapshot_unavailable")
+                elif result.failure_reason is not None:
+                    active.reasons.add(result.failure_reason)
             self._record_overlap(valid_samples, cycle=cycle, at_utc=now_utc)
             elapsed_ns = boottime_ns() - loop_started
             remaining_ns = self.target_interval_ms * 1_000_000 - elapsed_ns

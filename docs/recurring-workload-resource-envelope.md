@@ -73,6 +73,13 @@ accepted snapshot after that bounded retry. A recovered retry remains a valid
 sample and does not by itself make evidence partial. Retry exhaustion records
 `cpu_handoff_snapshot_unstable`; CPU is never estimated or interpolated.
 
+When a per-process stat/status sample fails, the observer re-reads the tree
+inventory before classifying it. A disappeared process, changed membership, or
+changed `(pid, starttime_ticks)` identity follows the bounded handoff retry
+path. If inventory and identity remain unchanged, the cycle fails closed with
+`proc_snapshot_unavailable`, including when an earlier attempt in that cycle
+already triggered a handoff retry.
+
 Elapsed duration, sample gap, lifecycle tolerance, and overlap duration use
 Linux `CLOCK_BOOTTIME`. Persisted UTC timestamps are human-readable context and
 existing-artifact correlation only.
