@@ -35,6 +35,18 @@ wrapper-exit fields. Missing, unreadable, or ambiguous evidence does not imply
 a status. A Chzzk successful guarded result with a nonzero wrapper exit remains
 a conflict, not a newly invented success or failure status.
 
+Persisted Steam and Chzzk run IDs must match the recurring producers' canonical
+`%Y%m%dT%H%M%S%fZ` UTC form. Chzzk wrapper boundary IDs must match the wrapper's
+canonical `%Y%m%dT%H%M%SZ` form and agree with the start/end marker boundary.
+Invalid identifiers fail closed as unreadable and their raw values are never
+persisted. Existing statuses, including Chzzk `lock_busy`, are preserved without
+reclassification.
+
+Artifact-only Chzzk fallback requires a canonical boundary, a valid start marker,
+a bound guarded result, and matching end evidence. Because no process PID was
+observed, its correlation state remains `unmatched`; the run is retained only as
+`process_not_observed` incomplete evidence and is not presented as a process match.
+
 ## Resource semantics
 
 `peak_aggregate_rss_bytes` means **maximum sampled sum of process-tree

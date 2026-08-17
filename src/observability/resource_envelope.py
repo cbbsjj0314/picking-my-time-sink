@@ -29,8 +29,12 @@ DISCOVERY_INTERVAL_MS = 250
 ARTIFACT_INTERVAL_MS = 1000
 HANDOFF_ADDITIONAL_RETRY_LIMIT = 2
 ARTIFACT_TOLERANCE_SECONDS = 2.0
+RUN_ID_FORMAT = "%Y%m%dT%H%M%S%fZ"
+CHZZK_WRAPPER_BOUNDARY_ID_FORMAT = "%Y%m%dT%H%M%SZ"
+CHZZK_WRAPPER_SCRIPT = "run_chzzk_fetch_load_guarded_write_orchestration_wsl.sh"
+CHZZK_JOB_NAME = "chzzk_fetch_load_manual_orchestration"
 STEAM_STATUSES = frozenset({"success", "partial_success", "lock_busy", "hard_failure"})
-CHZZK_STATUSES = frozenset({"success", "partial_success", "hard_failure"})
+CHZZK_STATUSES = frozenset({"success", "partial_success", "lock_busy", "hard_failure"})
 DISCOVERY_COMMS = frozenset({"bash", "sh", "zsh", "poetry", "python", "python3", "python3.12"})
 
 
@@ -60,6 +64,10 @@ def parse_utc(value: object) -> dt.datetime | None:
     return parsed.astimezone(dt.UTC)
 
 
+def _utc_iso(value: dt.datetime) -> str:
+    return value.astimezone(dt.UTC).isoformat().replace("+00:00", "Z")
+
+
 def _safe_json(path: Path) -> tuple[str, Mapping[str, Any] | None]:
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
@@ -72,6 +80,26 @@ def _safe_json(path: Path) -> tuple[str, Mapping[str, Any] | None]:
 
 def _timestamp_slug() -> str:
     return dt.datetime.now(dt.UTC).strftime("%Y%m%dT%H%M%S%fZ")
+
+
+def _canonical_timestamp_identifier(value: object, *, format: str) -> str | None:
+    """Return only an exact producer-generated UTC timestamp identifier."""
+
+    if not isinstance(value, str):
+        return None
+    try:
+        parsed = dt.datetime.strptime(value, format)
+    except ValueError:
+        return None
+    return value if parsed.strftime(format) == value else None
+
+
+def _canonical_run_id(value: object) -> str | None:
+    return _canonical_timestamp_identifier(value, format=RUN_ID_FORMAT)
+
+
+def _canonical_chzzk_boundary_id(value: object) -> str | None:
+    return _canonical_timestamp_identifier(value, format=CHZZK_WRAPPER_BOUNDARY_ID_FORMAT)
 
 
 def _write_private_json(path: Path, payload: Mapping[str, Any]) -> None:
@@ -397,7 +425,7 @@ def _steam_correlation(
 ) -> dict[str, Any]:
     if spec.steam_job_name is None or started_at is None or finished_at is None:
         return {"state": "unmatched", "contract": "steam_cadence_result_v1"}
-    candidates: list[Mapping[str, Any]] = []
+    candidates: list[tuple[Mapping[str, Any], dt.datetime, dt.datetime]] = []
     unreadable = False
     for path in (jobs_dir / spec.steam_job_name).glob("*/result.json"):
         state, payload = _safe_json(path)
@@ -412,74 +440,109 @@ def _steam_correlation(
             continue
         tolerance = dt.timedelta(seconds=ARTIFACT_TOLERANCE_SECONDS)
         if run_started <= finished_at + tolerance and run_finished >= started_at - tolerance:
-            candidates.append(payload)
+            candidates.append((payload, run_started, run_finished))
     if len(candidates) != 1:
         return {
             "state": "ambiguous" if candidates else "unreadable" if unreadable else "unmatched",
             "contract": "steam_cadence_result_v1",
         }
-    candidate = candidates[0]
+    candidate, run_started, run_finished = candidates[0]
     status = candidate.get("status")
     if status not in STEAM_STATUSES:
+        return {"state": "unreadable", "contract": "steam_cadence_result_v1"}
+    run_id = _canonical_run_id(candidate.get("run_id"))
+    if run_id is None:
         return {"state": "unreadable", "contract": "steam_cadence_result_v1"}
     return {
         "state": "matched",
         "contract": "steam_cadence_result_v1",
-        "existing_run_id": (
-            candidate.get("run_id") if isinstance(candidate.get("run_id"), str) else None
-        ),
+        "existing_run_id": run_id,
         "existing_result_status": status,
         "existing_duration_ms": (
             candidate.get("duration_ms")
             if isinstance(candidate.get("duration_ms"), int)
             else None
         ),
-        "existing_run_started_at_utc": candidate.get("started_at_utc"),
-        "existing_run_finished_at_utc": candidate.get("finished_at_utc"),
+        "existing_run_started_at_utc": _utc_iso(run_started),
+        "existing_run_finished_at_utc": _utc_iso(run_finished),
         "status_conflict": False,
     }
 
 
-def _chzzk_correlation(root_pid: int, *, wrapper_dir: Path) -> dict[str, Any]:
-    matches: list[tuple[str, Mapping[str, Any] | None, Mapping[str, Any] | None]] = []
-    try:
-        run_dirs = [path for path in wrapper_dir.iterdir() if path.is_dir()]
-    except OSError:
-        return {"state": "unreadable", "contract": "chzzk_guarded_wrapper_v1"}
-    for run_dir in run_dirs:
-        start_state, start = _safe_json(run_dir / "trace" / "start.json")
-        if start_state != "present" or start is None:
-            continue
-        try:
-            matches_pid = int(start.get("wrapper_pid")) == root_pid
-        except (TypeError, ValueError):
-            matches_pid = False
-        if matches_pid:
-            guarded_state, guarded = _safe_json(run_dir / "guarded-write-result.json")
-            _, end = _safe_json(run_dir / "trace" / "end.json")
-            matches.append((run_dir.name, guarded if guarded_state == "present" else None, end))
-    if len(matches) != 1:
-        return {
-            "state": "ambiguous" if matches else "unmatched",
-            "contract": "chzzk_guarded_wrapper_v1",
-        }
-    boundary_id, guarded, end = matches[0]
-    if guarded is None:
+def _positive_pid(value: object) -> int | None:
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, str):
+        if not value.isdecimal():
+            return None
+        parsed = int(value)
+    elif isinstance(value, int):
+        parsed = value
+    else:
+        return None
+    return parsed if parsed > 0 else None
+
+
+def _chzzk_start_marker(run_dir: Path) -> tuple[str, int] | None:
+    boundary_id = _canonical_chzzk_boundary_id(run_dir.name)
+    if boundary_id is None:
+        return None
+    state, start = _safe_json(run_dir / "trace" / "start.json")
+    if state != "present" or start is None:
+        return None
+    if (
+        start.get("boundary_id") != boundary_id
+        or start.get("script") != CHZZK_WRAPPER_SCRIPT
+    ):
+        return None
+    wrapper_pid = _positive_pid(start.get("wrapper_pid"))
+    return (boundary_id, wrapper_pid) if wrapper_pid is not None else None
+
+
+def _chzzk_result_correlation(
+    run_dir: Path,
+    boundary_id: str,
+    *,
+    state: str,
+    require_end: bool,
+) -> dict[str, Any]:
+    guarded_state, guarded = _safe_json(run_dir / "guarded-write-result.json")
+    if guarded_state != "present" or guarded is None:
         return {
             "state": "unreadable",
             "contract": "chzzk_guarded_wrapper_v1",
             "wrapper_boundary_id": boundary_id,
         }
+    run_id = _canonical_run_id(guarded.get("run_id"))
     status = guarded.get("status") if guarded.get("status") in CHZZK_STATUSES else None
-    if status is None:
+    if (
+        run_id is None
+        or status is None
+        or guarded.get("provider") != "chzzk"
+        or guarded.get("job_name") != CHZZK_JOB_NAME
+        or guarded.get("result_ref") != f"{run_id}/result.json"
+    ):
+        return {
+            "state": "unreadable",
+            "contract": "chzzk_guarded_wrapper_v1",
+            "wrapper_boundary_id": boundary_id,
+        }
+
+    end_state, end = _safe_json(run_dir / "trace" / "end.json")
+    if end_state == "unreadable" or (require_end and end_state != "present"):
         return {
             "state": "unreadable",
             "contract": "chzzk_guarded_wrapper_v1",
             "wrapper_boundary_id": boundary_id,
         }
     exit_state = "missing"
-    exit_code: int | None = None
-    if end is not None:
+    if end_state == "present" and end is not None:
+        if end.get("boundary_id") != boundary_id:
+            return {
+                "state": "unreadable",
+                "contract": "chzzk_guarded_wrapper_v1",
+                "wrapper_boundary_id": boundary_id,
+            }
         try:
             exit_code = int(end.get("exit_code"))
             exit_state = "zero" if exit_code == 0 else "nonzero"
@@ -487,16 +550,84 @@ def _chzzk_correlation(root_pid: int, *, wrapper_dir: Path) -> dict[str, Any]:
             exit_state = "invalid"
     conflict = status == "success" and exit_state == "nonzero"
     return {
-        "state": "matched",
+        "state": state,
         "contract": "chzzk_guarded_wrapper_v1",
         "wrapper_boundary_id": boundary_id,
-        "existing_run_id": (
-            guarded.get("run_id") if isinstance(guarded.get("run_id"), str) else None
-        ),
+        "existing_run_id": run_id,
         "existing_result_status": status,
         "wrapper_exit_code_state": exit_state,
         "status_conflict": conflict,
     }
+
+
+def _chzzk_correlation(root_pid: int, *, wrapper_dir: Path) -> dict[str, Any]:
+    matches: list[tuple[Path, str]] = []
+    try:
+        run_dirs = [path for path in wrapper_dir.iterdir() if path.is_dir()]
+    except OSError:
+        return {"state": "unreadable", "contract": "chzzk_guarded_wrapper_v1"}
+    for run_dir in run_dirs:
+        marker = _chzzk_start_marker(run_dir)
+        if marker is None:
+            continue
+        boundary_id, wrapper_pid = marker
+        if wrapper_pid == root_pid:
+            matches.append((run_dir, boundary_id))
+    if len(matches) != 1:
+        return {
+            "state": "ambiguous" if matches else "unmatched",
+            "contract": "chzzk_guarded_wrapper_v1",
+        }
+    run_dir, boundary_id = matches[0]
+    return _chzzk_result_correlation(
+        run_dir,
+        boundary_id,
+        state="matched",
+        require_end=False,
+    )
+
+
+def _chzzk_artifact_correlation(run_dir: Path) -> dict[str, Any]:
+    """Validate artifact-only evidence without claiming a process-correlated match."""
+
+    marker = _chzzk_start_marker(run_dir)
+    if marker is None:
+        return {"state": "unreadable", "contract": "chzzk_guarded_wrapper_v1"}
+    boundary_id, _wrapper_pid = marker
+    correlation = _chzzk_result_correlation(
+        run_dir,
+        boundary_id,
+        state="unmatched",
+        require_end=True,
+    )
+    if "existing_run_id" not in correlation:
+        return correlation
+    guarded_state, guarded = _safe_json(run_dir / "guarded-write-result.json")
+    if guarded_state != "present" or guarded is None:
+        return {"state": "unreadable", "contract": "chzzk_guarded_wrapper_v1"}
+    started_at = parse_utc(guarded.get("started_at_utc"))
+    finished_at = parse_utc(guarded.get("finished_at_utc"))
+    duration_ms = guarded.get("duration_ms")
+    if (
+        started_at is None
+        or finished_at is None
+        or isinstance(duration_ms, bool)
+        or not isinstance(duration_ms, int)
+        or duration_ms < 0
+    ):
+        return {
+            "state": "unreadable",
+            "contract": "chzzk_guarded_wrapper_v1",
+            "wrapper_boundary_id": boundary_id,
+        }
+    correlation.update(
+        {
+            "existing_run_started_at_utc": _utc_iso(started_at),
+            "existing_run_finished_at_utc": _utc_iso(finished_at),
+            "existing_duration_ms": duration_ms,
+        }
+    )
+    return correlation
 
 
 def correlate_run(
@@ -846,33 +977,9 @@ class ResourceEnvelopeObserver:
             result_finished = parse_utc(guarded.get("finished_at_utc"))
             if result_finished is None or not session_start <= result_finished <= session_end:
                 continue
-            _, end = _safe_json(run_dir / "trace" / "end.json")
-            status = guarded.get("status") if guarded.get("status") in CHZZK_STATUSES else None
-            if status is None:
+            correlation = _chzzk_artifact_correlation(run_dir)
+            if "existing_run_id" not in correlation:
                 continue
-            try:
-                exit_code = int((end or {}).get("exit_code"))
-                exit_state = "zero" if exit_code == 0 else "nonzero"
-            except (TypeError, ValueError):
-                exit_state = "missing" if end is None else "invalid"
-            correlation = {
-                "state": "matched",
-                "contract": "chzzk_guarded_wrapper_v1",
-                "wrapper_boundary_id": run_dir.name,
-                "existing_run_id": (
-                    guarded.get("run_id") if isinstance(guarded.get("run_id"), str) else None
-                ),
-                "existing_result_status": status,
-                "wrapper_exit_code_state": exit_state,
-                "status_conflict": status == "success" and exit_state == "nonzero",
-                "existing_run_started_at_utc": guarded.get("started_at_utc"),
-                "existing_run_finished_at_utc": guarded.get("finished_at_utc"),
-                "existing_duration_ms": (
-                    guarded.get("duration_ms")
-                    if isinstance(guarded.get("duration_ms"), int)
-                    else None
-                ),
-            }
             self._artifact_only_summary(spec, correlation)
 
     def run(self) -> dict[str, Any]:

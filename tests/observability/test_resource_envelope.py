@@ -5,6 +5,8 @@ import json
 import stat
 from pathlib import Path
 
+import pytest
+
 from observability.linux_proc import ProcessHeader, ProcessIdentity, ProcessSample
 from observability.resource_envelope import (
     ActiveRun,
@@ -14,6 +16,7 @@ from observability.resource_envelope import (
     TreeSampleResult,
     ValidCycleSample,
     WorkloadSpec,
+    _chzzk_artifact_correlation,
     _chzzk_correlation,
     _steam_correlation,
     _write_private_json,
@@ -22,6 +25,10 @@ from observability.resource_envelope import (
     match_workloads,
 )
 
+CANONICAL_RUN_ID = "20260101T000000000000Z"
+CANONICAL_BOUNDARY_ID = "20260101T000000Z"
+CHZZK_WRAPPER_SCRIPT = "run_chzzk_fetch_load_guarded_write_orchestration_wsl.sh"
+
 
 def header(pid: int, *, start: int = 1, user: int = 0) -> ProcessHeader:
     return ProcessHeader(ProcessIdentity(pid, start), 1, "python", user, 0, 0, 0)
@@ -29,6 +36,63 @@ def header(pid: int, *, start: int = 1, user: int = 0) -> ProcessHeader:
 
 def sample(at_ns: int, *, user: int = 0, rss: int = 100) -> StableTreeSample:
     return StableTreeSample(at_ns, (ProcessSample(header(10, user=user), rss),))
+
+
+def write_chzzk_artifact(
+    wrapper_dir: Path,
+    *,
+    boundary_id: str = CANONICAL_BOUNDARY_ID,
+    run_id: str = CANONICAL_RUN_ID,
+    status: str = "success",
+    wrapper_pid: object = "99",
+    exit_code: object = "0",
+) -> Path:
+    run_dir = wrapper_dir / boundary_id
+    (run_dir / "trace").mkdir(parents=True)
+    (run_dir / "trace" / "start.json").write_text(
+        json.dumps(
+            {
+                "boundary_id": boundary_id,
+                "script": CHZZK_WRAPPER_SCRIPT,
+                "wrapper_pid": wrapper_pid,
+            }
+        ),
+        encoding="utf-8",
+    )
+    (run_dir / "trace" / "end.json").write_text(
+        json.dumps({"boundary_id": boundary_id, "exit_code": exit_code}),
+        encoding="utf-8",
+    )
+    (run_dir / "guarded-write-result.json").write_text(
+        json.dumps(
+            {
+                "duration_ms": 1000,
+                "finished_at_utc": "2026-01-01T00:00:01Z",
+                "job_name": "chzzk_fetch_load_manual_orchestration",
+                "provider": "chzzk",
+                "result_ref": f"{run_id}/result.json",
+                "run_id": run_id,
+                "started_at_utc": "2026-01-01T00:00:00Z",
+                "status": status,
+                "raw": "not-exported",
+            }
+        ),
+        encoding="utf-8",
+    )
+    return run_dir
+
+
+def correlation_summary_text(correlation: dict[str, object]) -> str:
+    active = active_run("synthetic.smoke", pid=10)
+    return json.dumps(
+        build_run_summary(
+            active,
+            session_id="session",
+            observation_id="observation",
+            ticks_per_second=1,
+            correlation=correlation,
+        )
+    )
 
 
 def test_workload_matching_never_returns_raw_command_line() -> None:
@@ -394,13 +458,13 @@ def test_private_json_write_uses_restrictive_modes_and_leaves_no_temp_file(tmp_p
 
 
 def test_steam_correlation_uses_unique_time_and_workload_match(tmp_path: Path) -> None:
-    result_path = tmp_path / "ccu-30m" / "run-a" / "result.json"
+    result_path = tmp_path / "ccu-30m" / CANONICAL_RUN_ID / "result.json"
     result_path.parent.mkdir(parents=True)
     result_path.write_text(
         json.dumps(
             {
                 "job_name": "ccu-30m",
-                "run_id": "run-a",
+                "run_id": CANONICAL_RUN_ID,
                 "started_at_utc": "2026-01-01T00:00:00Z",
                 "finished_at_utc": "2026-01-01T00:00:01Z",
                 "duration_ms": 1000,
@@ -421,7 +485,7 @@ def test_steam_correlation_uses_unique_time_and_workload_match(tmp_path: Path) -
     assert result == {
         "state": "matched",
         "contract": "steam_cadence_result_v1",
-        "existing_run_id": "run-a",
+        "existing_run_id": CANONICAL_RUN_ID,
         "existing_result_status": "partial_success",
         "existing_duration_ms": 1000,
         "existing_run_started_at_utc": "2026-01-01T00:00:00Z",
@@ -430,38 +494,289 @@ def test_steam_correlation_uses_unique_time_and_workload_match(tmp_path: Path) -
     }
 
 
-def test_chzzk_status_exit_conflict_is_not_reclassified(tmp_path: Path) -> None:
-    run_dir = tmp_path / "20260101T000000Z"
-    (run_dir / "trace").mkdir(parents=True)
-    (run_dir / "trace" / "start.json").write_text(
-        json.dumps({"wrapper_pid": "99"}), encoding="utf-8"
-    )
-    (run_dir / "trace" / "end.json").write_text(
-        json.dumps({"exit_code": "1"}), encoding="utf-8"
-    )
-    (run_dir / "guarded-write-result.json").write_text(
-        json.dumps({"run_id": "guarded", "status": "success", "raw": "not-exported"}),
+@pytest.mark.parametrize(
+    "hostile_run_id",
+    [
+        "/private/path/run",
+        "credential-token-like-value",
+        "host.example.internal",
+        "line\nbreak\x1f",
+        "x" * 256,
+    ],
+)
+def test_steam_correlation_rejects_hostile_run_id_without_persisting_it(
+    tmp_path: Path,
+    hostile_run_id: str,
+) -> None:
+    result_path = tmp_path / "ccu-30m" / CANONICAL_RUN_ID / "result.json"
+    result_path.parent.mkdir(parents=True)
+    result_path.write_text(
+        json.dumps(
+            {
+                "job_name": "ccu-30m",
+                "run_id": hostile_run_id,
+                "started_at_utc": "2026-01-01T00:00:00Z",
+                "finished_at_utc": "2026-01-01T00:00:01Z",
+                "duration_ms": 1000,
+                "status": "success",
+            }
+        ),
         encoding="utf-8",
     )
+
+    result = _steam_correlation(
+        WorkloadSpec("steam.ccu-30m", "steam", "ccu-30m"),
+        started_at=dt.datetime(2026, 1, 1, tzinfo=dt.UTC),
+        finished_at=dt.datetime(2026, 1, 1, 0, 0, 1, tzinfo=dt.UTC),
+        jobs_dir=tmp_path,
+    )
+    text = correlation_summary_text(result)
+
+    assert result == {"state": "unreadable", "contract": "steam_cadence_result_v1"}
+    assert hostile_run_id not in text
+    assert json.dumps(hostile_run_id)[1:-1] not in text
+
+
+def test_chzzk_status_exit_conflict_is_not_reclassified(tmp_path: Path) -> None:
+    write_chzzk_artifact(tmp_path, exit_code="1")
 
     result = _chzzk_correlation(99, wrapper_dir=tmp_path)
 
     assert result["state"] == "matched"
+    assert result["existing_run_id"] == CANONICAL_RUN_ID
     assert result["existing_result_status"] == "success"
     assert result["wrapper_exit_code_state"] == "nonzero"
     assert result["status_conflict"] is True
     assert "raw" not in result
 
 
+def test_process_observed_chzzk_lock_busy_status_is_preserved(tmp_path: Path) -> None:
+    write_chzzk_artifact(tmp_path, status="lock_busy", exit_code="75")
+
+    result = _chzzk_correlation(99, wrapper_dir=tmp_path)
+
+    assert result["state"] == "matched"
+    assert result["existing_run_id"] == CANONICAL_RUN_ID
+    assert result["existing_result_status"] == "lock_busy"
+    assert result["wrapper_exit_code_state"] == "nonzero"
+    assert result["status_conflict"] is False
+
+
+def test_process_observed_chzzk_unknown_status_fails_closed(tmp_path: Path) -> None:
+    write_chzzk_artifact(tmp_path, status="invented")
+
+    result = _chzzk_correlation(99, wrapper_dir=tmp_path)
+
+    assert result == {
+        "state": "unreadable",
+        "contract": "chzzk_guarded_wrapper_v1",
+        "wrapper_boundary_id": CANONICAL_BOUNDARY_ID,
+    }
+
+
+@pytest.mark.parametrize(
+    "hostile_run_id",
+    [
+        "/private/path/run",
+        "credential-token-like-value",
+        "host.example.internal",
+        "line\nbreak\x1f",
+        "x" * 256,
+    ],
+)
+def test_chzzk_correlation_rejects_hostile_run_id_without_persisting_it(
+    tmp_path: Path,
+    hostile_run_id: str,
+) -> None:
+    write_chzzk_artifact(tmp_path, run_id=hostile_run_id)
+
+    result = _chzzk_correlation(99, wrapper_dir=tmp_path)
+    text = correlation_summary_text(result)
+
+    assert result["state"] == "unreadable"
+    assert "existing_run_id" not in result
+    assert hostile_run_id not in text
+    assert json.dumps(hostile_run_id)[1:-1] not in text
+
+
+def test_canonical_chzzk_artifact_only_evidence_stays_process_unmatched(
+    tmp_path: Path,
+) -> None:
+    wrapper_dir = tmp_path / "wrapper"
+    write_chzzk_artifact(wrapper_dir)
+    observer = ResourceEnvelopeObserver(
+        reader=None,  # type: ignore[arg-type]
+        output_dir=tmp_path / "output",
+        duration_seconds=1,
+        jobs_dir=tmp_path / "jobs",
+        wrapper_dir=wrapper_dir,
+    )
+
+    observer._record_artifact_only_runs("2026-01-01T00:00:00Z", "2026-01-01T00:00:02Z")
+
+    assert len(observer.finished) == 1
+    summary = observer.finished[0]
+    assert summary["correlation"]["state"] == "unmatched"
+    assert summary["correlation"]["existing_run_id"] == CANONICAL_RUN_ID
+    assert summary["correlation"]["existing_result_status"] == "success"
+    assert summary["completeness"] == {
+        "state": "incomplete",
+        "meaning": "no_known_observation_contract_gap",
+        "reasons": ["process_not_observed"],
+    }
+    assert summary["memory"]["peak_aggregate_rss_bytes"] is None
+
+
+def test_chzzk_artifact_only_lock_busy_status_is_preserved(tmp_path: Path) -> None:
+    wrapper_dir = tmp_path / "wrapper"
+    write_chzzk_artifact(wrapper_dir, status="lock_busy", exit_code="75")
+    observer = ResourceEnvelopeObserver(
+        reader=None,  # type: ignore[arg-type]
+        output_dir=tmp_path / "output",
+        duration_seconds=1,
+        jobs_dir=tmp_path / "jobs",
+        wrapper_dir=wrapper_dir,
+    )
+
+    observer._record_artifact_only_runs("2026-01-01T00:00:00Z", "2026-01-01T00:00:02Z")
+
+    assert len(observer.finished) == 1
+    correlation = observer.finished[0]["correlation"]
+    assert correlation["state"] == "unmatched"
+    assert correlation["existing_result_status"] == "lock_busy"
+    assert correlation["wrapper_exit_code_state"] == "nonzero"
+    assert correlation["status_conflict"] is False
+
+
+@pytest.mark.parametrize("marker_state", ["missing", "malformed", "boundary_mismatch"])
+def test_chzzk_artifact_only_invalid_start_marker_fails_closed(
+    tmp_path: Path,
+    marker_state: str,
+) -> None:
+    wrapper_dir = tmp_path / "wrapper"
+    run_dir = write_chzzk_artifact(wrapper_dir)
+    start_path = run_dir / "trace" / "start.json"
+    if marker_state == "missing":
+        start_path.unlink()
+    elif marker_state == "malformed":
+        start_path.write_text(json.dumps({"wrapper_pid": "not-a-pid"}), encoding="utf-8")
+    else:
+        start_path.write_text(
+            json.dumps(
+                {
+                    "boundary_id": "20260101T003000Z",
+                    "script": CHZZK_WRAPPER_SCRIPT,
+                    "wrapper_pid": "99",
+                }
+            ),
+            encoding="utf-8",
+        )
+
+    result = _chzzk_artifact_correlation(run_dir)
+    observer = ResourceEnvelopeObserver(
+        reader=None,  # type: ignore[arg-type]
+        output_dir=tmp_path / "output",
+        duration_seconds=1,
+        jobs_dir=tmp_path / "jobs",
+        wrapper_dir=wrapper_dir,
+    )
+    observer._record_artifact_only_runs("2026-01-01T00:00:00Z", "2026-01-01T00:00:02Z")
+
+    assert result == {"state": "unreadable", "contract": "chzzk_guarded_wrapper_v1"}
+    assert observer.finished == []
+
+
+def test_chzzk_artifact_only_mismatched_end_boundary_fails_closed(tmp_path: Path) -> None:
+    run_dir = write_chzzk_artifact(tmp_path)
+    (run_dir / "trace" / "end.json").write_text(
+        json.dumps({"boundary_id": "20260101T003000Z", "exit_code": "0"}),
+        encoding="utf-8",
+    )
+
+    result = _chzzk_artifact_correlation(run_dir)
+    observer = ResourceEnvelopeObserver(
+        reader=None,  # type: ignore[arg-type]
+        output_dir=tmp_path / "output",
+        duration_seconds=1,
+        jobs_dir=tmp_path / "jobs",
+        wrapper_dir=tmp_path,
+    )
+    observer._record_artifact_only_runs("2026-01-01T00:00:00Z", "2026-01-01T00:00:02Z")
+
+    assert result == {
+        "state": "unreadable",
+        "contract": "chzzk_guarded_wrapper_v1",
+        "wrapper_boundary_id": CANONICAL_BOUNDARY_ID,
+    }
+    assert "existing_result_status" not in result
+    assert observer.finished == []
+
+
+@pytest.mark.parametrize(
+    ("field", "invalid_value"),
+    [
+        ("provider", "other"),
+        ("job_name", "other_job"),
+        ("result_ref", "20260101T003000000000Z/result.json"),
+    ],
+)
+def test_chzzk_artifact_only_broken_result_binding_fails_closed(
+    tmp_path: Path,
+    field: str,
+    invalid_value: str,
+) -> None:
+    run_dir = write_chzzk_artifact(tmp_path)
+    result_path = run_dir / "guarded-write-result.json"
+    payload = json.loads(result_path.read_text(encoding="utf-8"))
+    payload[field] = invalid_value
+    result_path.write_text(json.dumps(payload), encoding="utf-8")
+
+    result = _chzzk_artifact_correlation(run_dir)
+
+    assert result == {
+        "state": "unreadable",
+        "contract": "chzzk_guarded_wrapper_v1",
+        "wrapper_boundary_id": CANONICAL_BOUNDARY_ID,
+    }
+    assert "existing_result_status" not in result
+
+
+@pytest.mark.parametrize(
+    "hostile_boundary_id",
+    ["host.example.internal", "credential-token-like-value", "line\nbreak\x1f", "x" * 128],
+)
+def test_chzzk_artifact_only_rejects_hostile_boundary_without_persisting_it(
+    tmp_path: Path,
+    hostile_boundary_id: str,
+) -> None:
+    run_dir = write_chzzk_artifact(tmp_path, boundary_id=hostile_boundary_id)
+
+    result = _chzzk_artifact_correlation(run_dir)
+    text = correlation_summary_text(result)
+    observer = ResourceEnvelopeObserver(
+        reader=None,  # type: ignore[arg-type]
+        output_dir=tmp_path / "output",
+        duration_seconds=1,
+        jobs_dir=tmp_path / "jobs",
+        wrapper_dir=tmp_path,
+    )
+    observer._record_artifact_only_runs("2026-01-01T00:00:00Z", "2026-01-01T00:00:02Z")
+
+    assert result == {"state": "unreadable", "contract": "chzzk_guarded_wrapper_v1"}
+    assert hostile_boundary_id not in text
+    assert json.dumps(hostile_boundary_id)[1:-1] not in text
+    assert observer.finished == []
+
+
 def test_new_result_without_observed_process_becomes_incomplete_evidence(tmp_path: Path) -> None:
     jobs_dir = tmp_path / "jobs"
-    result_path = jobs_dir / "ccu-30m" / "run-a" / "result.json"
+    result_path = jobs_dir / "ccu-30m" / CANONICAL_RUN_ID / "result.json"
     result_path.parent.mkdir(parents=True)
     result_path.write_text(
         json.dumps(
             {
                 "job_name": "ccu-30m",
-                "run_id": "run-a",
+                "run_id": CANONICAL_RUN_ID,
                 "started_at_utc": "2026-01-01T00:00:00Z",
                 "finished_at_utc": "2026-01-01T00:00:01Z",
                 "duration_ms": 1000,
