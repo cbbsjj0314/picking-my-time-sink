@@ -23,7 +23,10 @@
 - Codex must not merge PRs, create releases/tags, force-push, or push directly to `main`; humans own those decisions unless the user explicitly overrides this for a specific task.
 - Leave risky scope approval, merge decisions, and release decisions to humans.
 - Local docs, checkpoints, and `docs/local/NEXT.md` cleanup are not default deliverables.
-- Create local checkpoints only for large slice completion, risky operational evidence, or explicit user request.
+- Create durable private PMTS checkpoints only for large slice completion, risky operational evidence, or explicit user request.
+- Store durable private PMTS checkpoints outside this repository, using the configured private checkpoint destination when persistence is required.
+- Do not create new durable checkpoints in or fall back to `docs/local/checkpoints/`.
+- If the configured private checkpoint destination is unavailable or unspecified, report the condition instead of inventing a repository-local fallback. Destination unavailability alone must not fail an otherwise successful task unless checkpoint persistence is an explicit acceptance criterion.
 - Do not propose checkpoint index sync or NEXT hygiene as default follow-up work.
 - After making changes, summarize:
   - files changed
