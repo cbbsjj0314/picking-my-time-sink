@@ -2,6 +2,9 @@
 
 Ticket / Spec: `RUNTIME-RESOURCE-ENVELOPE-EVIDENCE-001`
 
+Chzzk terminal correlation amendment:
+`RUNTIME-RESOURCE-ENVELOPE-CHZZK-TERMINAL-CORRELATION-001`
+
 This is a local/private, read-only evidence contract for the current recurring
 PMTS workloads. It does not select a cloud provider or VM size, change a
 scheduler, start a workload, modify an existing result artifact, or write to a
@@ -16,7 +19,7 @@ The observer recognizes only these normalized identities:
 | `steam.ccu-30m` | `steam.ingest.run_steam_cadence_job ccu-30m` and Steam cadence `result.json` |
 | `steam.price-1h` | `steam.ingest.run_steam_cadence_job price-1h` and Steam cadence `result.json` |
 | `steam.daily` | `steam.ingest.run_steam_cadence_job daily` and Steam cadence `result.json` |
-| `chzzk.fetch-load-guarded-write-30m` | guarded-write wrapper, wrapper trace, and guarded-write result |
+| `chzzk.fetch-load-guarded-write-30m` | guarded-write wrapper, wrapper trace, and guarded-write or narrowly validated early-terminal result |
 
 Root discovery reads cmdline at most once per 250ms discovery interval and only for
 processes whose short Linux process name is an expected shell, Poetry, or
@@ -30,10 +33,21 @@ does not itself prove that a Windows scheduler triggered the command.
 Steam correlation requires one result with the matching cadence whose existing
 start/end UTC interval overlaps the observed process interval within two
 seconds. Chzzk correlation matches the wrapper PID internally against the
-sanitized wrapper start marker, then reads only allowlisted guarded-result and
-wrapper-exit fields. Missing, unreadable, or ambiguous evidence does not imply
-a status. A Chzzk successful guarded result with a nonzero wrapper exit remains
-a conflict, not a newly invented success or failure status.
+sanitized wrapper start marker. A valid `guarded-write-result.json` is the
+primary result and records `existing_result_phase: guarded_write`. The observer
+considers `no-write-result.json` only when the guarded result is missing, and
+only status `hard_failure` is a supported early-terminal outcome. That outcome
+requires canonical producer binding, a matching readable wrapper end marker,
+and a valid nonzero wrapper exit; it records
+`existing_result_phase: no_write_terminal`. This phase distinguishes a
+pre-guard terminal outcome from guarded execution without reclassifying the
+producer's result status.
+
+If a guarded result exists but is malformed, unreadable, or invalid, the
+observer does not fall back to no-write evidence. Missing, malformed, invalid,
+or ambiguous no-write/end evidence also fails closed as unreadable and does not
+imply a terminal outcome. A Chzzk successful guarded result with a nonzero
+wrapper exit remains a conflict, not a newly invented success or failure status.
 
 Persisted Steam and Chzzk run IDs must match the recurring producers' canonical
 `%Y%m%dT%H%M%S%fZ` UTC form. Chzzk wrapper boundary IDs must match the wrapper's
@@ -42,10 +56,12 @@ Invalid identifiers fail closed as unreadable and their raw values are never
 persisted. Existing statuses, including Chzzk `lock_busy`, are preserved without
 reclassification.
 
-Artifact-only Chzzk fallback requires a canonical boundary, a valid start marker,
-a bound guarded result, and matching end evidence. Because no process PID was
-observed, its correlation state remains `unmatched`; the run is retained only as
-`process_not_observed` incomplete evidence and is not presented as a process match.
+Artifact-only Chzzk fallback reuses the same guarded-primary and narrow
+early-terminal validation contracts and requires matching end evidence. Because
+no process PID was observed, its correlation state remains `unmatched`; the run
+is retained only as `process_not_observed` incomplete evidence and is not
+presented as a process match. Normalized producer status and result phase may be
+preserved, but artifact-only evidence never creates a process correlation.
 
 ## Resource semantics
 

@@ -82,6 +82,24 @@ def write_chzzk_artifact(
     return run_dir
 
 
+def write_chzzk_no_write_terminal_artifact(
+    wrapper_dir: Path,
+    *,
+    run_id: str = CANONICAL_RUN_ID,
+    status: str = "hard_failure",
+    exit_code: object = "1",
+) -> Path:
+    run_dir = write_chzzk_artifact(
+        wrapper_dir,
+        run_id=run_id,
+        status=status,
+        exit_code=exit_code,
+    )
+    guarded_path = run_dir / "guarded-write-result.json"
+    guarded_path.replace(run_dir / "no-write-result.json")
+    return run_dir
+
+
 def correlation_summary_text(correlation: dict[str, object]) -> str:
     active = active_run("synthetic.smoke", pid=10)
     return json.dumps(
@@ -538,13 +556,17 @@ def test_steam_correlation_rejects_hostile_run_id_without_persisting_it(
 
 
 def test_chzzk_status_exit_conflict_is_not_reclassified(tmp_path: Path) -> None:
-    write_chzzk_artifact(tmp_path, exit_code="1")
+    run_dir = write_chzzk_artifact(tmp_path, exit_code="1")
+    no_write = json.loads((run_dir / "guarded-write-result.json").read_text(encoding="utf-8"))
+    no_write["status"] = "hard_failure"
+    (run_dir / "no-write-result.json").write_text(json.dumps(no_write), encoding="utf-8")
 
     result = _chzzk_correlation(99, wrapper_dir=tmp_path)
 
     assert result["state"] == "matched"
     assert result["existing_run_id"] == CANONICAL_RUN_ID
     assert result["existing_result_status"] == "success"
+    assert result["existing_result_phase"] == "guarded_write"
     assert result["wrapper_exit_code_state"] == "nonzero"
     assert result["status_conflict"] is True
     assert "raw" not in result
@@ -558,8 +580,112 @@ def test_process_observed_chzzk_lock_busy_status_is_preserved(tmp_path: Path) ->
     assert result["state"] == "matched"
     assert result["existing_run_id"] == CANONICAL_RUN_ID
     assert result["existing_result_status"] == "lock_busy"
+    assert result["existing_result_phase"] == "guarded_write"
     assert result["wrapper_exit_code_state"] == "nonzero"
     assert result["status_conflict"] is False
+
+
+def test_process_observed_chzzk_no_write_hard_failure_is_terminal(
+    tmp_path: Path,
+) -> None:
+    write_chzzk_no_write_terminal_artifact(tmp_path)
+
+    result = _chzzk_correlation(99, wrapper_dir=tmp_path)
+
+    assert result == {
+        "state": "matched",
+        "contract": "chzzk_guarded_wrapper_v1",
+        "wrapper_boundary_id": CANONICAL_BOUNDARY_ID,
+        "existing_run_id": CANONICAL_RUN_ID,
+        "existing_result_status": "hard_failure",
+        "existing_result_phase": "no_write_terminal",
+        "wrapper_exit_code_state": "nonzero",
+        "status_conflict": False,
+    }
+    summary = correlation_summary_text(result)
+    assert "no-write-result.json" not in summary
+    assert str(tmp_path) not in summary
+
+
+@pytest.mark.parametrize("guarded_payload", ["{", json.dumps({"status": []})])
+def test_invalid_guarded_result_does_not_fallback_to_valid_no_write(
+    tmp_path: Path,
+    guarded_payload: str,
+) -> None:
+    run_dir = write_chzzk_no_write_terminal_artifact(tmp_path)
+    (run_dir / "guarded-write-result.json").write_text(guarded_payload, encoding="utf-8")
+
+    result = _chzzk_correlation(99, wrapper_dir=tmp_path)
+
+    assert result == {
+        "state": "unreadable",
+        "contract": "chzzk_guarded_wrapper_v1",
+        "wrapper_boundary_id": CANONICAL_BOUNDARY_ID,
+    }
+
+
+@pytest.mark.parametrize(
+    "invalid_evidence",
+    [
+        "malformed_result",
+        "noncanonical_run_id",
+        "invalid_provider",
+        "invalid_binding",
+        "nonterminal_status",
+        "missing_end",
+        "malformed_end",
+        "mismatched_end_boundary",
+        "zero_exit",
+        "invalid_exit",
+    ],
+)
+def test_invalid_no_write_terminal_evidence_fails_closed(
+    tmp_path: Path,
+    invalid_evidence: str,
+) -> None:
+    run_dir = write_chzzk_no_write_terminal_artifact(tmp_path)
+    result_path = run_dir / "no-write-result.json"
+    end_path = run_dir / "trace" / "end.json"
+    if invalid_evidence == "malformed_result":
+        result_path.write_text("{", encoding="utf-8")
+    elif invalid_evidence in {
+        "noncanonical_run_id",
+        "invalid_provider",
+        "invalid_binding",
+        "nonterminal_status",
+    }:
+        payload = json.loads(result_path.read_text(encoding="utf-8"))
+        if invalid_evidence == "noncanonical_run_id":
+            payload["run_id"] = "not-canonical"
+            payload["result_ref"] = "not-canonical/result.json"
+        elif invalid_evidence == "invalid_provider":
+            payload["provider"] = "other"
+        elif invalid_evidence == "invalid_binding":
+            payload["result_ref"] = "20260101T003000000000Z/result.json"
+        else:
+            payload["status"] = "partial_success"
+        result_path.write_text(json.dumps(payload), encoding="utf-8")
+    elif invalid_evidence == "missing_end":
+        end_path.unlink()
+    elif invalid_evidence == "malformed_end":
+        end_path.write_text("{", encoding="utf-8")
+    else:
+        end = json.loads(end_path.read_text(encoding="utf-8"))
+        if invalid_evidence == "mismatched_end_boundary":
+            end["boundary_id"] = "20260101T003000Z"
+        elif invalid_evidence == "zero_exit":
+            end["exit_code"] = "0"
+        else:
+            end["exit_code"] = "not-an-exit"
+        end_path.write_text(json.dumps(end), encoding="utf-8")
+
+    result = _chzzk_correlation(99, wrapper_dir=tmp_path)
+
+    assert result == {
+        "state": "unreadable",
+        "contract": "chzzk_guarded_wrapper_v1",
+        "wrapper_boundary_id": CANONICAL_BOUNDARY_ID,
+    }
 
 
 def test_process_observed_chzzk_unknown_status_fails_closed(tmp_path: Path) -> None:
@@ -619,12 +745,42 @@ def test_canonical_chzzk_artifact_only_evidence_stays_process_unmatched(
     assert summary["correlation"]["state"] == "unmatched"
     assert summary["correlation"]["existing_run_id"] == CANONICAL_RUN_ID
     assert summary["correlation"]["existing_result_status"] == "success"
+    assert summary["correlation"]["existing_result_phase"] == "guarded_write"
     assert summary["completeness"] == {
         "state": "incomplete",
         "meaning": "no_known_observation_contract_gap",
         "reasons": ["process_not_observed"],
     }
     assert summary["memory"]["peak_aggregate_rss_bytes"] is None
+
+
+def test_no_write_terminal_artifact_only_evidence_stays_process_unmatched(
+    tmp_path: Path,
+) -> None:
+    wrapper_dir = tmp_path / "wrapper"
+    write_chzzk_no_write_terminal_artifact(wrapper_dir)
+    observer = ResourceEnvelopeObserver(
+        reader=None,  # type: ignore[arg-type]
+        output_dir=tmp_path / "output",
+        duration_seconds=1,
+        jobs_dir=tmp_path / "jobs",
+        wrapper_dir=wrapper_dir,
+    )
+
+    observer._record_artifact_only_runs("2026-01-01T00:00:00Z", "2026-01-01T00:00:02Z")
+
+    assert len(observer.finished) == 1
+    summary = observer.finished[0]
+    assert summary["correlation"]["state"] == "unmatched"
+    assert summary["correlation"]["existing_result_status"] == "hard_failure"
+    assert summary["correlation"]["existing_result_phase"] == "no_write_terminal"
+    assert summary["completeness"] == {
+        "state": "incomplete",
+        "meaning": "no_known_observation_contract_gap",
+        "reasons": ["process_not_observed"],
+    }
+    assert summary["memory"]["peak_aggregate_rss_bytes"] is None
+    assert summary["cpu"]["total_seconds"] is None
 
 
 def test_chzzk_artifact_only_lock_busy_status_is_preserved(tmp_path: Path) -> None:
