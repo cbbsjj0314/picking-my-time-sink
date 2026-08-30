@@ -15,6 +15,8 @@ sizing remain behind the follow-up gates.
 
 ## Current Relationship
 
+Relationship updated: 2026-08-30 (KST)
+
 이 문서는 2026-08-12 시점에 accepted target direction을 정의한 historical
 architecture decision으로 유지한다. 당시 runtime/cutover 상태를 설명하는
 본문을 후속 운영 상태에 맞춰 소급해서 다시 쓰지 않는다.

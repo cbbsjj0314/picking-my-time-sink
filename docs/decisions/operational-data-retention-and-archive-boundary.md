@@ -101,6 +101,14 @@ R2는 general-purpose full runtime mirror가 아니다.
 
 R2 Standard Free-tier capacity 안에서 운영하는 것을 기본 목표로 한다.
 
+`selected high-value source evidence` 내부의 현재 priority는 다음과 같다.
+
+```text
+ranking payload
+→ App Catalog completed snapshot
+→ price.bronze.jsonl
+```
+
 - fixed age expiry를 기본 retention mechanism으로 사용하지 않는다.
 - capacity pressure가 생기면 verified Desktop HDD copy가 있는 오래된
   selected source evidence부터 R2에서 줄인다.
@@ -433,6 +441,17 @@ R2: long-term no
 Desktop HDD: no
 ```
 
+### Legacy Steam pruning exception
+
+Abnormal-run record generation 이전의 legacy Steam generation은 important
+failure/missing evidence가 별도로 보존되었는지 확인하기 전까지 automatic
+pruning 대상으로 소급하지 않는다.
+
+First production pruning에서는 legacy generation을 별도로 식별하고,
+required troubleshooting/forensic value가 종료됐거나 필요한 evidence가
+다른 retained record로 보존됐음을 확인한 뒤에만 prune candidate로
+승격한다.
+
 ### Rebuildable / routine Steam artifacts
 
 다음 artifact는 long-term source archive 대상이 아니다.
@@ -562,7 +581,7 @@ inconclusive
 Incident가 closed되기 전에는 조사에 필요한 forensic evidence를 age만으로
 prune하지 않는다.
 
-Closed incident의 final snapshot은 R2에 long-term 보존할 수 있다.
+Closed incident의 final immutable snapshot은 R2에 long-term 보존한다.
 
 중요한 incident만 full forensic bundle을 Desktop HDD에 selected archive한다.
 

@@ -15,6 +15,8 @@ boundary를 열지 않으며, 현재 scheduler나 serving path도 바꾸지 않�
 
 ## Current Relationship
 
+Relationship updated: 2026-08-30 (KST)
+
 이 문서는 2026-04-22 당시 Desktop authority가 selected Steam artifact를
 R2-backed S3-compatible boundary에 publish하고 MacBook이 read-only로
 재사용하던 shared-development contract의 historical record로 유지한다.
