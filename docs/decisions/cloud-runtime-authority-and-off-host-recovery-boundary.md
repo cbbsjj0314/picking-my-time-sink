@@ -13,6 +13,38 @@ sizing remain behind the follow-up gates.
 
 2026-08-12 (KST)
 
+## Current Relationship
+
+이 문서는 2026-08-12 시점에 accepted target direction을 정의한 historical
+architecture decision으로 유지한다. 당시 runtime/cutover 상태를 설명하는
+본문을 후속 운영 상태에 맞춰 소급해서 다시 쓰지 않는다.
+
+Operational data retention/archive와 PostgreSQL recovery의 current contract는
+[`operational-data-retention-and-archive-boundary.md`](./operational-data-retention-and-archive-boundary.md)
+에서 구체화한다.
+
+새 decision은 이 문서가 후속 contract로 남겨둔 다음 항목을 정의한다.
+
+- Cloud local operational/source evidence의 bounded retention
+- source / derived / rebuildable / disposable state의 retention responsibility
+- PostgreSQL recovery의 `RPO = 6시간`, `RTO = 24시간`
+- recovery generation retention과 verification-before-rotation boundary
+- R2의 recovery / selected retained-evidence priority
+- Desktop HDD의 bulk/deep-cold archive responsibility
+- archive `copy → verify → prune` safety boundary
+- abnormal-run / incident evidence retention
+
+다음 architecture direction은 계속 유지한다.
+
+- PostgreSQL facts, dimensions, mappings, serving views의 authoritative-state boundary
+- personal workstation과 operational authority를 분리하는 방향
+- provider-portable Linux compute boundary
+- provider-portable S3-compatible off-host object boundary
+- full local runtime filesystem을 off-host에 mirror하지 않는 원칙
+
+이 relationship update 자체는 backup, archive, retention 또는 pruning
+implementation을 승인하지 않는다.
+
 ## Context
 
 PMTS recurring collection currently depends on a personal Windows workstation,

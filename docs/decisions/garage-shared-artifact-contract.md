@@ -13,6 +13,33 @@ boundary를 열지 않으며, 현재 scheduler나 serving path도 바꾸지 않�
 - 그래도 durable contract는 계속 S3-compatible이고, 이후 self-hosted
   fallback/migration 방향은 Garage로 유지한다.
 
+## Current Relationship
+
+이 문서는 2026-04-22 당시 Desktop authority가 selected Steam artifact를
+R2-backed S3-compatible boundary에 publish하고 MacBook이 read-only로
+재사용하던 shared-development contract의 historical record로 유지한다.
+
+Current retention/archive responsibility는
+[`operational-data-retention-and-archive-boundary.md`](./operational-data-retention-and-archive-boundary.md)
+에서 별도로 정의한다.
+
+새 decision은 다음 부분을 current topology에서 supersede한다.
+
+- Desktop authority가 shared object boundary의 current operational writer라는 가정
+- MacBook read-only reuse를 R2의 primary responsibility로 보는 가정
+- 이 문서의 selected shared subset을 current indefinite retention inventory로
+  해석하는 것
+
+다음 원칙은 계속 유지한다.
+
+- provider-portable S3-compatible object boundary
+- full local runtime tree를 mirror하지 않고 selected artifact만 off-host에 두는 원칙
+- run-scoped immutable object와 explicit manifest/reference를 사용하는 방향
+
+Existing R2 objects는 이 relationship update만으로 삭제하지 않는다.
+Current consumer verification과 별도 destructive Human Gate를 통과한 뒤에만
+cleanup할 수 있다.
+
 ## 목표
 
 desktop authority host가 작은 retained-artifact subset을 S3-compatible object
