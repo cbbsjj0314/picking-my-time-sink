@@ -2,7 +2,7 @@
 
 ## Status
 
-Status: accepted target direction, docs-only  
+Status: accepted target direction, docs-only
 Date: 2026-08-30 (KST)
 
 이 결정은 PMTS의 operational/source evidence, off-host retained evidence,
