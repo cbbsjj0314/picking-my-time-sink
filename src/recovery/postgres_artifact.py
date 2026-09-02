@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import argparse
+import ctypes
+import errno
 import hashlib
 import json
 import os
 import re
 import subprocess
+import sys
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -18,7 +21,28 @@ CONTRACT_VERSION = "postgres-recovery-artifact/v1"
 GENERATOR = "recovery.postgres_artifact"
 COMPLETED_DIRNAME = "completed"
 STAGING_DIRNAME = "staging"
-_SAFE_NAME = re.compile(r"[^A-Za-z0-9._-]+")
+_DATABASE_LOGICAL_NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]{0,62}\Z")
+_GENERATION_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}\Z")
+_UTC_TIMESTAMP = re.compile(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z\Z")
+_SHA256 = re.compile(r"[0-9a-f]{64}\Z")
+_MANIFEST_FIELDS = frozenset(
+    {
+        "checksum_algorithm",
+        "checksum_value",
+        "completed_at_utc",
+        "contract_version",
+        "created_at_utc",
+        "database_logical_name",
+        "dump_filename",
+        "dump_format",
+        "dump_size_bytes",
+        "generation_id",
+        "generator",
+        "verification_status",
+    }
+)
+_AT_FDCWD = -100
+_RENAME_NOREPLACE = 1
 
 
 class GenerationError(RuntimeError):
@@ -39,18 +63,28 @@ ProcessRunner = Callable[[Sequence[str]], subprocess.CompletedProcess[Any]]
 def safe_database_filename(database_logical_name: str) -> str:
     """Return a non-empty filename component for a logical database identity."""
 
-    if "://" in database_logical_name:
-        raise ValueError("database_logical_name must not be a connection URI")
-    sanitized = _SAFE_NAME.sub("-", database_logical_name.strip()).strip(".-")
-    if not sanitized:
-        raise ValueError("database_logical_name must contain a safe filename character")
-    return sanitized
+    if not _DATABASE_LOGICAL_NAME.fullmatch(database_logical_name):
+        raise ValueError("database_logical_name must be a plain database selector")
+    return database_logical_name
+
+
+def _validate_generation_id(generation_id: object) -> bool:
+    return isinstance(generation_id, str) and _GENERATION_ID.fullmatch(generation_id) is not None
 
 
 def _format_utc(value: datetime) -> str:
     if value.tzinfo is None:
         raise ValueError("timestamp must be timezone-aware")
     return value.astimezone(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+
+def _parse_utc_timestamp(value: object) -> datetime | None:
+    if not isinstance(value, str) or _UTC_TIMESTAMP.fullmatch(value) is None:
+        return None
+    try:
+        return datetime.strptime(value, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=UTC)
+    except ValueError:
+        return None
 
 
 def _sha256(path: Path) -> str:
@@ -79,6 +113,37 @@ def _read_manifest(generation_dir: Path) -> dict[str, Any]:
     return payload
 
 
+def _rename_no_replace(source: Path, destination: Path) -> None:
+    """Atomically rename a Linux directory only when destination does not exist."""
+
+    if os.name != "posix":
+        raise GenerationError("atomic no-replace finalization is unsupported")
+    try:
+        renameat2 = ctypes.CDLL(None, use_errno=True).renameat2
+    except AttributeError as exc:
+        raise GenerationError("atomic no-replace finalization is unsupported") from exc
+    renameat2.argtypes = [
+        ctypes.c_int,
+        ctypes.c_char_p,
+        ctypes.c_int,
+        ctypes.c_char_p,
+        ctypes.c_uint,
+    ]
+    renameat2.restype = ctypes.c_int
+    if renameat2(
+        _AT_FDCWD,
+        os.fsencode(source),
+        _AT_FDCWD,
+        os.fsencode(destination),
+        _RENAME_NOREPLACE,
+    ) == 0:
+        return
+    error = ctypes.get_errno()
+    if error == errno.EEXIST:
+        raise GenerationError("completed generation already exists")
+    raise GenerationError("atomic no-replace finalization failed")
+
+
 def verify_generation(generation_dir: Path) -> VerificationResult:
     """Verify a completed local generation without any storage-service dependency."""
 
@@ -91,23 +156,12 @@ def verify_generation(generation_dir: Path) -> VerificationResult:
     except ValueError as exc:
         return VerificationResult(False, (str(exc),))
 
-    required = {
-        "contract_version",
-        "generation_id",
-        "created_at_utc",
-        "completed_at_utc",
-        "database_logical_name",
-        "dump_filename",
-        "dump_format",
-        "dump_size_bytes",
-        "checksum_algorithm",
-        "checksum_value",
-        "verification_status",
-        "generator",
-    }
-    missing = sorted(required - manifest.keys())
+    missing = sorted(_MANIFEST_FIELDS - manifest.keys())
     if missing:
         errors.append("manifest missing fields: " + ", ".join(missing))
+    extra = sorted(manifest.keys() - _MANIFEST_FIELDS)
+    if extra:
+        errors.append("manifest contains unsupported fields")
     if manifest.get("contract_version") != CONTRACT_VERSION:
         errors.append("unsupported contract version")
     if manifest.get("dump_format") != "custom":
@@ -118,7 +172,9 @@ def verify_generation(generation_dir: Path) -> VerificationResult:
         errors.append("verification status is not PASS")
     if manifest.get("generator") != GENERATOR:
         errors.append("unexpected generator")
-    if manifest.get("generation_id") != generation_dir.name:
+    if not _validate_generation_id(manifest.get("generation_id")):
+        errors.append("generation identifier is invalid")
+    elif manifest.get("generation_id") != generation_dir.name:
         errors.append("generation identifier does not match directory")
     database_logical_name = manifest.get("database_logical_name")
     if not isinstance(database_logical_name, str):
@@ -131,6 +187,21 @@ def verify_generation(generation_dir: Path) -> VerificationResult:
         else:
             if manifest.get("dump_filename") != expected_filename:
                 errors.append("dump filename does not match database logical name")
+
+    created_at = _parse_utc_timestamp(manifest.get("created_at_utc"))
+    completed_at = _parse_utc_timestamp(manifest.get("completed_at_utc"))
+    if created_at is None:
+        errors.append("created timestamp is invalid")
+    if completed_at is None:
+        errors.append("completed timestamp is invalid")
+    if created_at is not None and completed_at is not None and completed_at < created_at:
+        errors.append("completed timestamp precedes created timestamp")
+    dump_size = manifest.get("dump_size_bytes")
+    if not isinstance(dump_size, int) or isinstance(dump_size, bool) or dump_size <= 0:
+        errors.append("dump size is invalid")
+    checksum = manifest.get("checksum_value")
+    if not isinstance(checksum, str) or _SHA256.fullmatch(checksum) is None:
+        errors.append("checksum value is invalid")
 
     filename = manifest.get("dump_filename")
     if (
@@ -178,8 +249,8 @@ def create_generation(
 ) -> Path:
     """Create one verified custom-format dump and atomically finalize it locally."""
 
-    if not generation_id or Path(generation_id).name != generation_id:
-        raise ValueError("generation_id must be a single path component")
+    if not _validate_generation_id(generation_id):
+        raise ValueError("generation_id must be a safe identifier")
     safe_name = safe_database_filename(database_logical_name)
     root = Path(root)
     completed_dir = root / COMPLETED_DIRNAME / generation_id
@@ -233,10 +304,7 @@ def create_generation(
         raise GenerationError("staging verification failed: " + "; ".join(verification.errors))
 
     completed_dir.parent.mkdir(parents=True, exist_ok=True)
-    try:
-        os.rename(staging_dir, completed_dir)
-    except FileExistsError as exc:
-        raise GenerationError(f"completed generation already exists: {generation_id}") from exc
+    _rename_no_replace(staging_dir, completed_dir)
     return completed_dir
 
 
@@ -262,15 +330,23 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     args = build_parser().parse_args(argv)
     if args.command == "create":
-        generation = create_generation(
-            root=args.root,
-            database_logical_name=args.database_logical_name,
-            generation_id=args.generation_id,
-            pg_dump_executable=args.pg_dump_executable,
-        )
-        print(generation)
+        try:
+            generation = create_generation(
+                root=args.root,
+                database_logical_name=args.database_logical_name,
+                generation_id=args.generation_id,
+                pg_dump_executable=args.pg_dump_executable,
+            )
+        except (GenerationError, OSError, ValueError, subprocess.SubprocessError):
+            print("ERROR: recovery generation failed", file=sys.stderr)
+            return 1
+        print(f"completed generation: {generation.name}")
         return 0
-    result = verify_generation(args.generation_dir)
+    try:
+        result = verify_generation(args.generation_dir)
+    except OSError:
+        print("ERROR: recovery verification failed", file=sys.stderr)
+        return 1
     if result.passed:
         print("PASS")
         return 0
