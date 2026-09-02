@@ -8,8 +8,8 @@
 
 ## Planning and reporting
 - Before making changes, show a short plan.
-- Use `docs/local/NEXT.md` as the current execution priority board when it is present locally and applies.
-- If a task changes current status or closes a Now/Next item, update `docs/local/NEXT.md` in the same slice when that local board is present.
+- Start implementation only from one explicit ticket selected by the human through the planning flow and handed off to the implementation agent.
+- Treat planning boards, queues, and candidate lists as context only; they do not authorize Codex to select or promote the next ticket.
 - If a change alters schema, API, or data semantics, update the related durable doc and regression tests in the same slice.
 - Follow the default delivery flow: Spec -> Ticket -> Agent implementation -> PR -> CI -> Review -> Human Gate -> Release.
 - Before implementation, confirm `Risk Level`, `Human Gate Required`, and `Review Level` in the ticket.
@@ -18,16 +18,16 @@
 - Use `Passed` only after the Fresh-context reviewer reconfirms that blocking findings and required evidence are resolved.
 - The implementation agent's completion report or self-fix result cannot be independent review evidence.
 - Follow `docs/runbook/agent-workflow.md` for review triggers, evidence formats, and detailed status definitions.
-- Treat ChatGPT/planning sessions as the place to define product specs and tickets.
-- Treat Codex implementation sessions as one-ticket-at-a-time execution toward a focused branch/commit and PR when the ticket is approved for PR-native execution.
+- Treat ChatGPT/planning sessions as the place to define product specs and tickets, maintain private planning state, and support the human's active-ticket selection.
+- Treat Codex implementation sessions as one-ticket-at-a-time execution of the explicitly handed-off ticket toward a focused branch/commit and PR when the ticket is approved for PR-native execution.
 - Codex must not merge PRs, create releases/tags, force-push, or push directly to `main`; humans own those decisions unless the user explicitly overrides this for a specific task.
 - Leave risky scope approval, merge decisions, and release decisions to humans.
-- Local docs, checkpoints, and `docs/local/NEXT.md` cleanup are not default deliverables.
+- Local/private planning-state maintenance and checkpoints are not default implementation deliverables.
 - Create durable private PMTS checkpoints only for large slice completion, risky operational evidence, or explicit user request.
 - Store durable private PMTS checkpoints outside this repository, using the configured private checkpoint destination when persistence is required.
 - Do not create new durable checkpoints in or fall back to `docs/local/checkpoints/`.
 - If the configured private checkpoint destination is unavailable or unspecified, report the condition instead of inventing a repository-local fallback. Destination unavailability alone must not fail an otherwise successful task unless checkpoint persistence is an explicit acceptance criterion.
-- Do not propose checkpoint index sync or NEXT hygiene as default follow-up work.
+- Do not propose checkpoint index sync or planning-state hygiene as default follow-up work.
 - After making changes, summarize:
   - files changed
   - what was implemented
@@ -38,7 +38,7 @@
 - Do not silently choose an interpretation when the request, data contract, runtime boundary, or ownership boundary is ambiguous.
 - State the ambiguity and ask for clarification before implementation unless the task is small and the safest repo-grounded interpretation is obvious.
 - When proceeding with an assumption, make the assumption explicit in the plan and final summary.
-- Prefer repo-grounded evidence from existing code, tests, docs, and local boards over memory or generic best practice.
+- Prefer current repo evidence from code, tests, and durable docs, plus the explicitly handed-off ticket, over memory or generic best practice.
 - Do not treat local/private runtime evidence from another host as live scheduler health unless the current docs explicitly connect that evidence to the authority runtime.
 
 ## Success criteria
@@ -98,7 +98,7 @@
 - Avoid speculative abstractions unless they are required by the current task.
 - Prefer repo-grounded facts and existing boundaries over early generalization.
 - Separate implemented scope from explicitly deferred follow-ups.
-- Do not pull in the “next natural slice” or automatically promote the next `Now` item without the user's explicit choice.
+- Do not pull in the “next natural slice” or select/promote another ticket without an explicit human selection and planning handoff.
 - Do not introduce heavy new tooling unless explicitly requested.
 
 ## Surgical edits
@@ -109,7 +109,7 @@
 - Prefer modifying the narrowest existing module, function, or API boundary over introducing a new abstraction.
 
 ## Git conventions
-- Prefer one branch per Now item.
+- Prefer one branch per active ticket.
 - Merge to `main` at natural completion points (task close or checkpoint).
 - Use commit messages in this format:
   - `type(scope): summary`
