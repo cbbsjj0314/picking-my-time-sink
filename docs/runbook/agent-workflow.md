@@ -6,8 +6,8 @@ Spec -> Ticket -> Agent implementation -> PR -> CI -> Review -> Human Gate -> Re
 
 ## 역할
 
-- ChatGPT/planning session은 product spec을 정의하고, 작업을 ticket으로 나누며, acceptance criteria를 명확히 한다.
-- Codex는 한 번에 하나의 ticket을 구현하고, 집중된 branch/commit을 준비하며, ticket이 PR-native 실행으로 승인되면 작은 PR을 연다.
+- ChatGPT/planning session은 product spec을 정의하고, 작업을 ticket으로 나누며, human의 active ticket 선택을 지원하고 acceptance criteria를 명확히 한다.
+- Codex는 human이 planning flow를 통해 명시적으로 선택·전달한 하나의 ticket을 구현하고, 집중된 branch/commit을 준비하며, ticket이 PR-native 실행으로 승인되면 작은 PR을 연다.
 - 사람은 위험한 scope를 승인하고, PR을 review하며, merge를 결정하고, release를 제어한다.
 
 ## Ticket 내용
@@ -17,6 +17,13 @@ Ticket은 `User Decision`, scope, out of scope, requirements, acceptance criteri
 `Risk Level`, `Human Gate Required`, `Review Level`은 implementation 전에 확정한다. Implementation agent는 사전 결정된 세 값을 임의로 낮추지 않는다. 구현 중 scope 또는 위험이 커져 더 강한 gate가 필요해지면 구현을 계속하거나 자체 재분류하지 않고 planning 흐름으로 되돌린다.
 
 하나의 ticket은 보통 하나의 PR에 대응한다. Ticket이 서로 관련 없는 runtime, schema, API, web, operations 변경을 섞고 있다면 구현 전에 작업을 나눈다.
+
+## Ticket 선택 및 handoff
+
+- Human이 planning flow에서 한 번에 하나의 active ticket을 명시적으로 선택한다.
+- Codex는 선택된 ticket을 명시적으로 전달받은 뒤에만 implementation을 시작한다.
+- Planning board, queue, candidate list는 execution context일 수 있지만 다른 ticket을 선택하거나 승격할 권한을 주지 않는다.
+- Current ticket이 끝나거나 stronger planning decision이 필요해지면 Codex는 다음 ticket을 스스로 선택하지 않고 planning 흐름으로 되돌린다.
 
 ## Ticket 유형
 
@@ -52,7 +59,7 @@ Codex는 다음을 수행해서는 안 된다.
 - Ticket 없이 인접한 product feature로 scope를 확장하지 않는다.
 - Ticket이 명시적으로 요구하지 않는 한 scheduler, DB, provider fetch, schema, API, web behavior를 변경하지 않는다.
 - 현재 docs가 그렇게 말하지 않는 한 local 또는 private runtime evidence를 live scheduler authority로 취급하지 않는다.
-- 기본적으로 local checkpoint를 만들거나 `docs/local/NEXT.md`를 cleanup하지 않는다.
+- 기본적으로 local checkpoint를 만들거나 private planning state를 정리·갱신하지 않는다.
 
 ## Review
 
@@ -129,4 +136,6 @@ Codex에서는 sandbox escalation/approval을 사용해 `./scripts/check.sh`를 
 
 ## Local Docs 및 Checkpoint
 
-Local docs와 checkpoint는 기본 deliverable이 아니다. 큰 slice 완료, 위험한 operational evidence, 명시적인 사용자 요청이 있을 때만 만든다. Checkpoint index sync 또는 NEXT hygiene을 기본 follow-up work로 제안하지 않는다.
+`docs/local/**`는 필요할 때 non-authoritative local/private scratch로 사용할 수 있으며 execution authorization source로 취급하지 않는다.
+
+Local docs와 checkpoint는 기본 deliverable이 아니다. 큰 slice 완료, 위험한 operational evidence, 명시적인 사용자 요청이 있을 때만 만든다. Checkpoint index sync 또는 private planning-state hygiene을 기본 follow-up work로 제안하지 않는다.
