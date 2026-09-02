@@ -57,7 +57,7 @@ class VerificationResult:
     errors: tuple[str, ...] = ()
 
 
-ProcessRunner = Callable[[Sequence[str]], subprocess.CompletedProcess[Any]]
+ProcessRunner = Callable[[Sequence[str], Path], subprocess.CompletedProcess[Any]]
 
 
 def safe_database_filename(database_logical_name: str) -> str:
@@ -95,8 +95,8 @@ def _sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
-def _run_pg_dump(argv: Sequence[str]) -> subprocess.CompletedProcess[Any]:
-    return subprocess.run(argv, check=False)
+def _run_pg_dump(argv: Sequence[str], cwd: Path) -> subprocess.CompletedProcess[Any]:
+    return subprocess.run(argv, check=False, capture_output=True, cwd=cwd)
 
 
 def _manifest_path(generation_dir: Path) -> Path:
@@ -267,10 +267,10 @@ def create_generation(
         pg_dump_executable,
         "--format=custom",
         "--no-password",
-        f"--file={dump_path}",
+        f"--file={dump_filename}",
         f"--dbname={database_logical_name}",
     ]
-    completed = process_runner(argv)
+    completed = process_runner(argv, staging_dir)
     if completed.returncode != 0:
         raise GenerationError(f"pg_dump failed with exit code {completed.returncode}")
     if not dump_path.is_file() or dump_path.stat().st_size == 0:

@@ -23,12 +23,14 @@ class FakePgDump:
         self.returncode = returncode
         self.on_run = on_run
         self.argv: list[str] | None = None
+        self.cwd: Path | None = None
 
-    def __call__(self, argv: list[str]) -> subprocess.CompletedProcess[object]:
+    def __call__(self, argv: list[str], cwd: Path) -> subprocess.CompletedProcess[object]:
         self.argv = argv
+        self.cwd = cwd
         output_arg = next(item for item in argv if item.startswith("--file="))
         if self.payload is not None:
-            Path(output_arg.removeprefix("--file=")).write_bytes(self.payload)
+            (cwd / output_arg.removeprefix("--file=")).write_bytes(self.payload)
         if self.on_run is not None:
             self.on_run()
         return subprocess.CompletedProcess(argv, self.returncode)
@@ -86,9 +88,10 @@ def test_success_creates_verified_three_file_generation_with_deterministic_metad
         "pg_dump",
         "--format=custom",
         "--no-password",
-        f"--file={tmp_path / 'staging' / '20260902T010203Z' / 'app_db_production.dump'}",
+        "--file=app_db_production.dump",
         "--dbname=app_db_production",
     ]
+    assert fake.cwd == tmp_path / "staging" / "20260902T010203Z"
 
 
 @pytest.mark.parametrize(
@@ -176,6 +179,8 @@ def test_pg_dump_argv_is_shell_safe_and_does_not_accept_connection_uri_or_creden
     assert "--no-password" in fake.argv
     assert not any("password" in item.lower() and item != "--no-password" for item in fake.argv)
     assert not any("://" in item for item in fake.argv)
+    assert not any(str(tmp_path) in item for item in fake.argv)
+    assert fake.cwd == tmp_path / "staging" / "safe-generation"
     assert "shell" not in postgres_artifact._run_pg_dump.__code__.co_names
     parser_options = {action.dest for action in postgres_artifact.build_parser()._actions}
     assert "password" not in parser_options
@@ -191,6 +196,27 @@ def test_pg_dump_argv_is_shell_safe_and_does_not_accept_connection_uri_or_creden
             generation_id="reject-uri",
             process_runner=fake,
         )
+
+
+def test_production_runner_captures_child_output_with_controlled_cwd(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    seen: dict[str, object] = {}
+
+    def fake_run(argv: list[str], **kwargs: object) -> subprocess.CompletedProcess[object]:
+        seen["argv"] = argv
+        seen["kwargs"] = kwargs
+        return subprocess.CompletedProcess(argv, 0)
+
+    monkeypatch.setattr(postgres_artifact.subprocess, "run", fake_run)
+    argv = ["pg_dump", "--file=appdb.dump"]
+    result = postgres_artifact._run_pg_dump(argv, tmp_path)
+
+    assert result.returncode == 0
+    assert seen == {
+        "argv": argv,
+        "kwargs": {"check": False, "capture_output": True, "cwd": tmp_path},
+    }
 
 
 @pytest.mark.parametrize(
@@ -336,6 +362,43 @@ def test_cli_create_output_and_errors_do_not_expose_private_paths_or_secrets(
     assert captured.err == "ERROR: recovery verification failed\n"
     assert "secret" not in captured.err
     assert str(private_root) not in captured.err
+
+
+def test_cli_hides_child_stderr_markers_and_leaves_no_completed_generation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    private_root = tmp_path / "private-root"
+    fake_pg_dump = tmp_path / "fake_pg_dump.py"
+    secret_marker = "FAKE_SECRET_MARKER"
+    private_path_marker = "/fake/private/path"
+    fake_pg_dump.write_text(
+        "#!/usr/bin/env python3\n"
+        "import sys\n"
+        f"print('{secret_marker} {private_path_marker}', file=sys.stderr)\n"
+        "raise SystemExit(7)\n"
+    )
+    fake_pg_dump.chmod(0o755)
+
+    assert (
+        postgres_artifact.main(
+            [
+                "create",
+                "--root",
+                str(private_root),
+                "--database-logical-name",
+                "appdb",
+                "--generation-id",
+                "stderr-failure",
+                "--pg-dump-executable",
+                str(fake_pg_dump),
+            ]
+        )
+        == 1
+    )
+    captured = capsys.readouterr()
+    assert secret_marker not in captured.out + captured.err
+    assert private_path_marker not in captured.out + captured.err
+    assert not (private_root / "completed" / "stderr-failure").exists()
 
 
 def test_cli_parser_opens_without_external_connection() -> None:
