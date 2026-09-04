@@ -1,11 +1,17 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from io import BytesIO
+from pathlib import Path
+from urllib.error import HTTPError
 from urllib.request import Request
+
+import pytest
 
 from steam.ingest.s3_compat import (
     S3CompatibleObjectStoreClient,
     S3CompatibleObjectStoreConfig,
+    S3CompatibleObjectStorePreconditionFailed,
 )
 
 
@@ -13,9 +19,16 @@ class _FakeResponse:
     def __init__(self, body: bytes = b"") -> None:
         self.status = 200
         self._body = body
+        self._offset = 0
 
-    def read(self) -> bytes:
-        return self._body
+    def read(self, size: int = -1) -> bytes:
+        if size < 0:
+            result = self._body[self._offset :]
+            self._offset = len(self._body)
+            return result
+        result = self._body[self._offset : self._offset + size]
+        self._offset += len(result)
+        return result
 
     def __enter__(self) -> _FakeResponse:
         return self
@@ -95,3 +108,107 @@ def test_from_env_reads_minimal_shared_snapshot_contract() -> None:
     assert config.key_prefix == "team/dev"
     assert config.use_path_style is False
     assert config.verify_tls is True
+
+
+def test_put_file_streams_conditional_signed_request(tmp_path: Path) -> None:
+    source = tmp_path / "recovery.dump"
+    source.write_bytes(b"bounded-file-body")
+    seen: dict[str, object] = {}
+
+    def fake_transport(request: Request, *, context: object) -> _FakeResponse:
+        del context
+        seen["headers"] = dict(request.header_items())
+        seen["data_type"] = type(request.data)
+        assert request.data is not None
+        seen["body"] = b"".join(request.data)
+        return _FakeResponse()
+
+    client = S3CompatibleObjectStoreClient(
+        S3CompatibleObjectStoreConfig(
+            endpoint_url="https://storage.example.test",
+            bucket="portable-cache",
+            region="test-region",
+            access_key_id="test-access",
+            secret_access_key="test-secret",
+        ),
+        transport=fake_transport,
+    )
+
+    client.put_file(
+        object_key="postgres-recovery/v1/generation/recovery.dump",
+        source_path=source,
+        content_type="application/octet-stream",
+        if_none_match=True,
+        now=datetime(2026, 9, 4, 1, 2, 3, tzinfo=UTC),
+        chunk_size=4,
+    )
+
+    headers = seen["headers"]
+    assert seen["data_type"] is not bytes
+    assert seen["body"] == b"bounded-file-body"
+    assert headers["If-none-match"] == "*"
+    assert headers["Content-length"] == "17"
+    assert headers["X-amz-content-sha256"] == (
+        "39ca1d75c84c599129fbec385306d69528109870f37148e2d2b83e1c609b02df"
+    )
+    assert "content-length" in headers["Authorization"]
+    assert "if-none-match" in headers["Authorization"]
+
+
+def test_conditional_put_exposes_structured_precondition_failure() -> None:
+    def fake_transport(request: Request, *, context: object) -> _FakeResponse:
+        del context
+        raise HTTPError(
+            request.full_url,
+            412,
+            "Precondition Failed",
+            hdrs=None,
+            fp=BytesIO(b"provider response body"),
+        )
+
+    client = S3CompatibleObjectStoreClient(
+        S3CompatibleObjectStoreConfig(
+            endpoint_url="https://storage.example.test",
+            bucket="portable-cache",
+            region="test-region",
+            access_key_id="test-access",
+            secret_access_key="test-secret",
+        ),
+        transport=fake_transport,
+    )
+
+    with pytest.raises(S3CompatibleObjectStorePreconditionFailed):
+        client.put_bytes(
+            object_key="postgres-recovery/v1/generation/manifest.json",
+            payload=b"{}\n",
+            content_type="application/json",
+            if_none_match=True,
+        )
+
+
+def test_get_file_streams_to_new_destination(tmp_path: Path) -> None:
+    destination = tmp_path / "downloaded.dump"
+
+    def fake_transport(request: Request, *, context: object) -> _FakeResponse:
+        del request, context
+        return _FakeResponse(b"remote-file-body")
+
+    client = S3CompatibleObjectStoreClient(
+        S3CompatibleObjectStoreConfig(
+            endpoint_url="https://storage.example.test",
+            bucket="portable-cache",
+            region="test-region",
+            access_key_id="test-access",
+            secret_access_key="test-secret",
+        ),
+        transport=fake_transport,
+    )
+
+    client.get_file(
+        object_key="postgres-recovery/v1/generation/recovery.dump",
+        destination_path=destination,
+        chunk_size=3,
+        max_bytes=16,
+    )
+
+    assert destination.read_bytes() == b"remote-file-body"

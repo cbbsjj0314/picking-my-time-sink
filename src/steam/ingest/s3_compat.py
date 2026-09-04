@@ -7,9 +7,10 @@ import hmac
 import json
 import os
 import ssl
-from collections.abc import Mapping
+from collections.abc import Iterator, Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any, Protocol
 from urllib.error import HTTPError
 from urllib.parse import SplitResult, quote, urlsplit
@@ -21,7 +22,7 @@ class SupportsRead(Protocol):
 
     status: int
 
-    def read(self) -> bytes: ...
+    def read(self, size: int = -1) -> bytes: ...
 
     def __enter__(self) -> SupportsRead: ...
 
@@ -134,6 +135,30 @@ class S3CompatibleObjectStoreError(RuntimeError):
     """Raised when one signed S3-compatible request fails."""
 
 
+class S3CompatibleObjectStorePreconditionFailed(S3CompatibleObjectStoreError):
+    """Raised when a conditional object-store request returns HTTP 412."""
+
+
+class _FileChunks:
+    """Iterate over a file in bounded chunks for urllib's request body seam."""
+
+    def __init__(self, path: Path, *, expected_size: int, chunk_size: int) -> None:
+        self._path = path
+        self._expected_size = expected_size
+        self._chunk_size = chunk_size
+
+    def __iter__(self) -> Iterator[bytes]:
+        transferred = 0
+        with self._path.open("rb") as handle:
+            while chunk := handle.read(self._chunk_size):
+                transferred += len(chunk)
+                if transferred > self._expected_size:
+                    raise OSError("file size changed during upload")
+                yield chunk
+        if transferred != self._expected_size:
+            raise OSError("file size changed during upload")
+
+
 class S3CompatibleObjectStoreClient:
     """Tiny signed client that supports the PUT/GET flow used in this slice."""
 
@@ -198,12 +223,12 @@ class S3CompatibleObjectStoreClient:
         *,
         method: str,
         object_key: str,
-        payload: bytes,
+        payload_hash: str,
         content_type: str | None,
         now: datetime,
+        additional_headers: Mapping[str, str] | None = None,
     ) -> tuple[str, dict[str, str]]:
         url, host, canonical_path = self._build_url_and_host(object_key)
-        payload_hash = hashlib.sha256(payload).hexdigest()
         amz_date = now.astimezone(UTC).strftime("%Y%m%dT%H%M%SZ")
         datestamp = amz_date[:8]
         headers = {
@@ -215,6 +240,8 @@ class S3CompatibleObjectStoreClient:
             headers["content-type"] = content_type
         if self._config.session_token:
             headers["x-amz-security-token"] = self._config.session_token
+        if additional_headers:
+            headers.update(additional_headers)
 
         canonical_headers, signed_headers = _to_signed_headers(headers)
         canonical_request = "\n".join(
@@ -277,6 +304,8 @@ class S3CompatibleObjectStoreClient:
         payload: bytes = b"",
         content_type: str | None = None,
         now: datetime | None = None,
+        if_none_match: bool = False,
+        max_response_bytes: int | None = None,
     ) -> bytes:
         """Send one signed request and return the raw response bytes."""
 
@@ -284,9 +313,10 @@ class S3CompatibleObjectStoreClient:
         url, headers = self._build_headers(
             method=method,
             object_key=object_key,
-            payload=payload,
+            payload_hash=hashlib.sha256(payload).hexdigest(),
             content_type=content_type,
             now=timestamp,
+            additional_headers={"if-none-match": "*"} if if_none_match else None,
         )
         request = Request(
             url=url,
@@ -296,9 +326,19 @@ class S3CompatibleObjectStoreClient:
         )
         try:
             with self._transport(request, context=self._ssl_context()) as response:
+                if max_response_bytes is not None:
+                    body = response.read(max_response_bytes + 1)
+                    if len(body) > max_response_bytes:
+                        raise S3CompatibleObjectStoreError("response exceeds configured limit")
+                    return body
                 return response.read()
         except HTTPError as exc:
-            body_excerpt = exc.read().decode("utf-8", errors="replace").strip()
+            if exc.code == 412:
+                raise S3CompatibleObjectStorePreconditionFailed(
+                    "conditional object creation precondition failed"
+                ) from exc
+            error_body = exc.read() or b""
+            body_excerpt = error_body.decode("utf-8", errors="replace").strip()
             raise S3CompatibleObjectStoreError(
                 f"{method} {url} failed with HTTP {exc.code}: {body_excerpt}"
             ) from exc
@@ -310,6 +350,7 @@ class S3CompatibleObjectStoreClient:
         payload: bytes,
         content_type: str,
         now: datetime | None = None,
+        if_none_match: bool = False,
     ) -> None:
         """Upload one whole object body."""
 
@@ -319,7 +360,57 @@ class S3CompatibleObjectStoreClient:
             payload=payload,
             content_type=content_type,
             now=now,
+            if_none_match=if_none_match,
         )
+
+    def put_file(
+        self,
+        *,
+        object_key: str,
+        source_path: Path,
+        content_type: str,
+        if_none_match: bool = False,
+        now: datetime | None = None,
+        chunk_size: int = 1024 * 1024,
+    ) -> None:
+        """Upload one file without materializing its whole body in memory."""
+
+        size = source_path.stat().st_size
+        digest = hashlib.sha256()
+        with source_path.open("rb") as handle:
+            for chunk in iter(lambda: handle.read(chunk_size), b""):
+                digest.update(chunk)
+        timestamp = now or datetime.now(UTC)
+        additional_headers = {"content-length": str(size)}
+        if if_none_match:
+            additional_headers["if-none-match"] = "*"
+        url, headers = self._build_headers(
+            method="PUT",
+            object_key=object_key,
+            payload_hash=digest.hexdigest(),
+            content_type=content_type,
+            now=timestamp,
+            additional_headers=additional_headers,
+        )
+        request = Request(
+            url=url,
+            data=_FileChunks(source_path, expected_size=size, chunk_size=chunk_size),
+            method="PUT",
+            headers=headers,
+        )
+        try:
+            with self._transport(request, context=self._ssl_context()) as response:
+                response.read()
+        except HTTPError as exc:
+            if exc.code == 412:
+                raise S3CompatibleObjectStorePreconditionFailed(
+                    "conditional object creation precondition failed"
+                ) from exc
+            error_body = exc.read() or b""
+            body_excerpt = error_body.decode("utf-8", errors="replace").strip()
+            raise S3CompatibleObjectStoreError(
+                f"PUT {url} failed with HTTP {exc.code}: {body_excerpt}"
+            ) from exc
 
     def put_json(
         self,
@@ -338,7 +429,56 @@ class S3CompatibleObjectStoreClient:
             now=now,
         )
 
-    def get_bytes(self, *, object_key: str, now: datetime | None = None) -> bytes:
+    def get_bytes(
+        self,
+        *,
+        object_key: str,
+        now: datetime | None = None,
+        max_bytes: int | None = None,
+    ) -> bytes:
         """Download one full object by portable object key."""
 
-        return self.request_bytes(method="GET", object_key=object_key, now=now)
+        return self.request_bytes(
+            method="GET",
+            object_key=object_key,
+            now=now,
+            max_response_bytes=max_bytes,
+        )
+
+    def get_file(
+        self,
+        *,
+        object_key: str,
+        destination_path: Path,
+        now: datetime | None = None,
+        chunk_size: int = 1024 * 1024,
+        max_bytes: int | None = None,
+    ) -> None:
+        """Download one object directly into a new local file in bounded chunks."""
+
+        timestamp = now or datetime.now(UTC)
+        url, headers = self._build_headers(
+            method="GET",
+            object_key=object_key,
+            payload_hash=hashlib.sha256(b"").hexdigest(),
+            content_type=None,
+            now=timestamp,
+        )
+        request = Request(url=url, method="GET", headers=headers)
+        try:
+            with self._transport(request, context=self._ssl_context()) as response:
+                with destination_path.open("xb") as destination:
+                    transferred = 0
+                    while chunk := response.read(chunk_size):
+                        transferred += len(chunk)
+                        if max_bytes is not None and transferred > max_bytes:
+                            raise S3CompatibleObjectStoreError(
+                                "response exceeds configured limit"
+                            )
+                        destination.write(chunk)
+        except HTTPError as exc:
+            error_body = exc.read() or b""
+            body_excerpt = error_body.decode("utf-8", errors="replace").strip()
+            raise S3CompatibleObjectStoreError(
+                f"GET {url} failed with HTTP {exc.code}: {body_excerpt}"
+            ) from exc
