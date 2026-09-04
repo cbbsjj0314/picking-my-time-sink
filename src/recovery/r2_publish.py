@@ -5,6 +5,8 @@ from __future__ import annotations
 import hashlib
 import json
 import tempfile
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass, replace
 from enum import StrEnum
 from pathlib import Path
@@ -122,6 +124,14 @@ def _sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
+def _unsupported_size(*, generation_id: str, artifact_role: str) -> RecoveryPublishError:
+    return RecoveryPublishError(
+        RecoveryPublishFailure.UNSUPPORTED_OBJECT_SIZE,
+        generation_id=generation_id,
+        artifact_role=artifact_role,
+    )
+
+
 def _read_local_generation(generation_dir: Path) -> _LocalGeneration:
     try:
         verification = verify_generation(generation_dir)
@@ -145,11 +155,11 @@ def _read_local_generation(generation_dir: Path) -> _LocalGeneration:
         ) from None
 
     if dump_size > MAX_SINGLE_PUT_BYTES:
-        raise RecoveryPublishError(
-            RecoveryPublishFailure.UNSUPPORTED_OBJECT_SIZE,
-            generation_id=generation_id,
-            artifact_role="dump",
-        )
+        raise _unsupported_size(generation_id=generation_id, artifact_role="dump")
+    if len(checksum_bytes) > _CHECKSUM_MAX_BYTES:
+        raise _unsupported_size(generation_id=generation_id, artifact_role="checksum")
+    if len(manifest_bytes) > _MANIFEST_MAX_BYTES:
+        raise _unsupported_size(generation_id=generation_id, artifact_role="manifest")
 
     base_key = f"{PORTABLE_KEY_ROOT}/{generation_id}"
     return _LocalGeneration(
@@ -164,6 +174,51 @@ def _read_local_generation(generation_dir: Path) -> _LocalGeneration:
         checksum_key=f"{base_key}/{dump_filename}.sha256",
         manifest_key=f"{base_key}/manifest.json",
     )
+
+
+def _copy_file_exact(*, source: Path, destination: Path, expected_size: int) -> None:
+    transferred = 0
+    with source.open("rb") as source_handle, destination.open("xb") as destination_handle:
+        while chunk := source_handle.read(_TRANSFER_CHUNK_BYTES):
+            transferred += len(chunk)
+            if transferred > expected_size:
+                raise RecoveryPublishError(RecoveryPublishFailure.INVALID_LOCAL_GENERATION)
+            destination_handle.write(chunk)
+    if transferred != expected_size:
+        raise RecoveryPublishError(RecoveryPublishFailure.INVALID_LOCAL_GENERATION)
+
+
+@contextmanager
+def _stabilized_local_generation(generation_dir: Path) -> Iterator[_LocalGeneration]:
+    source = _read_local_generation(Path(generation_dir))
+    try:
+        snapshot_context = tempfile.TemporaryDirectory(prefix="postgres-recovery-local-")
+    except OSError:
+        raise RecoveryPublishError(
+            RecoveryPublishFailure.INVALID_LOCAL_GENERATION
+        ) from None
+
+    with snapshot_context as snapshot_root:
+        snapshot_dir = Path(snapshot_root) / source.generation_id
+        try:
+            snapshot_dir.mkdir()
+            _copy_file_exact(
+                source=source.dump_path,
+                destination=snapshot_dir / source.dump_filename,
+                expected_size=source.dump_size,
+            )
+            (snapshot_dir / f"{source.dump_filename}.sha256").write_bytes(
+                source.checksum_bytes
+            )
+            (snapshot_dir / "manifest.json").write_bytes(source.manifest_bytes)
+        except RecoveryPublishError:
+            raise
+        except OSError:
+            raise RecoveryPublishError(
+                RecoveryPublishFailure.INVALID_LOCAL_GENERATION
+            ) from None
+        stabilized = _read_local_generation(snapshot_dir)
+        yield stabilized
 
 
 def _reconcile_file(
@@ -292,15 +347,12 @@ def _validate_remote_manifest(local: _LocalGeneration, payload: bytes) -> None:
         )
 
 
-def verify_remote_generation(
+def _verify_remote_against_local(
     *,
     client: RecoveryObjectStore,
-    generation_dir: Path,
-    verification_root: Path | None = None,
+    local: _LocalGeneration,
+    verification_root: Path | None,
 ) -> VerifiedRemoteGeneration:
-    """Read back and verify a remote generation against its verified local source."""
-
-    local = _read_local_generation(Path(generation_dir))
     try:
         remote_manifest = client.get_bytes(
             object_key=local.manifest_key,
@@ -380,6 +432,22 @@ def verify_remote_generation(
     )
 
 
+def verify_remote_generation(
+    *,
+    client: RecoveryObjectStore,
+    generation_dir: Path,
+    verification_root: Path | None = None,
+) -> VerifiedRemoteGeneration:
+    """Read back and verify a remote generation against its stable local source."""
+
+    with _stabilized_local_generation(Path(generation_dir)) as local:
+        return _verify_remote_against_local(
+            client=client,
+            local=local,
+            verification_root=verification_root,
+        )
+
+
 def publish_verified_generation(
     *,
     client: RecoveryObjectStore,
@@ -388,36 +456,36 @@ def publish_verified_generation(
 ) -> VerifiedRemoteGeneration:
     """Conditionally publish and independently verify one completed A1 generation."""
 
-    local = _read_local_generation(Path(generation_dir))
-    reconciled: list[str] = []
+    with _stabilized_local_generation(Path(generation_dir)) as local:
+        reconciled: list[str] = []
 
-    if _publish_file(client=client, local=local, object_key=local.dump_key):
-        reconciled.append("dump")
-    if _publish_bytes(
-        client=client,
-        local=local,
-        object_key=local.checksum_key,
-        expected=local.checksum_bytes,
-        artifact_role="checksum",
-        content_type="text/plain",
-    ):
-        reconciled.append("checksum")
-    if _publish_bytes(
-        client=client,
-        local=local,
-        object_key=local.manifest_key,
-        expected=local.manifest_bytes,
-        artifact_role="manifest",
-        content_type="application/json",
-    ):
-        reconciled.append("manifest")
+        if _publish_file(client=client, local=local, object_key=local.dump_key):
+            reconciled.append("dump")
+        if _publish_bytes(
+            client=client,
+            local=local,
+            object_key=local.checksum_key,
+            expected=local.checksum_bytes,
+            artifact_role="checksum",
+            content_type="text/plain",
+        ):
+            reconciled.append("checksum")
+        if _publish_bytes(
+            client=client,
+            local=local,
+            object_key=local.manifest_key,
+            expected=local.manifest_bytes,
+            artifact_role="manifest",
+            content_type="application/json",
+        ):
+            reconciled.append("manifest")
 
-    verified = verify_remote_generation(
-        client=client,
-        generation_dir=generation_dir,
-        verification_root=verification_root,
-    )
-    return replace(
-        verified,
-        reconciled_artifacts=tuple(reconciled),
-    )
+        verified = verify_remote_generation(
+            client=client,
+            generation_dir=local.dump_path.parent,
+            verification_root=verification_root,
+        )
+        return replace(
+            verified,
+            reconciled_artifacts=tuple(reconciled),
+        )

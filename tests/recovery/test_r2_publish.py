@@ -18,6 +18,7 @@ class FakeRecoveryStore:
         self.calls: list[tuple[str, str, bool]] = []
         self.failed_put_keys: set[str] = set()
         self.after_put: Callable[[str, FakeRecoveryStore], None] | None = None
+        self.before_put_file: Callable[[Path], None] | None = None
 
     def put_file(
         self,
@@ -29,6 +30,8 @@ class FakeRecoveryStore:
     ) -> None:
         del content_type
         self.calls.append(("PUT_FILE", object_key, if_none_match))
+        if self.before_put_file is not None:
+            self.before_put_file(source_path)
         if object_key in self.failed_put_keys:
             raise RuntimeError("SECRET_MARKER ENDPOINT_MARKER PRIVATE_PATH_MARKER")
         if if_none_match and object_key in self.objects:
@@ -184,7 +187,9 @@ def test_a1_verifier_runs_against_fresh_remote_materialization(
     assert verified_paths[0] == generation
     assert verified_paths[1] != generation
     assert verified_paths[1].name == generation.name
-    assert len(verified_paths) == 2
+    assert verified_paths[2] != generation
+    assert verified_paths[2].name == generation.name
+    assert len(verified_paths) == 3
     assert [method for method, _, _ in store.calls] == [
         "GET_BYTES",
         "GET_BYTES",
@@ -218,7 +223,9 @@ def test_publish_uses_public_remote_verifier(
     result = r2_publish.publish_verified_generation(client=store, generation_dir=generation)
 
     assert result.verified
-    assert calls == [generation]
+    assert len(calls) == 1
+    assert calls[0] != generation
+    assert calls[0].name == generation.name
 
 
 def test_coordinated_remote_replacement_cannot_pass_expected_local_binding(
@@ -232,7 +239,7 @@ def test_coordinated_remote_replacement_cannot_pass_expected_local_binding(
 
     def record_remote_a1(path: Path) -> VerificationResult:
         result = original_verify(path)
-        if path != generation:
+        if path.parent.name.startswith("postgres-recovery-verify-"):
             remote_a1_results.append(result)
         return result
 
@@ -258,6 +265,35 @@ def test_coordinated_remote_replacement_cannot_pass_expected_local_binding(
     assert remote_a1_results == [VerificationResult(passed=True)]
     assert raised.value.category == r2_publish.RecoveryPublishFailure.REMOTE_VERIFICATION_FAILURE
     assert raised.value.artifact_role == "dump"
+
+
+@pytest.mark.parametrize("mutation", ["replacement", "growth"])
+def test_caller_generation_change_cannot_change_uploaded_snapshot(
+    tmp_path: Path, mutation: str
+) -> None:
+    generation = create_valid_generation(tmp_path)
+    store = FakeRecoveryStore()
+    dump_key, _, _ = expected_keys()
+    caller_dump = generation / "appdb.dump"
+    expected_dump = caller_dump.read_bytes()
+    upload_sources: list[Path] = []
+
+    def mutate_caller(source_path: Path) -> None:
+        upload_sources.append(source_path)
+        if mutation == "replacement":
+            caller_dump.write_bytes(b"z" * len(expected_dump))
+        else:
+            with caller_dump.open("ab") as handle:
+                handle.write(b"-growth")
+
+    store.before_put_file = mutate_caller
+
+    result = r2_publish.publish_verified_generation(client=store, generation_dir=generation)
+
+    assert result.verified
+    assert upload_sources[0] != caller_dump
+    assert store.objects[dump_key] == expected_dump
+    assert caller_dump.read_bytes() != expected_dump
 
 
 @pytest.mark.parametrize("fault", ["tampered", "dump", "checksum", "manifest"])
@@ -433,6 +469,37 @@ def test_unsupported_single_put_size_fails_before_remote_mutation(
         r2_publish.publish_verified_generation(client=store, generation_dir=generation)
 
     assert raised.value.category == r2_publish.RecoveryPublishFailure.UNSUPPORTED_OBJECT_SIZE
+    assert raised.value.artifact_role == "dump"
+    assert store.calls == []
+
+
+@pytest.mark.parametrize(
+    ("artifact_role", "limit_name", "filename"),
+    [
+        ("checksum", "_CHECKSUM_MAX_BYTES", "appdb.dump.sha256"),
+        ("manifest", "_MANIFEST_MAX_BYTES", "manifest.json"),
+    ],
+)
+def test_unsupported_metadata_size_fails_before_remote_call(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    artifact_role: str,
+    limit_name: str,
+    filename: str,
+) -> None:
+    generation = create_valid_generation(tmp_path)
+    store = FakeRecoveryStore()
+    monkeypatch.setattr(
+        r2_publish,
+        limit_name,
+        len((generation / filename).read_bytes()) - 1,
+    )
+
+    with pytest.raises(r2_publish.RecoveryPublishError) as raised:
+        r2_publish.publish_verified_generation(client=store, generation_dir=generation)
+
+    assert raised.value.category == r2_publish.RecoveryPublishFailure.UNSUPPORTED_OBJECT_SIZE
+    assert raised.value.artifact_role == artifact_role
     assert store.calls == []
 
 
