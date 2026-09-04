@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import tempfile
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from enum import StrEnum
 from pathlib import Path
 from typing import Protocol
@@ -96,7 +96,7 @@ class VerifiedRemoteGeneration:
 
     generation_id: str
     object_keys: tuple[str, str, str]
-    reconciled_artifacts: tuple[str, ...]
+    reconciled_artifacts: tuple[str, ...] = ()
     verified: bool = True
 
 
@@ -292,12 +292,15 @@ def _validate_remote_manifest(local: _LocalGeneration, payload: bytes) -> None:
         )
 
 
-def _verify_remote_generation(
+def verify_remote_generation(
     *,
     client: RecoveryObjectStore,
-    local: _LocalGeneration,
-    verification_root: Path | None,
-) -> None:
+    generation_dir: Path,
+    verification_root: Path | None = None,
+) -> VerifiedRemoteGeneration:
+    """Read back and verify a remote generation against its verified local source."""
+
+    local = _read_local_generation(Path(generation_dir))
     try:
         remote_manifest = client.get_bytes(
             object_key=local.manifest_key,
@@ -339,6 +342,7 @@ def _verify_remote_generation(
                 max_bytes=local.dump_size,
             )
             verification = verify_generation(materialized)
+            remote_dump_checksum = _sha256(materialized / local.dump_filename)
     except RecoveryPublishError:
         raise
     except Exception:
@@ -352,6 +356,28 @@ def _verify_remote_generation(
             RecoveryPublishFailure.REMOTE_VERIFICATION_FAILURE,
             generation_id=local.generation_id,
         )
+    if remote_dump_checksum != local.dump_checksum:
+        raise RecoveryPublishError(
+            RecoveryPublishFailure.REMOTE_VERIFICATION_FAILURE,
+            generation_id=local.generation_id,
+            artifact_role="dump",
+        )
+    if remote_manifest != local.manifest_bytes:
+        raise RecoveryPublishError(
+            RecoveryPublishFailure.REMOTE_VERIFICATION_FAILURE,
+            generation_id=local.generation_id,
+            artifact_role="manifest",
+        )
+    if remote_checksum != local.checksum_bytes:
+        raise RecoveryPublishError(
+            RecoveryPublishFailure.REMOTE_VERIFICATION_FAILURE,
+            generation_id=local.generation_id,
+            artifact_role="checksum",
+        )
+    return VerifiedRemoteGeneration(
+        generation_id=local.generation_id,
+        object_keys=(local.dump_key, local.checksum_key, local.manifest_key),
+    )
 
 
 def publish_verified_generation(
@@ -386,13 +412,12 @@ def publish_verified_generation(
     ):
         reconciled.append("manifest")
 
-    _verify_remote_generation(
+    verified = verify_remote_generation(
         client=client,
-        local=local,
+        generation_dir=generation_dir,
         verification_root=verification_root,
     )
-    return VerifiedRemoteGeneration(
-        generation_id=local.generation_id,
-        object_keys=(local.dump_key, local.checksum_key, local.manifest_key),
+    return replace(
+        verified,
         reconciled_artifacts=tuple(reconciled),
     )

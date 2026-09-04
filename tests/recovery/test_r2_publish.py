@@ -159,6 +159,12 @@ def test_a1_verifier_runs_against_fresh_remote_materialization(
 ) -> None:
     generation = create_valid_generation(tmp_path)
     store = FakeRecoveryStore()
+    dump_key, checksum_key, manifest_key = expected_keys()
+    store.objects = {
+        dump_key: (generation / "appdb.dump").read_bytes(),
+        checksum_key: (generation / "appdb.dump.sha256").read_bytes(),
+        manifest_key: (generation / "manifest.json").read_bytes(),
+    }
     verified_paths: list[Path] = []
     original_verify = r2_publish.verify_generation
 
@@ -168,7 +174,7 @@ def test_a1_verifier_runs_against_fresh_remote_materialization(
 
     monkeypatch.setattr(r2_publish, "verify_generation", record_verify)
 
-    result = r2_publish.publish_verified_generation(
+    result = r2_publish.verify_remote_generation(
         client=store,
         generation_dir=generation,
         verification_root=tmp_path,
@@ -179,6 +185,79 @@ def test_a1_verifier_runs_against_fresh_remote_materialization(
     assert verified_paths[1] != generation
     assert verified_paths[1].name == generation.name
     assert len(verified_paths) == 2
+    assert [method for method, _, _ in store.calls] == [
+        "GET_BYTES",
+        "GET_BYTES",
+        "GET_FILE",
+    ]
+
+
+def test_publish_uses_public_remote_verifier(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    generation = create_valid_generation(tmp_path)
+    store = FakeRecoveryStore()
+    calls: list[Path] = []
+    original_verify_remote = r2_publish.verify_remote_generation
+
+    def record_verify_remote(
+        *,
+        client: r2_publish.RecoveryObjectStore,
+        generation_dir: Path,
+        verification_root: Path | None = None,
+    ) -> r2_publish.VerifiedRemoteGeneration:
+        calls.append(generation_dir)
+        return original_verify_remote(
+            client=client,
+            generation_dir=generation_dir,
+            verification_root=verification_root,
+        )
+
+    monkeypatch.setattr(r2_publish, "verify_remote_generation", record_verify_remote)
+
+    result = r2_publish.publish_verified_generation(client=store, generation_dir=generation)
+
+    assert result.verified
+    assert calls == [generation]
+
+
+def test_coordinated_remote_replacement_cannot_pass_expected_local_binding(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    generation = create_valid_generation(tmp_path)
+    store = FakeRecoveryStore()
+    dump_key, checksum_key, manifest_key = expected_keys()
+    remote_a1_results: list[VerificationResult] = []
+    original_verify = r2_publish.verify_generation
+
+    def record_remote_a1(path: Path) -> VerificationResult:
+        result = original_verify(path)
+        if path != generation:
+            remote_a1_results.append(result)
+        return result
+
+    def replace_generation(object_key: str, fake: FakeRecoveryStore) -> None:
+        if object_key != manifest_key:
+            return
+        replacement_dump = b"x" * len(fake.objects[dump_key])
+        replacement_checksum = hashlib.sha256(replacement_dump).hexdigest()
+        replacement_manifest = json.loads(fake.objects[manifest_key])
+        replacement_manifest["checksum_value"] = replacement_checksum
+        fake.objects[dump_key] = replacement_dump
+        fake.objects[checksum_key] = (replacement_checksum + "\n").encode("ascii")
+        fake.objects[manifest_key] = (
+            json.dumps(replacement_manifest, indent=2, sort_keys=True) + "\n"
+        ).encode("utf-8")
+
+    monkeypatch.setattr(r2_publish, "verify_generation", record_remote_a1)
+    store.after_put = replace_generation
+
+    with pytest.raises(r2_publish.RecoveryPublishError) as raised:
+        r2_publish.publish_verified_generation(client=store, generation_dir=generation)
+
+    assert remote_a1_results == [VerificationResult(passed=True)]
+    assert raised.value.category == r2_publish.RecoveryPublishFailure.REMOTE_VERIFICATION_FAILURE
+    assert raised.value.artifact_role == "dump"
 
 
 @pytest.mark.parametrize("fault", ["tampered", "dump", "checksum", "manifest"])
