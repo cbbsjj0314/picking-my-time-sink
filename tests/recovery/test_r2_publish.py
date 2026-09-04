@@ -184,12 +184,13 @@ def test_a1_verifier_runs_against_fresh_remote_materialization(
     )
 
     assert result.verified
-    assert verified_paths[0] == generation
+    assert verified_paths[0] != generation
+    assert verified_paths[0].name == generation.name
+    assert verified_paths[0].parent.name.startswith("postgres-recovery-local-")
     assert verified_paths[1] != generation
     assert verified_paths[1].name == generation.name
-    assert verified_paths[2] != generation
-    assert verified_paths[2].name == generation.name
-    assert len(verified_paths) == 3
+    assert verified_paths[1].parent.name.startswith("postgres-recovery-verify-")
+    assert len(verified_paths) == 2
     assert [method for method, _, _ in store.calls] == [
         "GET_BYTES",
         "GET_BYTES",
@@ -294,6 +295,51 @@ def test_caller_generation_change_cannot_change_uploaded_snapshot(
     assert upload_sources[0] != caller_dump
     assert store.objects[dump_key] == expected_dump
     assert caller_dump.read_bytes() != expected_dump
+
+
+def test_coordinated_replacement_during_snapshot_capture_makes_zero_remote_calls(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    generation = create_valid_generation(tmp_path)
+    store = FakeRecoveryStore()
+    manifest_path = generation / "manifest.json"
+    dump_path = generation / "appdb.dump"
+    checksum_path = generation / "appdb.dump.sha256"
+    manifest_a_bytes = manifest_path.read_bytes()
+    replacement_dump = b"b" * len(dump_path.read_bytes())
+    replacement_checksum = hashlib.sha256(replacement_dump).hexdigest()
+    replacement_manifest = json.loads(manifest_a_bytes)
+    replacement_manifest["checksum_value"] = replacement_checksum
+    manifest_b_bytes = (
+        json.dumps(replacement_manifest, indent=2, sort_keys=True) + "\n"
+    ).encode("utf-8")
+    original_copy = r2_publish._copy_file_exact
+    capture_seam_calls = 0
+
+    def replace_then_copy(
+        *, source: Path, destination: Path, expected_size: int
+    ) -> None:
+        nonlocal capture_seam_calls
+        capture_seam_calls += 1
+        assert (destination.parent / "manifest.json").read_bytes() == manifest_a_bytes
+        dump_path.write_bytes(replacement_dump)
+        checksum_path.write_text(replacement_checksum + "\n", encoding="ascii")
+        manifest_path.write_bytes(manifest_b_bytes)
+        original_copy(
+            source=source,
+            destination=destination,
+            expected_size=expected_size,
+        )
+
+    monkeypatch.setattr(r2_publish, "_copy_file_exact", replace_then_copy)
+
+    with pytest.raises(r2_publish.RecoveryPublishError) as raised:
+        r2_publish.publish_verified_generation(client=store, generation_dir=generation)
+
+    assert capture_seam_calls == 1
+    assert r2_publish.verify_generation(generation).passed
+    assert raised.value.category == r2_publish.RecoveryPublishFailure.INVALID_LOCAL_GENERATION
+    assert store.calls == []
 
 
 @pytest.mark.parametrize("fault", ["tampered", "dump", "checksum", "manifest"])

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import tempfile
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -21,6 +22,8 @@ MAX_SINGLE_PUT_BYTES = (5 * 1024 * 1024 * 1024) - (5 * 1024 * 1024)
 _MANIFEST_MAX_BYTES = 64 * 1024
 _CHECKSUM_MAX_BYTES = 256
 _TRANSFER_CHUNK_BYTES = 1024 * 1024
+_GENERATION_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}\Z")
+_DUMP_FILENAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]{0,62}\.dump\Z")
 
 
 class RecoveryObjectStore(Protocol):
@@ -124,7 +127,9 @@ def _sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
-def _unsupported_size(*, generation_id: str, artifact_role: str) -> RecoveryPublishError:
+def _unsupported_size(
+    *, generation_id: str | None, artifact_role: str
+) -> RecoveryPublishError:
     return RecoveryPublishError(
         RecoveryPublishFailure.UNSUPPORTED_OBJECT_SIZE,
         generation_id=generation_id,
@@ -132,7 +137,29 @@ def _unsupported_size(*, generation_id: str, artifact_role: str) -> RecoveryPubl
     )
 
 
-def _read_local_generation(generation_dir: Path) -> _LocalGeneration:
+def _read_bounded_bytes(
+    *,
+    path: Path,
+    max_bytes: int,
+    generation_id: str | None,
+    artifact_role: str,
+) -> bytes:
+    try:
+        with path.open("rb") as handle:
+            payload = handle.read(max_bytes + 1)
+    except OSError:
+        raise RecoveryPublishError(
+            RecoveryPublishFailure.INVALID_LOCAL_GENERATION
+        ) from None
+    if len(payload) > max_bytes:
+        raise _unsupported_size(
+            generation_id=generation_id,
+            artifact_role=artifact_role,
+        )
+    return payload
+
+
+def _load_verified_generation(generation_dir: Path) -> _LocalGeneration:
     try:
         verification = verify_generation(generation_dir)
     except (OSError, ValueError):
@@ -141,14 +168,24 @@ def _read_local_generation(generation_dir: Path) -> _LocalGeneration:
         raise RecoveryPublishError(RecoveryPublishFailure.INVALID_LOCAL_GENERATION)
 
     try:
-        manifest_bytes = (generation_dir / "manifest.json").read_bytes()
+        manifest_bytes = _read_bounded_bytes(
+            path=generation_dir / "manifest.json",
+            max_bytes=_MANIFEST_MAX_BYTES,
+            generation_id=None,
+            artifact_role="manifest",
+        )
         manifest = json.loads(manifest_bytes)
         generation_id = manifest["generation_id"]
         dump_filename = manifest["dump_filename"]
         dump_checksum = manifest["checksum_value"]
         dump_path = generation_dir / dump_filename
         dump_size = dump_path.stat().st_size
-        checksum_bytes = (generation_dir / f"{dump_filename}.sha256").read_bytes()
+        checksum_bytes = _read_bounded_bytes(
+            path=generation_dir / f"{dump_filename}.sha256",
+            max_bytes=_CHECKSUM_MAX_BYTES,
+            generation_id=generation_id,
+            artifact_role="checksum",
+        )
     except (OSError, KeyError, TypeError, json.JSONDecodeError):
         raise RecoveryPublishError(
             RecoveryPublishFailure.INVALID_LOCAL_GENERATION
@@ -156,11 +193,6 @@ def _read_local_generation(generation_dir: Path) -> _LocalGeneration:
 
     if dump_size > MAX_SINGLE_PUT_BYTES:
         raise _unsupported_size(generation_id=generation_id, artifact_role="dump")
-    if len(checksum_bytes) > _CHECKSUM_MAX_BYTES:
-        raise _unsupported_size(generation_id=generation_id, artifact_role="checksum")
-    if len(manifest_bytes) > _MANIFEST_MAX_BYTES:
-        raise _unsupported_size(generation_id=generation_id, artifact_role="manifest")
-
     base_key = f"{PORTABLE_KEY_ROOT}/{generation_id}"
     return _LocalGeneration(
         generation_id=generation_id,
@@ -188,9 +220,66 @@ def _copy_file_exact(*, source: Path, destination: Path, expected_size: int) -> 
         raise RecoveryPublishError(RecoveryPublishFailure.INVALID_LOCAL_GENERATION)
 
 
+def _capture_mutable_generation(*, source_dir: Path, snapshot_root: Path) -> Path:
+    manifest_bytes = _read_bounded_bytes(
+        path=source_dir / "manifest.json",
+        max_bytes=_MANIFEST_MAX_BYTES,
+        generation_id=None,
+        artifact_role="manifest",
+    )
+    try:
+        manifest = json.loads(manifest_bytes)
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        raise RecoveryPublishError(
+            RecoveryPublishFailure.INVALID_LOCAL_GENERATION
+        ) from None
+    if not isinstance(manifest, dict):
+        raise RecoveryPublishError(RecoveryPublishFailure.INVALID_LOCAL_GENERATION)
+
+    generation_id = manifest.get("generation_id")
+    dump_filename = manifest.get("dump_filename")
+    dump_size = manifest.get("dump_size_bytes")
+    if (
+        not isinstance(generation_id, str)
+        or _GENERATION_ID.fullmatch(generation_id) is None
+        or source_dir.name != generation_id
+        or not isinstance(dump_filename, str)
+        or _DUMP_FILENAME.fullmatch(dump_filename) is None
+        or not isinstance(dump_size, int)
+        or isinstance(dump_size, bool)
+        or dump_size <= 0
+    ):
+        raise RecoveryPublishError(RecoveryPublishFailure.INVALID_LOCAL_GENERATION)
+    if dump_size > MAX_SINGLE_PUT_BYTES:
+        raise _unsupported_size(generation_id=generation_id, artifact_role="dump")
+
+    snapshot_dir = snapshot_root / generation_id
+    try:
+        snapshot_dir.mkdir()
+        (snapshot_dir / "manifest.json").write_bytes(manifest_bytes)
+        _copy_file_exact(
+            source=source_dir / dump_filename,
+            destination=snapshot_dir / dump_filename,
+            expected_size=dump_size,
+        )
+        checksum_bytes = _read_bounded_bytes(
+            path=source_dir / f"{dump_filename}.sha256",
+            max_bytes=_CHECKSUM_MAX_BYTES,
+            generation_id=generation_id,
+            artifact_role="checksum",
+        )
+        (snapshot_dir / f"{dump_filename}.sha256").write_bytes(checksum_bytes)
+    except RecoveryPublishError:
+        raise
+    except OSError:
+        raise RecoveryPublishError(
+            RecoveryPublishFailure.INVALID_LOCAL_GENERATION
+        ) from None
+    return snapshot_dir
+
+
 @contextmanager
 def _stabilized_local_generation(generation_dir: Path) -> Iterator[_LocalGeneration]:
-    source = _read_local_generation(Path(generation_dir))
     try:
         snapshot_context = tempfile.TemporaryDirectory(prefix="postgres-recovery-local-")
     except OSError:
@@ -199,25 +288,11 @@ def _stabilized_local_generation(generation_dir: Path) -> Iterator[_LocalGenerat
         ) from None
 
     with snapshot_context as snapshot_root:
-        snapshot_dir = Path(snapshot_root) / source.generation_id
-        try:
-            snapshot_dir.mkdir()
-            _copy_file_exact(
-                source=source.dump_path,
-                destination=snapshot_dir / source.dump_filename,
-                expected_size=source.dump_size,
-            )
-            (snapshot_dir / f"{source.dump_filename}.sha256").write_bytes(
-                source.checksum_bytes
-            )
-            (snapshot_dir / "manifest.json").write_bytes(source.manifest_bytes)
-        except RecoveryPublishError:
-            raise
-        except OSError:
-            raise RecoveryPublishError(
-                RecoveryPublishFailure.INVALID_LOCAL_GENERATION
-            ) from None
-        stabilized = _read_local_generation(snapshot_dir)
+        snapshot_dir = _capture_mutable_generation(
+            source_dir=Path(generation_dir),
+            snapshot_root=Path(snapshot_root),
+        )
+        stabilized = _load_verified_generation(snapshot_dir)
         yield stabilized
 
 
