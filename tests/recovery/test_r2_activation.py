@@ -15,6 +15,7 @@ SYNTHETIC_ENDPOINT = "https://synthetic-account.r2.cloudflarestorage.com"
 SYNTHETIC_BUCKET = "synthetic-recovery-bucket"
 SYNTHETIC_ACCESS_KEY = "SYNTHETIC_ACCESS_KEY_MARKER"
 SYNTHETIC_SECRET = "SYNTHETIC_SECRET_MARKER"
+SYNTHETIC_PRIVATE_PATH = "/synthetic-private-root/completed/generation-001"
 
 
 def recovery_environment(**overrides: str) -> dict[str, str]:
@@ -74,6 +75,9 @@ class NoRemoteClient:
         self.calls.append("GET_BYTES")
         return b""
 
+    def head(self, **_: object) -> None:
+        self.calls.append("HEAD")
+
 
 class RecordingClientFactory:
     def __init__(self, client: object) -> None:
@@ -99,6 +103,74 @@ def assert_sensitive_markers_absent(rendered: str, private_path: Path | None = N
         assert marker not in rendered
     if private_path is not None:
         assert str(private_path) not in rendered
+
+
+@pytest.mark.parametrize(
+    "argv",
+    [
+        [],
+        [SYNTHETIC_PRIVATE_PATH],
+        ["preflight"],
+        ["preflight", "--unknown-option", SYNTHETIC_PRIVATE_PATH],
+        ["preflight", "generation-001", SYNTHETIC_PRIVATE_PATH],
+    ],
+    ids=[
+        "missing-subcommand",
+        "invalid-command",
+        "missing-generation-dir",
+        "unknown-option",
+        "extra-positional",
+    ],
+)
+def test_cli_parsing_failures_hide_raw_arguments_and_never_reach_remote_boundary(
+    argv: list[str], capsys: pytest.CaptureFixture[str]
+) -> None:
+    remote = NoRemoteClient()
+    factory = RecordingClientFactory(remote)
+    publisher_calls: list[object] = []
+
+    def publisher(**kwargs: object) -> r2_publish.VerifiedRemoteGeneration:
+        publisher_calls.append(kwargs)
+        raise AssertionError("publisher must not be called")
+
+    assert (
+        r2_activation.main(
+            argv,
+            environ=recovery_environment(),
+            client_factory=factory,  # type: ignore[arg-type]
+            publisher=publisher,
+        )
+        == 1
+    )
+
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert captured.err == "ERROR: recovery R2 activation failed: invalid_arguments\n"
+    assert SYNTHETIC_PRIVATE_PATH not in combined_output(captured)
+    assert factory.configs == []
+    assert publisher_calls == []
+    assert remote.calls == []
+
+
+def test_cli_help_keeps_normal_exit_and_does_not_construct_client(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    remote = NoRemoteClient()
+    factory = RecordingClientFactory(remote)
+
+    with pytest.raises(SystemExit) as raised:
+        r2_activation.main(
+            ["--help"],
+            environ=recovery_environment(),
+            client_factory=factory,  # type: ignore[arg-type]
+        )
+
+    captured = capsys.readouterr()
+    assert raised.value.code == 0
+    assert "{preflight,publish}" in captured.out
+    assert captured.err == ""
+    assert factory.configs == []
+    assert remote.calls == []
 
 
 def test_recovery_config_loads_expected_explicit_s3_config() -> None:
@@ -210,6 +282,101 @@ def test_preflight_valid_generation_reports_portable_contract(tmp_path: Path) ->
         f"{base_key}/appdb.dump.sha256",
         f"{base_key}/manifest.json",
     )
+
+
+def test_preflight_accepts_when_longest_resolved_key_is_exactly_1024_bytes(
+    tmp_path: Path,
+) -> None:
+    generation = create_valid_generation(tmp_path)
+    local = r2_activation.preflight_verified_generation(generation)
+    longest_portable_bytes = max(len(key.encode("utf-8")) for key in local.object_keys)
+    prefix = "a" * (1024 - 1 - longest_portable_bytes)
+    environ = recovery_environment(PMTS_RECOVERY_R2_KEY_PREFIX=prefix)
+
+    result = r2_activation.run_preflight(generation_dir=generation, environ=environ)
+    config = r2_activation.load_recovery_r2_config(environ)
+    resolved_lengths = [
+        len(config.resolve_remote_key(key).encode("utf-8")) for key in result.object_keys
+    ]
+
+    assert max(resolved_lengths) == 1024
+    assert all(length <= 1024 for length in resolved_lengths)
+
+
+def test_preflight_rejects_when_one_resolved_key_is_exactly_1025_bytes(
+    tmp_path: Path,
+) -> None:
+    generation = create_valid_generation(tmp_path)
+    local = r2_activation.preflight_verified_generation(generation)
+    longest_portable_bytes = max(len(key.encode("utf-8")) for key in local.object_keys)
+    prefix = "a" * (1025 - 1 - longest_portable_bytes)
+    environ = recovery_environment(PMTS_RECOVERY_R2_KEY_PREFIX=prefix)
+    config = r2_activation.load_recovery_r2_config(environ)
+
+    assert max(
+        len(config.resolve_remote_key(key).encode("utf-8")) for key in local.object_keys
+    ) == 1025
+    with pytest.raises(r2_activation.RecoveryActivationError) as raised:
+        r2_activation.run_preflight(generation_dir=generation, environ=environ)
+
+    assert raised.value.category == r2_activation.RecoveryActivationFailure.INVALID_CONFIG
+
+
+def test_preflight_uses_utf8_byte_length_for_multibyte_prefix(tmp_path: Path) -> None:
+    generation = create_valid_generation(tmp_path)
+    local = r2_activation.preflight_verified_generation(generation)
+    longest_key = max(local.object_keys, key=lambda key: len(key.encode("utf-8")))
+    prefix_bytes = 1025 - 1 - len(longest_key.encode("utf-8"))
+    prefix = ("한" * (prefix_bytes // 3)) + ("a" * (prefix_bytes % 3))
+    environ = recovery_environment(PMTS_RECOVERY_R2_KEY_PREFIX=prefix)
+    config = r2_activation.load_recovery_r2_config(environ)
+    resolved_key = config.resolve_remote_key(longest_key)
+
+    assert len(resolved_key) < 1025
+    assert len(resolved_key.encode("utf-8")) == 1025
+    with pytest.raises(r2_activation.RecoveryActivationError) as raised:
+        r2_activation.run_preflight(generation_dir=generation, environ=environ)
+
+    assert raised.value.category == r2_activation.RecoveryActivationFailure.INVALID_CONFIG
+
+
+def test_dump_in_range_but_longer_key_over_limit_blocks_direct_publish_before_client(
+    tmp_path: Path,
+) -> None:
+    generation = create_valid_generation(tmp_path)
+    local = r2_activation.preflight_verified_generation(generation)
+    dump_key = local.object_keys[0]
+    prefix = "a" * (1024 - 1 - len(dump_key.encode("utf-8")))
+    environ = recovery_environment(PMTS_RECOVERY_R2_KEY_PREFIX=prefix)
+    config = r2_activation.load_recovery_r2_config(environ)
+    resolved_lengths = [
+        len(config.resolve_remote_key(key).encode("utf-8")) for key in local.object_keys
+    ]
+    remote = NoRemoteClient()
+    factory = RecordingClientFactory(remote)
+    publisher_calls: list[object] = []
+
+    def publisher(**kwargs: object) -> r2_publish.VerifiedRemoteGeneration:
+        publisher_calls.append(kwargs)
+        raise AssertionError("publisher must not be called")
+
+    assert resolved_lengths[0] == 1024
+    assert any(length > 1024 for length in resolved_lengths[1:])
+    with pytest.raises(r2_activation.RecoveryActivationError) as preflight_error:
+        r2_activation.run_preflight(generation_dir=generation, environ=environ)
+    with pytest.raises(r2_activation.RecoveryActivationError) as publish_error:
+        r2_activation.publish_generation(
+            generation_dir=generation,
+            environ=environ,
+            client_factory=factory,  # type: ignore[arg-type]
+            publisher=publisher,
+        )
+
+    assert preflight_error.value.category == r2_activation.RecoveryActivationFailure.INVALID_CONFIG
+    assert publish_error.value.category == r2_activation.RecoveryActivationFailure.INVALID_CONFIG
+    assert factory.configs == []
+    assert publisher_calls == []
+    assert remote.calls == []
 
 
 def test_preflight_cli_is_sanitized_and_never_constructs_remote_client(

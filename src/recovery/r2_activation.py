@@ -11,6 +11,7 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
+from typing import NoReturn
 from urllib.parse import urlsplit
 
 from recovery import r2_publish
@@ -33,12 +34,14 @@ _R2_ENDPOINT_HOST = re.compile(
 )
 _R2_BUCKET = re.compile(r"[a-z0-9](?:[a-z0-9-]{1,61}[a-z0-9])\Z")
 _SAFE_GENERATION_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}\Z")
+_R2_MAX_OBJECT_KEY_BYTES = 1024
 
 
 class RecoveryActivationFailure(StrEnum):
     """Sanitized failure categories exposed by the operator CLI."""
 
     INVALID_CONFIG = "invalid_config"
+    INVALID_ARGUMENTS = "invalid_arguments"
     INVALID_LOCAL_GENERATION = "invalid_local_generation"
     UNSUPPORTED_OBJECT_SIZE = "unsupported_object_size"
     REMOTE_VERIFICATION_FAILURE = "remote_verification_failure"
@@ -50,6 +53,12 @@ class RecoveryActivationError(RuntimeError):
     def __init__(self, category: RecoveryActivationFailure) -> None:
         super().__init__(category.value)
         self.category = category
+
+
+class _SanitizedArgumentParser(argparse.ArgumentParser):
+    def error(self, message: str) -> NoReturn:
+        del message
+        raise RecoveryActivationError(RecoveryActivationFailure.INVALID_ARGUMENTS)
 
 
 @dataclass(frozen=True, slots=True)
@@ -192,6 +201,18 @@ def preflight_verified_generation(generation_dir: Path) -> RecoveryActivationPre
     )
 
 
+def _validate_resolved_object_keys(
+    config: S3CompatibleObjectStoreConfig,
+    object_keys: tuple[str, str, str],
+) -> None:
+    try:
+        resolved_keys = tuple(config.resolve_remote_key(key) for key in object_keys)
+    except ValueError:
+        raise _invalid_config() from None
+    if any(len(key.encode("utf-8")) > _R2_MAX_OBJECT_KEY_BYTES for key in resolved_keys):
+        raise _invalid_config()
+
+
 def run_preflight(
     *,
     generation_dir: Path,
@@ -199,8 +220,10 @@ def run_preflight(
 ) -> RecoveryActivationPreflight:
     """Validate recovery config and local readiness without remote access."""
 
-    load_recovery_r2_config(environ)
-    return preflight_verified_generation(generation_dir)
+    config = load_recovery_r2_config(environ)
+    result = preflight_verified_generation(generation_dir)
+    _validate_resolved_object_keys(config, result.object_keys)
+    return result
 
 
 def publish_generation(
@@ -213,6 +236,8 @@ def publish_generation(
     """Compose the recovery config/client boundary with the A2 publisher."""
 
     config = load_recovery_r2_config(environ)
+    preflight = preflight_verified_generation(generation_dir)
+    _validate_resolved_object_keys(config, preflight.object_keys)
     client = (client_factory or S3CompatibleObjectStoreClient)(config)
     result = (publisher or r2_publish.publish_verified_generation)(
         client=client,
@@ -232,7 +257,7 @@ def publish_generation(
 def build_parser() -> argparse.ArgumentParser:
     """Build the gated recovery R2 operator CLI."""
 
-    parser = argparse.ArgumentParser(
+    parser = _SanitizedArgumentParser(
         description="Preflight or publish one PostgreSQL recovery generation to R2"
     )
     commands = parser.add_subparsers(dest="command", required=True)
@@ -252,8 +277,8 @@ def main(
 ) -> int:
     """Run the sanitized recovery R2 activation CLI."""
 
-    args = build_parser().parse_args(argv)
     try:
+        args = build_parser().parse_args(argv)
         if args.command == "preflight":
             result = run_preflight(generation_dir=args.generation_dir, environ=environ)
             print(f"generation={result.generation_id}")
