@@ -113,7 +113,30 @@ Implementation agent가 수정한 사실만으로 `Passed`가 되지 않으며, 
 
 `Human Gate Required: Yes`의 실제 approval evidence는 human-authored GitHub PR comment 또는 human-authored GitHub review로 제한한다. PR 본문에 기입된 상태값이나 implementation agent의 자기 보고만으로는 Human Gate approval을 증명할 수 없다. ChatGPT conversation, ChatGPT conversation을 가리키는 모호한 decision reference, implementation agent의 완료 보고도 approval evidence가 아니다.
 
-Human-authored GitHub approval evidence가 없으면 Human Gate는 `Pending`이다. Pending 상태의 PR은 accepted 또는 merge-ready로 취급하지 않는다.
+Human Gate가 implementation merge 뒤의 mutation 또는 execution boundary에 적용되면 해당 implementation PR의 post-merge human-authored GitHub comment 또는 review를 approval evidence로 사용할 수 있다. 이 evidence는 승인하는 exact gated scope를 명시해야 한다. Implementation PR merge 자체는 Human Gate approval evidence가 아니다.
+
+Human-authored GitHub approval evidence가 없으면 Human Gate는 `Pending`이다. 기본적으로 Pending 상태의 PR은 accepted 또는 merge-ready로 취급하지 않는다.
+
+Phase-scoped pre-gate merge는 canonical ticket이 implementation 전에 다음을 모두 명시한 경우에만 사용할 수 있다.
+
+```text
+Human Gate Scope:
+<Human approval이 차단하는 exact later mutation/execution boundary>
+
+Pre-Gate Allowed Work:
+<Human Gate가 Pending인 동안 허용되는 exact work>
+
+Pre-Gate Merge Allowed:
+Yes
+```
+
+`Pre-Gate Allowed Work`에는 implementation PR merge가 명시되어야 한다. 또한 merged implementation 자체가 gated live mutation 또는 authority를 실행하거나 자동 활성화하지 않아야 하고, ticket과 repo가 요구하는 validation 및 CI와 required review gate가 충족되어야 하며, blocking finding 또는 required evidence gap이 남아 있지 않아야 한다. `Review Level: Fresh-context`이면 `Independent Review Status: Passed`여야 한다. 이 조건을 모두 충족해도 human이 별도의 PR merge decision을 내려야만 implementation PR을 merge할 수 있다.
+
+`Pre-Gate Merge Allowed: Yes`는 automatic merge, Codex 또는 implementation agent의 merge authority, required validation·CI·review 생략, human merge decision 생략, Human Gate approval, whole-ticket acceptance, ticket closure, release approval 또는 live mutation/execution authorization을 의미하지 않는다.
+
+Gate scope 또는 pre-gate allowed work가 모호하거나, pre-gate merge permission이 없거나, 위 조건 중 하나라도 충족되지 않으면 phase-scoped pre-gate merge를 적용하지 않는다. Explicit declaration이 없는 legacy ticket에도 자동 소급하지 않으며 기존 fail-closed default를 유지한다.
+
+Phase-scoped Human Gate에서 implementation PR merge는 implementation prerequisite를 사용할 수 있게 할 뿐이다. `implementation PR merged`는 `Human Gate approved`, whole-ticket acceptance 또는 ticket closure와 같지 않다. Human Gate가 `Pending`인 동안 gated live mutation/execution은 계속 금지되며, `Human Gate Required: Yes`인 ticket은 gated acceptance criteria를 포함한 모든 acceptance criteria가 충족될 때까지 `PASS / CLOSED`로 취급하지 않는다.
 
 ## Check 규칙
 
