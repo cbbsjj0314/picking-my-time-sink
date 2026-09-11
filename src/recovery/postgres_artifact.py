@@ -95,8 +95,19 @@ def _sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
-def _run_pg_dump(argv: Sequence[str], cwd: Path) -> subprocess.CompletedProcess[Any]:
-    return subprocess.run(argv, check=False, capture_output=True, cwd=cwd)
+def _run_pg_dump(
+    argv: Sequence[str],
+    cwd: Path,
+    *,
+    pass_fds: Sequence[int] = (),
+) -> subprocess.CompletedProcess[Any]:
+    return subprocess.run(
+        argv,
+        check=False,
+        capture_output=True,
+        cwd=cwd,
+        pass_fds=tuple(pass_fds),
+    )
 
 
 def _manifest_path(generation_dir: Path) -> Path:

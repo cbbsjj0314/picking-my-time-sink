@@ -215,7 +215,39 @@ def test_production_runner_captures_child_output_with_controlled_cwd(
     assert result.returncode == 0
     assert seen == {
         "argv": argv,
-        "kwargs": {"check": False, "capture_output": True, "cwd": tmp_path},
+        "kwargs": {
+            "check": False,
+            "capture_output": True,
+            "cwd": tmp_path,
+            "pass_fds": (),
+        },
+    }
+
+
+def test_production_runner_forwards_inherited_descriptors(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    seen: dict[str, object] = {}
+
+    def fake_run(argv: list[str], **kwargs: object) -> subprocess.CompletedProcess[object]:
+        seen["argv"] = argv
+        seen["kwargs"] = kwargs
+        return subprocess.CompletedProcess(argv, 0)
+
+    monkeypatch.setattr(postgres_artifact.subprocess, "run", fake_run)
+    argv = ["pg_dump", "--file=appdb.dump"]
+
+    result = postgres_artifact._run_pg_dump(argv, tmp_path, pass_fds=(17,))
+
+    assert result.returncode == 0
+    assert seen == {
+        "argv": argv,
+        "kwargs": {
+            "check": False,
+            "capture_output": True,
+            "cwd": tmp_path,
+            "pass_fds": (17,),
+        },
     }
 
 
