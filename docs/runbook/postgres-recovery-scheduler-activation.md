@@ -8,7 +8,7 @@ Phase 1이다. 이 문서의 merge는 Gate A approval 또는 production activati
 Risk Level: High
 Review Level: Fresh-context
 Human Gate Required: Yes
-Independent Review Status: Pending
+Independent Review Status: Findings open
 Human Gate Status: Pending
 Gate A Status: Pending
 Gate B Status: Pending
@@ -111,10 +111,38 @@ host의 process-access boundary에 따라 이를 inspect할 가능성이 있으�
 process environment를 상속한다. Root-only source file과 service sandbox는 same-UID runtime
 exposure를 제거하지 않는다.
 
-또한 `/var/lib/pmts`는 `pmts`가 쓸 수 있지만 그 아래 recovery directory는 root-owned다.
-Human은 Gate A에서 이 shared-UID와 writable-ancestor residual risk를 명시적으로 승인해야 한다.
-더 강한 isolation이 필요하면 A6 execution을 중단하고 별도 identity/access planning으로
-돌아간다.
+또한 `/var/lib/pmts`는 `pmts`가 쓸 수 있고 current approved recovery root도 `pmts`가 쓸 수
+있는 상태다. 그 사이 recovery parent가 root-owned라는 사실만으로 writable-ancestor risk가
+해결되지는 않는다. Human은 Gate A에서 이 shared-UID와 writable-ancestor residual risk를
+명시적으로 승인해야 한다. 더 강한 isolation이 필요하면 A6 execution을 중단하고 별도
+identity/access planning으로 돌아간다.
+
+Pinned A5와 service sandbox를 함께 만족하려면 host filesystem permission은 다음 contract를
+가져야 한다.
+
+```text
+approved recovery root:
+- root-controlled
+- service identity가 traverse 가능
+- pmts가 write 불가능
+
+approved recovery root/staging:
+- pmts가 write/traverse 가능
+
+approved recovery root/completed:
+- pmts가 write/traverse 가능
+```
+
+Exact production owner/group/mode는 Gate A durable evidence에서 검증하고 승인한다. Current
+recovery root가 `pmts` writable이므로 Gate A에서 root 자체를 non-writable로 만드는 narrow
+ownership/permission handoff가 필요할 수 있다. 이 mutation은 Gate A 전에 수행하지 않는다.
+또한 recursive하게 적용하거나 existing recovery evidence를 delete, move, truncate, rename,
+rewrite해서는 안 된다. Existing `staging`과 `completed`는 pinned A5가 요구하는 access를
+유지해야 한다.
+
+이 boundary를 broader permission mutation 없이 설정할 수 없거나 existing recovery behavior를
+깨뜨리면 중단하고 planning으로 돌아간다. Recovery root의 owner/mode 변경만으로 그 위
+`/var/lib/pmts` writable-ancestor risk가 사라졌다고 주장하지 않는다.
 
 Trusted execution layout은 다음 boundary를 사용한다.
 
@@ -251,8 +279,7 @@ PrivateDevices=yes
 ProtectSystem=strict
 ProtectHome=yes
 InaccessiblePaths=<approved-private-credential-directory>
-ReadWritePaths=<approved-recovery-root>/completed
-ReadWritePaths=<approved-recovery-root>/staging
+ReadWritePaths=<approved-recovery-root>
 ReadWritePaths=<approved-authoritative-lock-path>
 RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
 
@@ -262,10 +289,20 @@ SyslogIdentifier=pmts-postgres-recovery
 ```
 
 Unit에는 `[Install]` section이 없으며 service 자체를 enable하지 않는다. `After=`는 ordering만
-정의하고 PostgreSQL을 start dependency로 끌어오지 않는다. Persistent write scope는 A1
-staging/completed generation과 existing lock file로 제한한다. `PrivateTmp=yes`는 A2 snapshot과
-remote verification의 transient workspace를 제공하지만 recovery evidence deletion을 승인하지
-않는다.
+정의하고 PostgreSQL을 start dependency로 끌어오지 않는다. Recovery root 하나를 common
+writable mount exception으로 사용하는 것은 pinned A5 compatibility requirement다. A5는
+`staging/<generation>`을 `renameat2(..., RENAME_NOREPLACE)`로
+`completed/<generation>`에 atomic finalization한다. Source와 destination은 service mount
+namespace에서 같은 mount에 있어야 하므로 separate `ReadWritePaths=` mount로 분리하지 않는다.
+A5 implementation이나 atomic no-replace contract를 변경하지 않는다.
+
+Common-root writable mount exception은 `pmts`에게 recovery root top-level mutation permission을
+부여하는 계약이 아니다. Systemd mount namespace가 root를 writable하게 제공하더라도 앞에서
+정의한 host filesystem permission이 top-level create/rename/delete를 막고 `staging`과
+`completed` 내부 access만 허용해야 한다. Separate writable lock boundary는 그대로 유지한다.
+
+`PrivateTmp=yes`는 A2 snapshot과 remote verification의 transient workspace를 제공하지만 recovery
+evidence deletion을 승인하지 않는다.
 
 이 contract는 systemd 239-compatible conservative directive만 사용한다. Materialized candidate를
 native `systemd-analyze verify`로 확인하며 unknown/unsupported directive 또는 sandbox mismatch가
@@ -319,15 +356,19 @@ Gate A는 다음 exact mutation class만 승인할 수 있다.
 - Approved `/opt/pmts-recovery` directory와 root-controlled independent checkout materialization.
 - Approved launcher와 service candidate materialization.
 - Approved authoritative lock의 exclusive creation과 owner/mode assignment.
+- Approved recovery root의 root-non-writable/children-writable contract에 필요한 narrow,
+  non-recursive ownership/permission handoff.
 - Exact service unit installation과 그 unit을 위한 `daemon-reload`.
+- Credential-free disposable mount-topology fixture의 temporary creation과 fixture-only removal.
 - Review/validation 조건을 모두 만족한 뒤 exactly one manual service execution.
 - 그 한 번의 production `pg_dump`, A1 staging/completed generation, conditional R2 publish 또는
   byte-identical reconciliation, independent remote verification.
 - A2 transient workspace lifecycle와 normal systemd/journal record.
 
 Human-authored Gate A evidence는 exact revision, source acquisition, execution layout, service
-identity, credential handoff, lock, service semantics, shared-UID/writable-ancestor risk,
-capacity/cost decision, mutation set과 execution count를 승인해야 한다. 또한 execution은 다음
+identity, credential handoff, recovery-root permission handoff, lock, service semantics,
+shared-UID/writable-ancestor risk, disposable validation의 exact command/path, capacity/cost
+decision, mutation set과 execution count를 승인해야 한다. 또한 execution은 다음
 post-materialization review condition에 종속된다고 명시해야 한다.
 
 ```text
@@ -336,6 +377,7 @@ materialize approved artifacts
 → exact-artifact Fresh-context review
 → Final status: Passed
 → durable human-authored GitHub evidence
+→ credential-free disposable mount-topology validation
 → dummy-only synthetic validation
 → remaining pre-execution validation
 → exactly one production service execution
@@ -374,11 +416,39 @@ Production execution은 `Final status: Passed`와 별도 durable human-authored 
 금지한다. Reviewed launcher 또는 unit byte가 변경되면 review status는 `Pending`으로 돌아가고
 production execution을 차단한다. 변경 artifact는 새 Fresh-context review가 필요하다.
 
+### Disposable mount-topology validation
+
+Exact-artifact review가 Passed이고 durable human-authored evidence가 기록된 뒤, production
+execution 전에 credential-free transient validation을 수행한다. `systemd-analyze verify`만으로는
+service mount namespace 안의 cross-directory rename topology를 증명할 수 없으므로 이 runtime
+check가 필수다.
+
+Gate A evidence에서 exact command와 disposable path를 사용 전에 review한다. Mechanism은
+persistent unit을 install하지 않는 transient/disposable systemd execution이어야 하며 다음을
+만족해야 한다.
+
+- Production PostgreSQL/R2 credential file 또는 environment를 load하지 않는다.
+- `pg_dump`, PostgreSQL authentication, R2 request를 수행하지 않는다.
+- Actual recovery root를 inaccessible하게 만들고 그 아래 generation을 사용하지 않는다.
+- Unique disposable root 아래에 `staging`과 `completed`를 만들고, 필요하면 separate disposable
+  lock boundary를 만든다.
+- systemd 239에서 `ProtectSystem=strict`, 하나의 common writable disposable root,
+  separate lock exception이라는 relevant topology를 재현한다.
+- Disposable `staging/<generation>`을 disposable `completed/<generation>`으로
+  `RENAME_NOREPLACE` atomic rename하고 success를 확인한다.
+- `EXDEV`, collision 또는 다른 unexpected result는 fail closed한다.
+- Validation이 생성한 unique fixture만 bounded cleanup하고 actual recovery evidence는 inspect,
+  rename, truncate, delete 또는 rewrite하지 않는다.
+
+Transient validation을 위해 persistent service unit이나 Gate A 밖 mutation이 필요하면 즉석에서
+추가하지 않고 planning으로 돌아간다. Validation failure는 production execution을 차단한다.
+
 ### Synthetic and remaining pre-execution validation
 
-Exact-artifact review가 Passed인 뒤 dummy value만 사용하는 transient synthetic validation을
-수행한다. Test harness는 `os.execve` boundary를 intercept하며 production credential file, actual
-A5 runner, `pg_dump`, PostgreSQL authentication 또는 R2 operation을 사용하지 않는다.
+Exact-artifact review와 disposable mount-topology validation이 모두 Passed인 뒤 dummy value만
+사용하는 transient synthetic validation을 수행한다. Test harness는 `os.execve` boundary를
+intercept하며 production credential file, actual A5 runner, `pg_dump`, PostgreSQL authentication
+또는 R2 operation을 사용하지 않는다.
 
 Synthetic validation은 다음을 확인한다.
 
@@ -395,11 +465,13 @@ Remaining pre-execution checks:
 
 1. Artifact path, hash, owner/mode, ACL과 symlink identity.
 2. Exact commit, clean tree, Git integrity, no alternates와 trusted ancestry.
-3. Secret-free CLI/import load with exact interpreter and site loading disabled.
-4. Native `systemd-analyze verify` and loaded non-secret unit-property match.
-5. Credential file metadata/syntax, lock device/inode/access, filesystem capacity.
-6. Timer absent/inactive, no active recovery invocation, acceptable workload/failed-unit baseline.
-7. PostgreSQL loopback listener continuity.
+3. Recovery root의 root-non-writable/children-writable filesystem contract.
+4. Disposable mount-topology atomic no-replace rename PASS evidence.
+5. Secret-free CLI/import load with exact interpreter and site loading disabled.
+6. Native `systemd-analyze verify` and loaded non-secret unit-property match.
+7. Credential file metadata/syntax, lock device/inode/access, filesystem capacity.
+8. Timer absent/inactive, no active recovery invocation, acceptable workload/failed-unit baseline.
+9. PostgreSQL loopback listener continuity.
 
 어느 check라도 실패하면 exactly-one service execution을 수행하지 않는다.
 
@@ -475,6 +547,7 @@ Gate B 뒤 blocking failure가 발견되면 Human에게 future scheduling stop/d
 production application checkout mutation
 A5 runner or application code change
 new OS identity or broad permission redesign
+unrelated or recursive ownership/permission mutation
 PostgreSQL schema/data mutation or restore
 recovery generation rotation/delete
 R2 overwrite/delete/lifecycle mutation
