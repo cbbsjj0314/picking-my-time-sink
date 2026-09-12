@@ -1,20 +1,22 @@
 # PostgreSQL recovery scheduler production activation plan
 
 이 문서는 A6 `POSTGRES-RECOVERY-SCHEDULER-ACTIVATE-001`의 production activation
-계약을 정의한다. 현재 단계는 read-only readiness와 docs-only planning까지 완료한
-Phase 1이다. 이 문서의 merge는 Gate A approval 또는 production activation이 아니다.
+계약을 정의한다. Phase 1은 완료되었고 Gate A는 별도 Human evidence로 승인되었지만,
+Gate A production execution은 아직 수행하지 않았다. Gate B와 recurring activation은 Pending이다.
 
 ```text
 Risk Level: High
 Review Level: Fresh-context
 Human Gate Required: Yes
-Independent Review Status: Passed
-Human Gate Status: Pending
-Gate A Status: Pending
+Phase 1: Complete
+Phase 1 Independent Review Status: Passed
+Gate A Status: Approved
 Gate B Status: Pending
 Production recurring recovery: Inactive
-Production mutation in Phase 1: No
+Gate A production execution performed: No
 ```
+
+Gate B가 `Pending`이므로 전체 Human Gate 작업과 A6는 아직 완료되지 않았다.
 
 ## Phase 1 readiness
 
@@ -365,11 +367,19 @@ Gate A는 다음 exact mutation class만 승인할 수 있다.
   byte-identical reconciliation, independent remote verification.
 - A2 transient workspace lifecycle와 normal systemd/journal record.
 
-Human-authored Gate A evidence는 exact revision, source acquisition, execution layout, service
-identity, credential handoff, recovery-root permission handoff, lock, service semantics,
-shared-UID/writable-ancestor risk, disposable validation의 exact command/path, capacity/cost
-decision, mutation set과 execution count를 승인해야 한다. 또한 execution은 다음
-post-materialization review condition에 종속된다고 명시해야 한다.
+Gate A에서는 exact revision, source acquisition, execution layout, service identity, credential
+handoff, recovery-root permission handoff, lock, service semantics, shared-UID/writable-ancestor risk,
+disposable validation의 exact command/path, capacity/cost decision, mutation set과 execution count를
+모두 사용 전에 review하고 승인해야 한다. Human-authored GitHub Gate evidence에는 public-safe
+approved scope와 decision, review/result status, sanitized identifier를 기록한다. Public-safe하지
+않은 exact operational selection은 사용 전에 configured private PMTS control plane에 durably
+기록하고 review하며, public Gate evidence는 private value를 재출력하지 않고 그 controlled
+evidence를 reference할 수 있다. Public evidence와 referenced private durable evidence를 합친
+evidence set은 무엇을 승인했고 실제로 무엇을 사용했는지 재구성할 수 있어야 한다. Public
+GitHub evidence에 private operational value를 재현하는 것은 Gate contract 충족 조건이 아니다.
+이 구분은 evidence placement만 변경하며 Gate A mutation authority, execution sequence와 operational
+safety requirement를 변경하지 않는다. 또한 execution은 다음 post-materialization review
+condition에 종속된다고 명시해야 한다.
 
 ```text
 materialize approved artifacts
@@ -423,9 +433,11 @@ execution 전에 credential-free transient validation을 수행한다. `systemd-
 service mount namespace 안의 cross-directory rename topology를 증명할 수 없으므로 이 runtime
 check가 필수다.
 
-Gate A evidence에서 exact command와 disposable path를 사용 전에 review한다. Mechanism은
-persistent unit을 install하지 않는 transient/disposable systemd execution이어야 하며 다음을
-만족해야 한다.
+Exact command와 disposable path는 사용 전에 review한다. Production-specific exact command/path가
+public-safe하지 않으면 configured private PMTS control plane의 durable evidence에 기록하고 review한다.
+Public GitHub approval/review record에는 sanitized reference, approved validation class/boundary와
+result/status를 기록하며 private exact command/path를 재출력할 필요가 없다. Mechanism은 persistent
+unit을 install하지 않는 transient/disposable systemd execution이어야 하며 다음을 만족해야 한다.
 
 - Production PostgreSQL/R2 credential file 또는 environment를 load하지 않는다.
 - `pg_dump`, PostgreSQL authentication, R2 request를 수행하지 않는다.
@@ -494,8 +506,11 @@ Post-run에는 PostgreSQL listener, existing PMTS workload/timer health, failed 
 capacity, A6 timer absence를 확인한다. 실패 또는 incomplete result는 evidence를 보존하고
 Human/planning으로 돌아간다. 같은 Gate A approval로 두 번째 run을 수행하지 않는다.
 
-Account-wide R2 usage와 Free-tier eligibility는 확인되지 않았다. Human은 Gate A 전에 local/R2
-30-day no-rotation capacity/cost envelope를 승인해야 하며 free operation을 가정하지 않는다.
+2026-09-12 Human 관측 기준 current R2 usage는 included tier 안에 있고 current billable usage는
+`$0.00`이다. Current A6 30-day planning envelope도 current free storage boundary 아래에 있다.
+이 sanitized current-state observation은 장기 paid R2 accumulation을 승인하지 않는다. R2
+capacity/cost는 Gate B recurring activation 전에 다시 평가한다. Retention/rotation과 Desktop HDD
+archive는 deferred boundary로 유지한다.
 
 ## Gate B recurring timer boundary
 
@@ -560,9 +575,33 @@ A6 closure는 rotation/delete를 승인하거나 다음 ticket을 자동 선택�
 
 ## Public/private evidence boundary
 
-Public evidence에는 canonical revision, variable names, generic/canonical deployment contract,
-sanitized aggregate capacity와 review status를 기록할 수 있다. 다음은 public document, PR body,
-review comment에 포함하지 않는다.
+Public evidence에는 다음 public-safe 정보를 기록할 수 있다.
+
+```text
+canonical/public revision identifiers
+public-safe service/contract identifiers
+generic/canonical deployment contract
+sanitized aggregate capacity/cost conclusion
+Human Gate decision and approved mutation class
+review status/result
+sanitized operational result
+```
+
+Production-specific exact detail이 public disclosure에 불필요하거나 안전하지 않으면 사용 전에
+configured private PMTS control plane에 durably 기록하고 review한다. Private durable evidence에는
+해당되는 경우 다음을 둔다.
+
+```text
+private credential/config source paths
+private endpoint/account identifiers
+exact host-specific operational selections
+exact disposable fixture paths/commands
+raw inspection output
+raw journal/runtime evidence
+other private runtime details
+```
+
+다음은 public document, PR body, review comment에 포함하지 않는다.
 
 ```text
 credential/password/access-key value or value hash
@@ -574,10 +613,15 @@ unnecessary private filesystem identity
 raw inspection transcript or raw journal
 ```
 
-Exact operational selection이 public으로 안전하지 않으면 controlled private evidence에 유지한다.
-Human-authored public Gate/review evidence는 그 reviewed controlled evidence를 reference할 수 있지만
-private/secret value를 재출력하지 않는다. Implementation agent의 completion report, self-review,
-synthetic test 결과 또는 ChatGPT conversation은 independent review/Human Gate evidence가 아니다.
+Public runbook의 exactness를 이유로 private detail을 복사하지 않는다. Human-authored public
+Gate/review evidence는 reviewed private durable evidence를 sanitized reference로 가리킬 수 있지만
+private/secret value를 재출력하지 않는다. Combined evidence set은 승인된 gated scope와 실제 사용한
+operational selection을 재구성할 수 있어야 한다.
+
+Private durable evidence만으로 Human Gate approval을 대체할 수 없다. Approval은 gated scope를
+명확히 승인한 human-authored GitHub PR comment 또는 GitHub review여야 한다. Implementation agent의
+completion report, self-review, synthetic test 결과 또는 ChatGPT conversation은 independent
+review/Human Gate evidence가 아니다.
 
 Phase-scoped pre-gate merge는 required validation, CI, Phase 1 Fresh-context `Passed`, blocking
 finding/required-evidence gap 부재와 별도 Human merge decision을 모두 요구한다. Merge는 Gate A
