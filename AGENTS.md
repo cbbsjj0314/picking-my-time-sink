@@ -17,9 +17,10 @@
 - Do not treat work requiring Fresh-context review as accepted until `Independent Review Status: Passed`.
 - Use `Passed` only after the Fresh-context reviewer reconfirms that blocking findings and required evidence are resolved.
 - The implementation agent's completion report or self-fix result cannot be independent review evidence.
-- Follow `docs/runbook/agent-workflow.md` for review triggers, evidence formats, and detailed status definitions.
+- Follow `docs/runbook/agent-workflow.md` for canonical handoff, Mode boundaries, completion evidence, stopping rules, review triggers, and detailed status definitions.
 - Treat ChatGPT/planning sessions as the place to define product specs and tickets, maintain private planning state, and support the human's active-ticket selection.
 - Treat Codex implementation sessions as one-ticket-at-a-time execution of the explicitly handed-off ticket toward a focused branch/commit and PR when the ticket is approved for PR-native execution.
+- Open every Codex-created PR as Draft; humans decide Ready for review and merge. Keep this invariant unless a separate task contains a specific human override.
 - Codex must not merge PRs, create releases/tags, force-push, or push directly to `main`; humans own those decisions unless the user explicitly overrides this for a specific task.
 - Leave risky scope approval, merge decisions, and release decisions to humans.
 - Local/private planning-state maintenance and checkpoints are not default implementation deliverables.
@@ -60,6 +61,7 @@
 - If approved `./scripts/check.sh` or GitHub Actions CI fails, treat it as a real validation failure and investigate.
 - If the current Codex exec environment cannot run validation because of PATH, Poetry, or sandbox issues, use the closest equivalent Ruff/Pytest command and report the exact command used.
 - For docs-only changes, validation may be skipped if no runtime/code path changed.
+- When ticket-required evidence and applicable canonical validation are sufficient, stop; do not repeat validation or broaden exploration without a concrete trigger defined in `docs/runbook/agent-workflow.md`.
 - Fix validation failures before finishing when they are caused by your changes.
 - Report the exact command, whether escalation/approval was used, and the exact result.
 
