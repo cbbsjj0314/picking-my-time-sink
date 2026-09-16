@@ -121,3 +121,7 @@ A6는 production host에서 다음 prerequisite와 exact deployment를 결정하
 A5는 filesystem type을 probe하지 않고 systemd unit template을 제공하지 않는다. Production
 unit install, daemon reload, enable/start, service identity/permission/config mutation, recurring
 execution은 모두 A6 범위다. A5 merge는 이러한 mutation을 승인하지 않는다.
+
+## Rotation advisory foundation
+
+A7 Phase 1의 [snapshot classifier/report contract](./postgres-recovery-rotation-dryrun.md)는 explicit inventory/evidence와 Human-managed pins를 입력으로 받는 별도 pure API다. Runner에 연결되지 않으며 production inventory collection, rotation/delete 또는 scheduler behavior를 추가하지 않는다. Phase 1 validation은 A7 전체 closure나 production dry-run evidence가 아니다.
