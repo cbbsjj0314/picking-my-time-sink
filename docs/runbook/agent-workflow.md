@@ -30,6 +30,7 @@ Ticket은 `User Decision`, scope, out of scope, requirements, acceptance criteri
 Implementation/review를 시작하는 handoff는 다음 최소 envelope을 전달한다. Planning 작업도 같은 envelope으로 현재 authority를 명확히 한다.
 
 ```text
+Repository: <unambiguous target repository identity, e.g. github.com/cbbsjj0314/picking-my-time-sink>
 Mode: Implementation | Read-only Review | Planning-contract
 Ticket: <ticket ID>
 Ticket Authority: <full canonical ticket supplied in the handoff or a resolvable canonical source/reference>
@@ -40,6 +41,7 @@ Human Gate Required: Yes | No
 PR Mode: Draft | N/A
 ```
 
+- `Repository`는 이번 session의 unambiguous target repository identity다. Host와 owner/repository를 명시하며, repository 이름만으로 식별하지 않는다. 특정 checkout이 필요하면 expected repository-root path도 함께 전달한다.
 - `Mode`는 session의 execution boundary다.
 - `Ticket`은 Human이 선택한 canonical ticket의 ID다.
 - `Ticket Authority`는 task semantics의 source of truth인 전체 ticket 또는 접근 가능한 canonical reference다.
@@ -50,6 +52,20 @@ PR Mode: Draft | N/A
 실제로 존재하는 task-specific temporary constraint는 별도로 명시할 수 있다. 별도의 procedural merge hold는 `Human Gate Required`의 의미를 바꾸지 않으며, 그 해제는 명시된 Human authority에 따른다.
 
 Handoff는 canonical ticket의 second spec이 아니라 authority와 current execution mode를 전달하는 envelope이다. Requirements 전체, acceptance criteria 전체, validation documentation 전체, general repository workflow 전체를 장문으로 복제하지 않는다. `Ticket Authority`가 접근 불가능하거나 ambiguity가 material하면 Codex는 ticket을 임의로 재구성하지 않고 작업을 멈춰 planning 흐름으로 되돌린다.
+
+### Repository Identity Preflight
+
+Codex는 editing 전에 현재 checkout이 handed-off `Repository`와 일치하는지 확인한다.
+
+```text
+git rev-parse --show-toplevel
+git remote get-url origin
+git status --short
+```
+
+Repository-root identity와 remote의 host / owner / repository를 함께 확인한다. HTTPS / SSH URL 표기 차이는 같은 repository identity로 비교하며, root basename 또는 clean worktree만으로 일치를 판단하지 않는다. Expected repository-root path가 전달되었다면 실제 root도 그 path와 일치해야 한다. `git status --short` output이 없어야 clean-worktree verification을 통과한다.
+
+`Repository`가 누락되거나 실제 repository가 불일치하거나 identity를 확인할 수 없거나 worktree가 clean하지 않으면 editing 전에 멈추고 그 상태를 보고한다. 다른 repository로 암묵적으로 이동하거나 그 repository를 수정하지 않으며, Human의 corrected handoff/session을 기다린다. Intended repository와 clean worktree를 모두 확인한 경우에만 `Mode`, ticket authority와 authorized scope 등 나머지 조건에 따라 implementation을 진행할 수 있다.
 
 ### Mode Boundaries
 
@@ -111,7 +127,7 @@ required ticket checks satisfied
 
 ### Prompt-level Redundancy Boundary
 
-Handoff prompt에서 반복할 정보는 session마다 달라지거나 authority miss의 비용이 큰 `Mode`, Ticket ID / authority, `Authorized Phase`, Risk / Review / Human Gate, Draft PR mode, 실제 task-specific temporary constraint로 제한한다. Stable detailed workflow, full validation instructions, review definitions은 canonical ticket과 repository source of truth에 남긴다.
+Handoff prompt에서 반복할 정보는 session마다 달라지거나 authority miss의 비용이 큰 `Repository`, `Mode`, Ticket ID / authority, `Authorized Phase`, Risk / Review / Human Gate, Draft PR mode, 실제 task-specific temporary constraint로 제한한다. Stable detailed workflow, full validation instructions, review definitions은 canonical ticket과 repository source of truth에 남긴다.
 
 ## Ticket 유형
 
