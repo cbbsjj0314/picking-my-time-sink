@@ -1,4 +1,6 @@
 <!--
+This template is the canonical completion contract for PR-native Codex implementation.
+Codex-created PRs open as Draft; humans decide Ready for review and merge.
 빠르게 훑어볼 수 있게 짧게 쓴다.
 긴 문단보다 짧은 bullet을 선호한다.
 구체적이고 명확하게 쓴다.
@@ -10,7 +12,7 @@ PR 범위는 분명히 적는다.
 의도적으로 제외한 범위를 적을 필요가 없으면 해당 section은 지운다.
 PR 본문은 한국어로 작성한다.
 설명 문장은 간결한 한국어로 쓰고, 객체명 / endpoint / route / loader / table / view / CLI 명령은 번역하지 않고 실제 코드 표기를 유지한다.
-docs-only PR이면 Validation section은 남기고 `- Not run (docs-only change)`라고 적는다.
+docs-only PR이면 Validation section은 남기고 수행한 static check의 exact result와 `- Runtime checks: Not run (docs-only change)`를 적는다.
 Ticket / Spec reference, Human Gate Required, Risk / Assumptions, Required Checks / CI result는 짧게 적는다.
 Ticket 내용을 PR 본문에 장문으로 반복하지 않는다.
 해당하지 않으면 `- N/A`로 두거나 section을 지운다.
@@ -123,7 +125,8 @@ CI가 돌았다면 Required Checks / CI result도 짧게 적는다.
 - `command 1`: result
 - `command 2`: result
 - Required Checks / CI: result
-- Acceptance evidence:
+- Documentation impact: Updated — durable docs / None — existing durable docs remain accurate because <short reason>
+- Acceptance evidence (completion AC → evidence mapping):
   - AC-1 → test, command, smoke, review 또는 document evidence
   - AC-2 → ...
 
