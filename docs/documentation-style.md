@@ -8,13 +8,17 @@
 
 이 문서는 기존 project 운영 규칙을 대체하지 않는다.
 
-- `AGENTS.md`는 agent 작업 방식, scope control, validation, Git convention의 상위 기준이다.
-- `docs/data-governance.md`는 data meaning, public/local boundary, sanitized fixture, durable data contract의 기준이다.
-- 이 문서는 README와 tracked public docs를 작성·번역할 때 적용하는 문체, literal 보존, formatting, docs-code consistency 기준을 다룬다.
+- `AGENTS.md`는 stable always-on agent invariant와 canonical navigation의 entry point다.
+- `docs/runbook/agent-workflow.md`는 handoff, Mode, validation, review, Human Gate, stopping 등 detailed workflow semantics의 canonical source다.
+- `.github/PULL_REQUEST_TEMPLATE.md`는 PR-native completion과 PR body evidence의 canonical interface다.
+- `docs/data-governance.md`는 data meaning과 public/private evidence boundary의 canonical source다.
+- 이 문서는 tracked documentation을 작성·번역할 때 적용하는 문체, 번역, literal 보존, formatting, docs-code consistency 기준을 다룬다.
 
 동일한 주제를 다룰 때는 다음 기준을 따른다.
 
-- agent workflow와 Git/validation 절차는 `AGENTS.md`를 우선한다.
+- stable agent invariant와 canonical navigation은 `AGENTS.md`를 따른다.
+- workflow / validation / review / Human Gate semantics는 `docs/runbook/agent-workflow.md`를 따른다.
+- PR body 구성과 completion evidence는 `.github/PULL_REQUEST_TEMPLATE.md`를 따른다.
 - data governance와 public/private evidence boundary는 `docs/data-governance.md`를 우선한다.
 - 문서 문체, 번역 방식, hard wrapping, PR body wording은 이 문서를 우선 참고한다.
 
@@ -459,7 +463,7 @@ durable contract
 
 ## Validation
 
-문서-only 변경에서는 `AGENTS.md`의 validation 원칙을 우선하되, 이 문서 관점에서는 최소한 다음을 확인한다.
+문서-only 변경의 validation semantics는 `docs/runbook/agent-workflow.md`를 따르며, 이 문서 관점에서는 최소한 다음을 확인한다.
 
 ```bash
 git diff --check
@@ -483,21 +487,21 @@ test -e "<path>"
 git grep -n "<identifier-or-route>"
 ```
 
-문서-only PR에서는 tests/builds를 실행하지 않을 수 있다. 이 경우 PR body에 실행하지 않은 validation을 적지 않는다.
+문서-only 변경은 runtime/code path가 바뀌지 않으면 runtime tests/builds를 생략할 수 있다. PR body에는 수행한 static validation의 exact result를 기록하고, 실행하지 않은 runtime validation은 `.github/PULL_REQUEST_TEMPLATE.md`의 skip evidence 형식에 따라 `Runtime checks: Not run (docs-only change)`처럼 기록한다. 실행하지 않은 개별 command를 장황한 목록으로 나열하지 않는다.
 
 ## PR body 규칙
 
-PR body는 repo의 기존 PR 관례와 PR template이 있으면 그 template을 우선 따른다.
+PR body 구성과 completion evidence는 canonical interface인 `.github/PULL_REQUEST_TEMPLATE.md`를 따른다.
 
 이 문서는 PR body의 전체 구조를 새로 정의하지 않는다. 다만 문서-only PR에서 한국어 문서 작업을 설명할 때는 다음 원칙을 따른다.
 
 - PR body도 Korean-first로 작성한다.
 - section heading, command, route, validation token, status literal은 English를 유지할 수 있다.
-- 실행하지 않은 tests/builds/validation을 적지 않는다.
+- 수행한 validation의 exact result와 applicable skip evidence는 canonical PR template에 따라 기록한다.
 - Web UI, API/client-visible message, operator CLI/help output, source comment/docstring처럼 제외한 범위는 명확히 deferred로 남긴다.
 - raw/private/local-only evidence를 PR body에 노출하지 않는다.
 
-PR body 구성이 애매하면 `AGENTS.md`의 planning/reporting, validation, Git convention을 우선 참고한다.
+PR body 구성과 completion evidence가 애매하면 `.github/PULL_REQUEST_TEMPLATE.md`를 우선한다. Workflow / validation / review / Human Gate semantics가 필요하면 `docs/runbook/agent-workflow.md`를 따른다. `AGENTS.md`는 stable invariant와 canonical navigation의 entry point로 참고한다.
 
 ## Commit message 규칙
 
@@ -537,7 +541,7 @@ Codex나 coding agent가 문서 작업을 수행할 때는 다음 순서를 따�
 9. public/private boundary를 확인한다.
 10. 문서가 code 상태와 충돌하지 않는지 static check한다.
 11. `git diff --check`를 실행한다.
-12. PR body와 squash title이 `AGENTS.md`와 repo 관례에 충돌하지 않는지 확인한다.
+12. PR body는 `.github/PULL_REQUEST_TEMPLATE.md`, squash title은 `AGENTS.md`의 Git convention에 충돌하지 않는지 확인한다.
 
 ## Completion criteria
 
@@ -550,5 +554,5 @@ Codex나 coding agent가 문서 작업을 수행할 때는 다음 순서를 따�
 - current-state 문서가 code 상태와 충돌하지 않는다.
 - hard wrapping이나 Markdown 구조 문제가 없다.
 - `git diff --check`가 통과한다.
-- PR body가 실제 수행한 validation만 말한다.
-- PR body와 squash merge title이 `AGENTS.md`와 repo 관례에 충돌하지 않는다.
+- PR body가 수행한 validation의 exact result와 canonical PR template에 따른 applicable skip evidence를 기록한다.
+- PR body는 `.github/PULL_REQUEST_TEMPLATE.md`, squash merge title은 `AGENTS.md`의 Git convention에 충돌하지 않는다.
