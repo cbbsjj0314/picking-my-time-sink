@@ -7,6 +7,7 @@ import hmac
 import json
 import os
 import ssl
+import xml.etree.ElementTree as ET
 from collections.abc import Iterator, Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -139,6 +140,21 @@ class S3CompatibleObjectStorePreconditionFailed(S3CompatibleObjectStoreError):
     """Raised when a conditional object-store request returns HTTP 412."""
 
 
+@dataclass(frozen=True)
+class ListedObject:
+    key: str
+    size: int
+    etag: str
+    last_modified: str
+
+
+@dataclass(frozen=True)
+class ListObjectsV2Page:
+    objects: tuple[ListedObject, ...]
+    is_truncated: bool
+    next_continuation_token: str | None
+
+
 class _FileChunks:
     """Iterate over a file in bounded chunks for urllib's request body seam."""
 
@@ -160,7 +176,7 @@ class _FileChunks:
 
 
 class S3CompatibleObjectStoreClient:
-    """Tiny signed client that supports the PUT/GET flow used in this slice."""
+    """Tiny signed client for object PUT/GET and bounded inventory pages."""
 
     def __init__(
         self,
@@ -227,8 +243,19 @@ class S3CompatibleObjectStoreClient:
         content_type: str | None,
         now: datetime,
         additional_headers: Mapping[str, str] | None = None,
+        query: Mapping[str, str] | None = None,
     ) -> tuple[str, dict[str, str]]:
         url, host, canonical_path = self._build_url_and_host(object_key)
+        canonical_query = ""
+        if query is not None:
+            # LIST addresses the bucket, not an object or the configured key prefix.
+            canonical_path = f"/{self._config.bucket}/" if self._config.use_path_style else "/"
+            canonical_query = "&".join(
+                f"{quote(key, safe='-_.~')}={quote(value, safe='-_.~')}"
+                for key, value in sorted(query.items())
+            )
+            endpoint = urlsplit(url)
+            url = endpoint._replace(path=canonical_path, query=canonical_query).geturl()
         amz_date = now.astimezone(UTC).strftime("%Y%m%dT%H%M%SZ")
         datestamp = amz_date[:8]
         headers = {
@@ -248,7 +275,7 @@ class S3CompatibleObjectStoreClient:
             [
                 method,
                 canonical_path,
-                "",
+                canonical_query,
                 canonical_headers,
                 signed_headers,
                 payload_hash,
@@ -295,6 +322,99 @@ class S3CompatibleObjectStoreClient:
         if endpoint.scheme != "https" or self._config.verify_tls:
             return None
         return ssl._create_unverified_context()
+
+    def list_objects_v2_page(
+        self,
+        *,
+        prefix: str,
+        continuation_token: str | None = None,
+        max_keys: int = 1000,
+        max_response_bytes: int = 1024 * 1024,
+        now: datetime | None = None,
+    ) -> ListObjectsV2Page:
+        """Return one page of portable keys; callers own pagination/completeness."""
+        if (
+            not prefix or prefix != prefix.strip().lstrip("/")
+            or type(max_keys) is not int or not 1 <= max_keys <= 1000
+            or type(max_response_bytes) is not int or max_response_bytes <= 0
+            or (continuation_token is not None and not continuation_token)
+        ):
+            raise ValueError("invalid listing bounds or prefix")
+        base = f"{self._config.key_prefix}/" if self._config.key_prefix else ""
+        remote_prefix = base + prefix
+        query = {"list-type": "2", "prefix": remote_prefix, "max-keys": str(max_keys)}
+        if continuation_token is not None:
+            query["continuation-token"] = continuation_token
+        url, headers = self._build_headers(
+            method="GET", object_key=prefix, payload_hash=hashlib.sha256(b"").hexdigest(),
+            content_type=None, now=now or datetime.now(UTC), query=query,
+        )
+        try:
+            with self._transport(
+                Request(url=url, method="GET", headers=headers), context=self._ssl_context()
+            ) as response:
+                if response.status != 200:
+                    raise ValueError("unexpected status")
+                body = response.read(max_response_bytes + 1)
+            if len(body) > max_response_bytes or b"<!" in body or b"\x00" in body:
+                raise ValueError("oversized or unsupported XML")
+            root = ET.fromstring(body.decode("utf-8"))
+            namespace = "{http://s3.amazonaws.com/doc/2006-03-01/}"
+            if root.tag == "ListBucketResult":
+                namespace = ""
+            elif root.tag != namespace + "ListBucketResult":
+                raise ValueError("invalid list root")
+
+            def field(node: ET.Element, name: str, *, optional: bool = False) -> str | None:
+                matches = node.findall(namespace + name)
+                if optional and not matches:
+                    return None
+                if len(matches) != 1 or len(matches[0]):
+                    raise ValueError("invalid list field")
+                return matches[0].text or ""
+
+            truncated = field(root, "IsTruncated")
+            token = field(root, "NextContinuationToken", optional=True)
+            contents = root.findall(namespace + "Contents")
+            if (
+                field(root, "Name") != self._config.bucket
+                or field(root, "Prefix") != remote_prefix
+                or field(root, "ContinuationToken", optional=True) != continuation_token
+                or field(root, "KeyCount") != str(len(contents))
+                or field(root, "MaxKeys") != str(max_keys)
+                or len(contents) > max_keys
+                or truncated not in {"true", "false"}
+                or (truncated == "true" and not token)
+                or (truncated == "false" and token is not None)
+                or root.findall(namespace + "CommonPrefixes")
+                or field(root, "Delimiter", optional=True) not in {None, ""}
+                or field(root, "EncodingType", optional=True) is not None
+                or field(root, "StartAfter", optional=True) is not None
+                or any(child.tag not in {
+                    namespace + name for name in (
+                        "Name", "Prefix", "MaxKeys", "KeyCount", "IsTruncated", "Contents",
+                        "ContinuationToken", "NextContinuationToken", "Delimiter",
+                    )
+                } for child in root)
+            ):
+                raise ValueError("inconsistent list page")
+            objects = []
+            for node in contents:
+                key, size = field(node, "Key"), field(node, "Size")
+                etag, modified = field(node, "ETag"), field(node, "LastModified")
+                if (
+                    not key or not key.startswith(remote_prefix)
+                    or not size or not size.isascii() or not size.isdecimal()
+                    or not etag or not modified
+                ):
+                    raise ValueError("invalid list object")
+                if datetime.fromisoformat(modified).utcoffset() != UTC.utcoffset(None):
+                    raise ValueError("invalid list timestamp")
+                objects.append(ListedObject(key[len(base):], int(size), etag, modified))
+            return ListObjectsV2Page(tuple(objects), truncated == "true", token)
+        except Exception:
+            # Never expose signed URLs, opaque tokens or provider response bodies.
+            raise S3CompatibleObjectStoreError("list_objects_v2_page failed") from None
 
     def request_bytes(
         self,
