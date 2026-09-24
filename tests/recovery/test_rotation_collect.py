@@ -585,3 +585,71 @@ def test_no_process_scheduler_lock_or_source_write_calls(setup, monkeypatch):
     after = {str(p.relative_to(root)): p.stat() for p in root.rglob("*")}
     assert before.keys() == after.keys()
     assert all(collect._identity(before[p]) == collect._identity(after[p]) for p in before)
+
+
+def test_output_budget_fails_before_any_report_file_write(setup):
+    with pytest.raises(ValueError, match="output_byte_budget_exhausted"):
+        run(setup, max_output_bytes=1)
+    root, _, transport = setup
+    attempt = root.parent / "attempt"
+    assert (attempt / "captures").is_dir()
+    assert not any(
+        (attempt / name).exists() for name in ("input.json", "report.json", "evidence.json")
+    )
+    assert transport.starts == 2
+
+
+@pytest.mark.parametrize("budget", [0, -1, True, 1.5])
+def test_invalid_output_budget_has_no_io(setup, budget):
+    with pytest.raises(ValueError, match="output budget"):
+        run(setup, max_output_bytes=budget)
+    root, _, transport = setup
+    assert not (root.parent / "attempt").exists()
+    assert not transport.calls
+
+
+def test_one_shot_caller_with_actual_collector_and_fake_transport(setup, monkeypatch):
+    from dataclasses import asdict
+    from unittest.mock import Mock
+
+    from recovery import rotation_once as once
+
+    root, client, transport = setup
+    parent = root.parent / "evidence"
+    parent.mkdir(mode=0o700)
+    plan = once.ExecutionPlan(
+        code_root="/synthetic/code", revision="a" * 40,
+        grant_ref="b" * 40 + ":A7-PHASE3-PROD-READONLY-HANDOFF-01",
+        recovery_root=str(root), evidence_parent=str(parent), attempt_id="synthetic-attempt",
+        reader_env="/synthetic/recovery-r2-readonly.env",
+        endpoint="https://synthetic.r2.cloudflarestorage.com", bucket="bucket",
+        uid=os.getuid(), gid=os.getgid(), limits=asdict(LIMITS),
+        tool_sha256={}, scheduler_properties={}, scheduler_sha256={},
+    )
+    reader = {
+        "PMTS_RECOVERY_R2_ENDPOINT_URL": plan.endpoint,
+        "PMTS_RECOVERY_R2_BUCKET": plan.bucket,
+        "PMTS_RECOVERY_R2_REGION": "auto",
+        "PMTS_RECOVERY_R2_ACCESS_KEY_ID": "synthetic-access",
+        "PMTS_RECOVERY_R2_SECRET_ACCESS_KEY": "synthetic-secret",
+    }
+    for name in (
+        "_reader_fd_preflight", "_identity_preflight", "_runtime_preflight",
+        "_code_preflight", "_scheduler_preflight", "_ancestors",
+    ):
+        monkeypatch.setattr(once, name, Mock())
+    monkeypatch.setattr(once.tempfile, "tempdir", None)
+    monkeypatch.setattr(os, "umask", Mock())
+    collector = Mock(wraps=collect.collect_inventory)
+    assert once.run_worker(plan, environ=once.child_environment(plan, reader),
+                           collector=collector, client_factory=lambda _: client) == 0
+    collector.assert_called_once()
+    assert transport.starts == 2
+    assert any(method == "GET" for method, _ in transport.calls)
+    frozen = (plan.attempt_dir / "input.json").read_text()
+    assert collect.replay_frozen_input(frozen) == (plan.attempt_dir / "report.json").read_text()
+    evidence = json.loads((plan.attempt_dir / "evidence.json").read_text())
+    assert evidence["sequence"] == ["L0", "R0", "V", "R1", "L1"]
+    assert evidence["authority"]["local_write_capable"] is True
+    assert all(row["local"]["status"] == row["r2"]["status"] == "PASS" for row in evidence["V"])
+    assert sorted(p.name for p in parent.iterdir()) == [plan.attempt_id]

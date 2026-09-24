@@ -469,9 +469,14 @@ def collect_inventory(
     pins: PinSnapshot | None,
     snapshot_id: str,
     evidence_ref: str,
+    max_output_bytes: int | None = None,
 ) -> CollectionResult:
     """Collect once into a new private directory outside the authoritative root."""
     limits.validate()
+    if max_output_bytes is not None and (
+        type(max_output_bytes) is not int or max_output_bytes <= 0
+    ):
+        raise ValueError("output budget must be a positive integer")
     refs = (
         authority.handoff_ref,
         authority.target_ref,
@@ -570,6 +575,7 @@ def collect_inventory(
             "contract_version": _FORMAT,
             "authority": asdict(authority),
             "limits": asdict(limits),
+            "max_output_bytes": max_output_bytes,
             "snapshot_id": snapshot_id,
             "evidence_ref": evidence_ref,
             "recovery_root": str(recovery_root),
@@ -586,11 +592,17 @@ def collect_inventory(
             "report_sha256": hashlib.sha256(report.encode()).hexdigest(),
         }
     )
-    for name, content in (
+    outputs = (
         ("input.json", frozen),
         ("report.json", report),
         ("evidence.json", evidence),
+    )
+    if (
+        max_output_bytes is not None
+        and sum(len(content.encode("utf-8")) for _, content in outputs) > max_output_bytes
     ):
+        raise ValueError("output_byte_budget_exhausted")
+    for name, content in outputs:
         with (attempt_dir / name).open("x", encoding="utf-8") as destination:
             destination.write(content)
     return CollectionResult(inventory, frozen, report, evidence)
