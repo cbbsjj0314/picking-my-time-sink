@@ -51,7 +51,10 @@ def plan(tmp_path):
                         "FragmentPath": "/synthetic/timer",
                         "ActiveState": "active",
                         "UnitFileState": "enabled",
-                        "TimersCalendar": "synthetic-calendar",
+                        "TimersCalendar": (
+                            "{ OnCalendar=*-*-* 00/6:00:00 ; "
+                            "next_elapse=Fri 2026-09-25 06:00:00 UTC }"
+                        ),
                     },
                 },
                 "scheduler_sha256": {"/synthetic/service": "d" * 64, "/synthetic/timer": "e" * 64},
@@ -72,7 +75,42 @@ def reader(plan):
 
 
 @pytest.fixture
-def worker_host(monkeypatch):
+def destination_host(plan, monkeypatch):
+    # Simulate prepared root:pmts metadata without chown or privileged test setup.
+    parent = Path(plan.evidence_parent)
+    real = parent.lstat()
+    metadata = SimpleNamespace(
+        **{
+            key: getattr(real, key)
+            for key in (
+                "st_dev",
+                "st_ino",
+                "st_mode",
+                "st_nlink",
+                "st_uid",
+                "st_gid",
+                "st_size",
+                "st_mtime_ns",
+                "st_ctime_ns",
+            )
+        }
+    )
+    metadata.st_mode = 0o40770
+    metadata.st_uid = 0
+    lstat, fstat = Path.lstat, os.fstat
+    monkeypatch.setattr(Path, "lstat", lambda p: metadata if p == parent else lstat(p))
+
+    def descriptor_stat(fd):
+        value = fstat(fd)
+        return metadata if (value.st_dev, value.st_ino) == (real.st_dev, real.st_ino) else value
+
+    monkeypatch.setattr(os, "fstat", descriptor_stat)
+    monkeypatch.setattr(once, "_ancestors", Mock())
+    return metadata
+
+
+@pytest.fixture
+def worker_host(monkeypatch, destination_host):
     # OS assertions are tested separately; no production paths or tools execute.
     for name in (
         "_reader_fd_preflight",
@@ -85,6 +123,9 @@ def worker_host(monkeypatch):
         monkeypatch.setattr(once, name, Mock())
     monkeypatch.setattr(once.tempfile, "tempdir", None)
     monkeypatch.setattr(once.os, "umask", Mock())
+    probe = once._xfs_capacity
+    monkeypatch.setattr(once, "_xfs_capacity", Mock(return_value=(4096, 20001, 10000, 1000)))
+    return probe
 
 
 @pytest.mark.parametrize(
@@ -181,21 +222,28 @@ def test_competing_caller_does_not_start(plan, reader, worker_host, monkeypatch)
     assert not plan.attempt_dir.exists()
 
 
-def test_headroom_exact_threshold(plan, monkeypatch):
-    monkeypatch.setattr(once, "_ancestors", Mock())
-    limits = CollectionLimits(**plan.limits)
-    required, inodes = once.capacity_required(limits, 4096)
-    available_blocks = (required + 4095) // 4096
-    fs = SimpleNamespace(f_frsize=4096, f_bsize=4096, f_bavail=available_blocks, f_favail=inodes)
-    monkeypatch.setattr(os, "statvfs", lambda _: fs)
-    once._destination_preflight(plan)
-    fs.f_bavail -= 1
-    with pytest.raises(once.PreflightError):
+@pytest.mark.parametrize(
+    "data_blocks,available,nodes,accepted",
+    [
+        (20001, 2644, 31, True),
+        (20001, 2643, 31, False),  # Attempt fits, residual floor does not.
+        (20000, 2643, 31, True),  # Ceiling changes at 20001 data blocks.
+        (20001, 1642, 31, False),  # Attempt alone does not fit.
+        (20001, 2644, 30, False),
+    ],
+)
+def test_headroom_independent_thresholds(
+    plan, destination_host, monkeypatch, data_blocks, available, nodes, accepted
+):
+    # Fixture budget: 6,450,960 output bytes; 6,600,976 payload bytes;
+    # 31 nodes add 126,976 bytes. 6,727,952 bytes need 1643 blocks.
+    # 20001 data blocks need 1001 residual blocks, independently of statvfs.f_blocks.
+    monkeypatch.setattr(once, "_xfs_capacity", lambda _: (4096, data_blocks, available, nodes))
+    if accepted:
         once._destination_preflight(plan)
-    fs.f_bavail += 1
-    fs.f_favail -= 1
-    with pytest.raises(once.PreflightError):
-        once._destination_preflight(plan)
+    else:
+        with pytest.raises(once.PreflightError):
+            once._destination_preflight(plan)
     assert not plan.attempt_dir.exists()
 
 
@@ -204,17 +252,178 @@ def test_capacity_accounts_for_both_a2_copies_and_outputs(plan):
     base, nodes = once.capacity_required(limits, 4096)
     assert once.capacity_required(replace(limits, max_dump_bytes=1025), 4096)[0] == base + 2
     assert once.capacity_required(replace(limits, max_local_bytes=16385), 4096)[0] == base + 1
-    assert base == (
-        limits.max_local_bytes
-        + 2 * (limits.max_dump_bytes + 65536 + 256)
-        + once.output_budget(limits)
-        + 2 * nodes * 4096
+    assert (base, nodes) == (6727952, 31)
+    assert once.output_budget(limits) == 6450960
+
+
+@pytest.mark.parametrize("extra_byte,accepted", [(0, True), (1, False)])
+def test_attempt_block_rounding(plan, destination_host, monkeypatch, extra_byte, accepted):
+    # Removing the 2320-byte remainder makes the attempt exactly 1642 blocks.
+    plan = replace(plan, limits=plan.limits | {"max_local_bytes": 14064 + extra_byte})
+    monkeypatch.setattr(once, "_xfs_capacity", lambda _: (4096, 20001, 2643, 31))
+    if accepted:
+        once._destination_preflight(plan)
+    else:
+        with pytest.raises(once.PreflightError):
+            once._destination_preflight(plan)
+
+
+@pytest.mark.parametrize(
+    "mode,uid,gid,accepted",
+    [
+        (0o40770, 0, None, True),
+        (0o40700, None, None, False),
+        (0o40770, None, None, False),
+        (0o40770, 0, 0, False),
+        (0o40777, 0, None, False),
+        (0o120770, 0, None, False),
+    ],
+)
+def test_prepared_evidence_metadata(
+    plan, reader, worker_host, destination_host, mode, uid, gid, accepted
+):
+    destination_host.st_mode = mode
+    destination_host.st_uid = plan.uid if uid is None else uid
+    destination_host.st_gid = plan.gid if gid is None else gid
+    collector = Mock(
+        return_value=SimpleNamespace(report_json='{"candidate_set_status":"advisory"}')
     )
+    client = Mock()
+    assert once.run_worker(
+        plan,
+        environ=once.child_environment(plan, reader),
+        collector=collector,
+        client_factory=client,
+    ) == (0 if accepted else 2)
+    assert collector.call_count == client.call_count == int(accepted)
+    assert not plan.attempt_dir.exists()
+
+
+@pytest.mark.parametrize(
+    "failure",
+    [
+        None,
+        "filesystem",
+        "quota",
+        "quota_accounting",
+        "unknown_quota",
+        "readonly",
+        "mount_id",
+        "duplicate_mount",
+        "device",
+        "realtime",
+        "rtinherit",
+        "block_size",
+        "dir_block_size",
+        "geometry_unavailable",
+        "attributes_unavailable",
+        "capacity_unavailable",
+        "capacity_units",
+        "capacity_unknown",
+        "budget",
+        "residual",
+        "inodes",
+        "architecture",
+    ],
+)
+def test_xfs_profile_and_capacity_before_inventory(
+    plan, reader, worker_host, destination_host, monkeypatch, failure
+):
+    # Exercise actual profile parsing and ABI offsets with kernel-shaped synthetic responses.
+    # These are fixed independent inputs, not outputs of capacity_required().
+    monkeypatch.setattr(once, "_xfs_capacity", worker_host)
+    monkeypatch.setattr(once.sys, "platform", "linux")
+    monkeypatch.setattr(
+        os,
+        "uname",
+        lambda: SimpleNamespace(machine="unknown" if failure == "architecture" else "x86_64"),
+    )
+    device = f"{os.major(destination_host.st_dev)}:{os.minor(destination_host.st_dev)}"
+    if failure == "device":
+        device = "999:999"
+    options = {
+        "quota": "rw,usrquota",
+        "quota_accounting": "rw,noquota,pqnoenforce",
+        "unknown_quota": "rw",
+        "readonly": "ro,noquota",
+    }.get(failure, "rw,noquota")
+    filesystem = "ext4" if failure == "filesystem" else "xfs"
+    mount = f"77 1 {device} / / rw - {filesystem} /dev/synthetic {options}\n"
+    # Same-device decoy: matching only st_dev instead of descriptor mnt_id is insufficient.
+    mountinfo = f"78 1 {device} / /other rw - ext4 /dev/synthetic rw\n" + mount
+    if failure == "duplicate_mount":
+        mountinfo += mount
+    real_read = Path.read_text
+
+    def read_metadata(path, *args, **kwargs):
+        if str(path).startswith("/proc/self/fdinfo/"):
+            return "pos:\t0\nflags:\t0100000\nmnt_id:\t" + ("99" if failure == "mount_id" else "77")
+        if str(path) == "/proc/self/mountinfo":
+            return mountinfo
+        return real_read(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_text", read_metadata)
+
+    def ioctl(fd, request, buffer):
+        assert os.fstat(fd).st_ino == destination_host.st_ino
+        if request == 0x80705864:
+            if failure == "geometry_unavailable":
+                raise OSError("synthetic-sensitive-geometry-error")
+            assert len(buffer) == 112
+            # xfs_fsop_geom_v1: blocksize @0, datablocks @32, rtblocks @40,
+            # dirblocksize @104. Geometry includes internal log blocks.
+            buffer[0:4] = (1024 if failure == "block_size" else 4096).to_bytes(4, "little")
+            buffer[32:40] = (20001).to_bytes(8, "little")
+            buffer[40:48] = (100 if failure == "realtime" else 0).to_bytes(8, "little")
+            buffer[104:108] = (8192 if failure == "dir_block_size" else 4096).to_bytes(4, "little")
+        else:
+            assert request == 0x801C581F and len(buffer) == 28
+            if failure == "attributes_unavailable":
+                raise OSError("synthetic-sensitive-attributes-error")
+            buffer[0:4] = (0x100 if failure == "rtinherit" else 0).to_bytes(4, "little")
+        return 0
+
+    monkeypatch.setattr(once.fcntl, "ioctl", ioctl)
+    fs = SimpleNamespace(
+        f_frsize=4096,
+        f_bsize=4096,
+        f_blocks=19991,
+        f_bfree=10000,
+        f_bavail=2644,
+        f_files=1000,
+        f_ffree=1000,
+        f_favail=31,
+    )
+    if failure == "capacity_units":
+        fs.f_frsize = 512
+    if failure == "capacity_unknown":
+        fs.f_bavail = -1
+    if failure in {"budget", "residual"}:
+        fs.f_bavail = 1642 if failure == "budget" else 2643
+    if failure == "inodes":
+        fs.f_favail = 30
+    capacity = Mock(return_value=fs)
+    if failure == "capacity_unavailable":
+        capacity.side_effect = OSError("synthetic-sensitive-statvfs-error")
+    monkeypatch.setattr(os, "fstatvfs", capacity)
+    monkeypatch.setattr(os, "scandir", Mock(side_effect=AssertionError("inventory access")))
+    collector = Mock(
+        return_value=SimpleNamespace(report_json='{"candidate_set_status":"advisory"}')
+    )
+    client = Mock()
+    assert once.run_worker(
+        plan,
+        environ=once.child_environment(plan, reader),
+        collector=collector,
+        client_factory=client,
+    ) == (0 if failure is None else 2)
+    assert collector.call_count == client.call_count == int(failure is None)
+    os.scandir.assert_not_called()
+    assert not plan.attempt_dir.exists()
 
 
 @pytest.mark.parametrize("kind", ["directory", "dangling_symlink"])
-def test_consumed_destination_fails_without_enumeration(plan, monkeypatch, kind):
-    monkeypatch.setattr(once, "_ancestors", Mock())
+def test_consumed_destination_fails_without_enumeration(plan, destination_host, kind):
     if kind == "directory":
         plan.attempt_dir.mkdir()
     else:
@@ -372,6 +581,98 @@ def test_scheduler_checks_content_and_active_state(plan, tmp_path, monkeypatch):
 
 
 @pytest.mark.parametrize(
+    "change,accepted",
+    [
+        ("next_elapse", True),
+        ("active", True),
+        ("inactive", True),
+        ("failed", False),
+        ("deactivating", False),
+        ("cadence", False),
+        ("reload", False),
+        ("disabled", False),
+        ("timer_inactive", False),
+        ("user", False),
+        ("restart", False),
+        ("fragment", False),
+        ("dropin", False),
+        ("malformed_calendar", False),
+        ("duplicate_property", False),
+    ],
+)
+def test_scheduler_stable_configuration(plan, monkeypatch, change, accepted):
+    plan = replace(plan, scheduler_sha256={})  # Unit hashing is exercised separately.
+    actual = asdict(plan)["scheduler_properties"]
+    timer = actual["pmts-postgres-recovery.timer"]
+    service = actual["pmts-postgres-recovery.service"]
+    timer["TimersCalendar"] = timer["TimersCalendar"].replace("06:00:00 UTC", "12:00:00 UTC")
+    if change == "cadence":
+        timer["TimersCalendar"] = timer["TimersCalendar"].replace("00/6:00:00", "00/3:00:00")
+    if change == "malformed_calendar":
+        timer["TimersCalendar"] += " unrecognized"
+    for name, key, value in [
+        ("reload", "NeedDaemonReload", "yes"),
+        ("disabled", "UnitFileState", "disabled"),
+        ("timer_inactive", "ActiveState", "inactive"),
+        ("fragment", "FragmentPath", "/changed"),
+        ("dropin", "DropInPaths", "/changed.conf"),
+    ]:
+        if change == name:
+            timer[key] = value
+    if change == "user":
+        service["User"] = "root"
+    if change == "restart":
+        service["Restart"] = "always"
+
+    def run(command):
+        assert command[:2] == ["/usr/bin/systemctl", "show"]
+        if "--value" in command:
+            return (
+                change
+                if change in {"active", "inactive", "failed", "deactivating"}
+                else "activating"
+            )
+        output = "\n".join(f"{k}={v}" for k, v in actual[command[2]].items())
+        return output + ("\nLoadState=loaded" if change == "duplicate_property" else "")
+
+    monkeypatch.setattr(once, "_run", run)
+    if accepted:
+        once._scheduler_preflight(plan)
+    else:
+        with pytest.raises(once.PreflightError):
+            once._scheduler_preflight(plan)
+
+
+@pytest.mark.parametrize("drift", [False, True])
+def test_scheduler_preserves_all_calendar_records(plan, monkeypatch, drift):
+    properties = asdict(plan)["scheduler_properties"]
+    timer = properties["pmts-postgres-recovery.timer"]
+    timer["TimersCalendar"] += "\n{ OnCalendar=Sun *-*-* 09:00:00 ; next_elapse=n/a }"
+    plan = replace(plan, scheduler_properties=properties, scheduler_sha256={})
+
+    def run(command):
+        if "--value" in command:
+            return "inactive"
+        lines = []
+        for key, value in properties[command[2]].items():
+            if key == "TimersCalendar":
+                records = value.replace("06:00:00 UTC", "12:00:00 UTC").splitlines()
+                if drift:
+                    records[0] = records[0].replace("00/6:00:00", "00/2:00:00")
+                lines.extend(f"{key}={record}" for record in reversed(records))
+            else:
+                lines.append(f"{key}={value}")
+        return "\n".join(lines)
+
+    monkeypatch.setattr(once, "_run", run)
+    if drift:
+        with pytest.raises(once.PreflightError):
+            once._scheduler_preflight(plan)
+    else:
+        once._scheduler_preflight(plan)
+
+
+@pytest.mark.parametrize(
     "failure", ["revision", "dirty", "ignored", "skip_worktree", "module_path"]
 )
 def test_code_authority_currentness(plan, tmp_path, monkeypatch, failure):
@@ -402,7 +703,9 @@ def test_code_authority_currentness(plan, tmp_path, monkeypatch, failure):
         once._code_preflight(plan)
 
 
-@pytest.mark.parametrize("failure", ["uid", "groups", "no_new_privs", "capability", "write_access"])
+@pytest.mark.parametrize(
+    "failure", ["uid", "groups", "no_new_privs", "capability", "write_access", "evidence_write"]
+)
 def test_worker_identity_fails_closed(plan, monkeypatch, failure):
     for name, value in [
         ("getuid", plan.uid),
@@ -431,6 +734,8 @@ def test_worker_identity_fails_closed(plan, monkeypatch, failure):
     monkeypatch.setattr(Path, "is_symlink", lambda _: False)
 
     def access(path, mode):
+        if str(path) == plan.evidence_parent and failure == "evidence_write":
+            return False
         if str(path) == plan.recovery_root and mode == os.W_OK:
             return failure == "write_access"
         return True

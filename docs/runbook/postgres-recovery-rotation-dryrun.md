@@ -136,7 +136,7 @@ Operator는 별도 Human grant의 immutable revision과 exact private target/run
 | `scheduler_properties` | `pmts-postgres-recovery.timer`와 `.service`의 approved stable `systemctl show` property mappings |
 | `scheduler_sha256` | 위 두 unit의 `FragmentPath` 및 모든 `DropInPaths`에 대한 approved file SHA-256 mapping |
 
-Scheduler mappings에는 `LoadState=loaded`, `NeedDaemonReload=no`, `FragmentPath`, `DropInPaths`, `UnitFileState`가 필요하다. Timer에는 `ActiveState=active`, `UnitFileState=enabled`, exact `TimersCalendar`가 필요하다. Service에는 `User=pmts`, `Restart=no`가 필요하다. Transient timestamp/PID가 포함되는 `ExecStart`/실행 시각을 stable property로 사용하지 않는다. Unit bytes와 loaded config의 reload state를 함께 확인한다. 정상 oneshot 실행 중의 service `active`/`activating` 또는 idle `inactive`를 허용하며 failed/deactivating 상태는 거부한다. Scheduler lock이나 mutation은 없다.
+Scheduler mappings에는 `LoadState=loaded`, `NeedDaemonReload=no`, `FragmentPath`, `DropInPaths`, `UnitFileState`가 필요하다. Timer에는 `ActiveState=active`, `UnitFileState=enabled`, `TimersCalendar`가 필요하다. `TimersCalendar`는 `systemctl show`의 `{ OnCalendar=<expression> ; next_elapse=<time> }` representation에서 configured `OnCalendar` expression만 비교한다. Transient `next_elapse` progression은 허용하고 cadence 변경은 거부한다. 여러 calendar는 JSON string 안에서 newline으로 구분하며, 실제 output의 반복 `TimersCalendar=` record를 모두 보존해 순서와 무관하게 비교한다. Empty/unknown representation과 다른 property의 중복은 fail closed한다. Service에는 `User=pmts`, `Restart=no`가 필요하다. Transient timestamp/PID가 포함되는 `ExecStart`/실행 시각을 stable property로 사용하지 않는다. Unit bytes와 loaded config의 reload state를 함께 확인한다. 정상 oneshot 실행 중의 service `active`/`activating` 또는 idle `inactive`를 허용하며 failed/deactivating 상태는 거부한다. Scheduler lock이나 mutation은 없다.
 
 `grant_ref` 문자열과 file metadata는 Human approval 또는 provider permission의 cryptographic proof가 아니다. Reviewed grant는 위 target, `pmts-postgres-recovery-reader`의 provider-enforced read-only authority, local write capability, confirmed-empty pins를 명시해야 한다. `CollectionAuthority`는 같은 immutable reference에 `#target`, `#reader`, `#local-identity`를, `PinSnapshot`은 `#pins-none`을 bind한다. 이 selector들의 의미도 grant에 보존한다. `local_write_capable=True`, `confirmed=True`, `pins=()`를 명시적으로 구성한다.
 
@@ -157,14 +157,14 @@ Root stage는 ambient environment 없이 다음을 검사한다.
 
 - Code root와 `.git`를 포함한 control tree는 root-owned이며 group/other-writable 또는 symlink entry가 없어야 한다. HEAD/root/clean status, ignored/untracked absence, skip-worktree/assume-unchanged absence, alternate object store absence와 실제 module path를 검사한다. Source inventory와 disjoint한 code tree만 탐색한다.
 - Python 3.12, exact executable, `-S -B -P -u`, approved binary digests와 trusted tool ancestors, existing `pmts` numeric identity를 확인한다.
-- Approved scheduler properties/unit bytes, private evidence parent metadata와 capacity, attempt path 부재를 확인한다. Evidence parent는 approved `pmts` uid/gid의 `0700` directory이며 ancestors는 root-controlled다.
+- Approved scheduler properties/unit bytes, private evidence parent metadata와 capacity, attempt path 부재를 확인한다. Evidence parent는 prepared `root:pmts / 0770` directory다. Owner는 uid `0`, group은 approved `pmts` gid이며 ancestors는 root-controlled다. Mismatch를 ownership/permission mutation으로 repair하지 않는다.
 - Reader source는 trusted ancestors 아래 root:root `0600` single-link regular file이어야 한다. No-follow descriptor와 before/after metadata를 검사하고 exact five-key `PMTS_RECOVERY_R2_*` allowlist를 parse한다. Shell sourcing, quote/expansion, comments, duplicates, optional prefix, unknown key를 허용하지 않는다. Endpoint/bucket/region validation에는 network I/O가 없다.
 
 Root는 `umask 0077` 뒤 reader values와 `PATH`, `LANG`, `LC_ALL`, `TZ`, `TMPDIR=evidence_parent`, `PYTHONPATH=code_root/src`만 담은 child environment를 구성한다. `setpriv --reuid=pmts --regid=pmts --clear-groups --inh-caps=-all --ambient-caps=-all --bounding-set=-all --no-new-privs` 뒤 `timeout --signal=TERM --kill-after=30s 30m`과 `/usr/bin/python3.12 -S -B -P -u`로 worker를 한 번 실행한다. Credential 값은 argv에 없다.
 
 Worker는 root가 연 read-only reader descriptor를 상속하고 `/proc/self/fd`, root owner/mode, exact source path, config/environment bytes 일치를 검사한다. `--worker`만 직접 호출하거나 임의 환경으로 root source 검사를 우회할 수 없다. Descriptor 번호는 secret이 아니다. Root-only file과 privilege drop은 same-UID environment exposure를 제거하지 않으며 provider read-only credential authority와 구분한다.
 
-Worker는 uid/euid/gid/egid, empty supplementary groups, `NoNewPrivs=1`, zero inheritable/permitted/effective/bounding/ambient capabilities, source root read/traverse 및 no-write, `completed`/`staging` read/traverse/write capability를 확인한다. 이 단계는 metadata/access checks만 하며 children을 열거하지 않는다. Code/runtime/scheduler/evidence/capacity를 다시 검사한 뒤 evidence parent directory descriptor에 nonblocking `flock`을 잡고 attempt absence/capacity를 마지막으로 확인한다. 이는 같은 caller의 중복 진입 방지이며 scheduler coordination lock이나 persistent lock file이 아니다.
+Worker는 uid/euid/gid/egid, empty supplementary groups, `NoNewPrivs=1`, zero inheritable/permitted/effective/bounding/ambient capabilities, evidence parent에 대한 `pmts` read/write/traverse access, source root read/traverse 및 no-write, `completed`/`staging` read/traverse/write capability를 확인한다. 이 단계는 metadata/access checks만 하며 children을 열거하지 않는다. Code/runtime/scheduler/evidence/capacity를 다시 검사한 뒤 evidence parent directory descriptor에 nonblocking `flock`을 잡고 attempt absence/capacity를 마지막으로 확인한다. 이는 같은 caller의 중복 진입 방지이며 scheduler coordination lock이나 persistent lock file이 아니다.
 
 Client construction과 authority/pins/limits binding까지 성공한 뒤 단 한 번 `collect_inventory(...)`를 호출한다. 이 invocation이 attempt 시작이다. 그 전 failure는 R2 LIST/GET, `completed`/`staging` enumeration, attempt directory 생성 없이 종료한다. Collector가 attempt directory를 exclusive create하며 기존/partial directory는 재사용하지 않는다. 자동 repair, retry, limit relaxation, replacement attempt 또는 connectivity smoke를 수행하지 않는다.
 
@@ -177,15 +177,23 @@ Caller는 A2의 두 `TemporaryDirectory`가 모두 evidence parent를 사용하�
 ```text
 B = 6 * (2*N*(N+1)*255 + 2*P*Q + (N+O)*65536)
 K = 4*N + 15
-required_bytes = L + 2*(D + 65536 + 256) + B + 2*K*allocation_block
+payload_bytes = L + 2*(D + 65536 + 256) + B
+attempt_allocation_bytes = payload_bytes + K*allocation_block
+attempt_blocks = ceil(attempt_allocation_bytes / allocation_block)
+residual_floor_blocks = ceil(filesystem_data_blocks / 20)
+require available_blocks >= attempt_blocks + residual_floor_blocks
 required_inodes = K
 ```
 
 `B`는 두 local name inventory의 filesystem name budget (`255` bytes), 두 LIST pass의 page budget, 각 local/remote generation에 manifest-sized metadata allowance를 배정하고 JSON escaping의 최대 6배 팽창을 반영한 output ceiling이다. 모든 가능한 metadata가 항상 이 ceiling에 들어간다는 보장은 아니다. Collector의 새 optional `max_output_bytes`가 serialized UTF-8 세 파일 합계를 쓰기 **전에** 검사하므로 oversized metadata는 attempt failure가 되고 cap을 초과해 쓰지 않는다. API default `None`은 기존 Phase 2 호출의 동작을 보존하지만 one-shot caller는 항상 `B`를 전달한다. 이 cap은 private `evidence.json`에도 기록한다.
 
-`K`는 최대 N capture directories와 3N files, attempt/captures directories, 두 A2 temporary roots/generation directories/각 3 files, 세 output files의 합계다. Node마다 두 allocation blocks를 더해 regular-file rounding과 directory-entry allocation을 보수적으로 계산한다. `allocation_block=max(f_frsize,f_bsize)`이며 `statvfs`의 unprivileged `f_bavail*f_frsize >= required_bytes`, `f_favail >= K`를 요구한다. Unknown/부족한 capacity는 fail closed한다. Source inventory를 미리 열어 actual dump size로 budget을 낮추지 않는다.
+`K`는 최대 N capture directories와 3N files, attempt/captures directories, 두 A2 temporary roots/generation directories/각 3 files, 세 output files의 합계다. Node마다 allocation block 하나를 추가하는 것은 payload/file/directory allocation rounding allowance이며 complete XFS metadata bound가 아니다. 모든 ceiling은 integer arithmetic으로 계산한다.
 
-이 check는 filesystem reservation이나 quota/concurrent-writer 보장이 아니다. Scheduler가 계속 실행되므로 preflight 이후 ENOSPC, quota, timeout 또는 other I/O failure가 발생할 수 있다. 그런 attempt는 partial evidence를 보존하고 retry하지 않는다. Synthetic tests는 byte/inode threshold와 두 A2 copy accounting, output-cap failure, real collector + fake transport + replay를 검증한다.
+Supported profile은 Linux 64-bit little-endian `x86_64`/`aarch64`의 XFS, read-write/no-quota mount, `4096`-byte data/directory blocks, realtime volume 및 destination realtime inheritance 부재다. Evidence parent를 `O_RDONLY|O_DIRECTORY|O_NOFOLLOW`로 열고 `lstat`/`fstat` identity를 확인한다. `/proc/self/fdinfo`의 `mnt_id`로 `/proc/self/mountinfo`의 exact mount를 선택해 device/type/`rw`/`noquota`를 확인한다. `XFS_IOC_FSGEOMETRY_V1`은 data block size/count와 realtime 부재를, `FS_IOC_FSGETXATTR`는 destination의 `REALTIME`/`RTINHERIT` 부재를 확인한다. 두 ioctl은 read-only metadata 조회이며 source inventory에 접근하지 않는다. Unsupported ABI/profile, missing/ambiguous mount, ioctl failure, quota/accounting 활성화는 fail closed한다. Mount/device 이름이나 이전 free-block count를 code 또는 public configuration에 고정하지 않는다. Read-only ioctl layout은 [XFS geometry ABI](https://github.com/torvalds/linux/blob/v6.6/fs/xfs/libxfs/xfs_fs.h)와 [Linux fsxattr ABI](https://github.com/torvalds/linux/blob/v6.6/include/uapi/linux/fs.h)를 따른다.
+
+같은 descriptor의 execution-time `fstatvfs`에서 XFS userspace-available `f_bavail`과 inode availability `f_favail`을 사용한다. Block units와 counter consistency를 확인하고 `f_favail >= K`를 요구한다. Residual floor의 denominator는 geometry의 전체 data blocks다. Internal log를 제외할 수 있는 `statvfs.f_blocks`로 대체하지 않는다. XFS의 [userspace free-space reporting](https://github.com/torvalds/linux/blob/v6.6/fs/xfs/xfs_super.c#L775-L834)과 [low-space thresholds](https://kernel.googlesource.com/pub/scm/linux/kernel/git/torvalds/linux/+/906dde0f355bd97c080c215811ae7db1137c4af8/fs/xfs/xfs_mount.c#498)를 engineering 근거로 5% residual floor를 별도로 남긴다. 이는 conservative XFS-derived low-space safety floor이며 exact metadata worst-case formula나 production kernel의 byte-for-byte proof가 아니다. Unknown/부족한 capacity는 attempt start 전에 fail closed한다. Source inventory를 미리 열어 actual dump size로 budget을 낮추지 않는다.
+
+이 check는 filesystem reservation, quota guarantee 또는 post-preflight ENOSPC impossibility proof가 아니다. Scheduler를 포함한 concurrent filesystem activity로 preflight 이후 ENOSPC, timeout 또는 other I/O failure가 발생할 수 있다. 그런 attempt는 partial evidence를 보존하고 retry하지 않는다. Synthetic tests는 고정된 byte/block/node 수치와 5% ceiling 경계, supported/unknown profile, 두 A2 copy accounting, output-cap failure, real collector + fake transport + replay를 검증한다. Live production profile/capacity 검증이나 Phase 3 grant를 대신하지 않는다.
 
 ### Sanitized exit contract
 

@@ -9,6 +9,7 @@ import os
 import pwd
 import re
 import stat
+import struct
 import subprocess
 import sys
 import tempfile
@@ -110,7 +111,7 @@ class ExecutionPlan:
             if unit.endswith(".timer"):
                 _require(properties.get("ActiveState") == "active")
                 _require(properties.get("UnitFileState") == "enabled")
-                _require(bool(properties.get("TimersCalendar")))
+                _calendar_specs(properties.get("TimersCalendar", ""))
             else:
                 _require(properties.get("User") == "pmts")
                 _require(properties.get("Restart") == "no")
@@ -160,8 +161,21 @@ def capacity_required(limits: CollectionLimits, block_size: int) -> tuple[int, i
     # N captures each have 1 directory + 3 files. Attempt/captures, two A2
     # roots/generations/three files, and three output files add 15 nodes.
     nodes = 4 * limits.max_local_entries + 15
-    # Two blocks per node cover file rounding and a directory-entry allocation.
-    return payload + 2 * nodes * block_size, nodes
+    # Per-node allocation rounding only; XFS metadata uses a separate residual floor.
+    return payload + nodes * block_size, nodes
+
+
+def _calendar_specs(value: str) -> tuple[str, ...]:
+    # systemctl show prints one record per configured calendar, including a transient time.
+    specs = []
+    for line in value.splitlines():
+        match = re.fullmatch(r"\{ OnCalendar=([^{};\n]+) ; next_elapse=[^{};\n]* \}", line)
+        _require(match is not None)
+        spec = match[1].strip()
+        _require(bool(spec))
+        specs.append(spec)
+    _require(bool(specs))
+    return tuple(sorted(specs))
 
 
 def _trusted(path: Path, *, directory: bool = False) -> os.stat_result:
@@ -261,8 +275,21 @@ def _scheduler_preflight(plan: ExecutionPlan) -> None:
                 "--property=" + ",".join(sorted(expected)),
             ]
         )
-        actual = dict(line.split("=", 1) for line in output.splitlines())
-        _require(actual == expected)
+        actual = {}
+        calendars = []
+        for line in output.splitlines():
+            key, value = line.split("=", 1)
+            if key == "TimersCalendar":
+                calendars.extend(_calendar_specs(value))
+            else:
+                _require(key not in actual)
+                actual[key] = value
+        stable = dict(expected)
+        if "TimersCalendar" in stable:
+            stable["TimersCalendar"] = _calendar_specs(stable["TimersCalendar"])
+        if calendars:
+            actual["TimersCalendar"] = tuple(sorted(calendars))
+        _require(actual == stable)
     # A running oneshot remains compatible; failed/deactivating scheduler does not.
     state = _run(
         [
@@ -276,17 +303,73 @@ def _scheduler_preflight(plan: ExecutionPlan) -> None:
     _require(state in {"active", "activating", "inactive"})
 
 
+def _xfs_capacity(fd: int) -> tuple[int, int, int, int]:
+    # The fixed ioctl layouts below use the Linux x86_64/aarch64 native ABI.
+    _require(sys.platform == "linux" and os.uname().machine in {"x86_64", "aarch64"})
+    _require(struct.calcsize("P") == 8 and sys.byteorder == "little")
+    info = _unique(
+        [line.split(":", 1) for line in Path(f"/proc/self/fdinfo/{fd}").read_text().splitlines()]
+    )
+    mount_id = info["mnt_id"].strip()
+    _require(mount_id.isdecimal())
+    mounts = [
+        line.split()
+        for line in Path("/proc/self/mountinfo").read_text().splitlines()
+        if line.split()[0] == mount_id
+    ]
+    _require(len(mounts) == 1)
+    mount = mounts[0]
+    separator = mount.index("-")
+    _require(separator >= 6 and len(mount) == separator + 4)
+    value = os.fstat(fd)
+    _require(mount[2] == f"{os.major(value.st_dev)}:{os.minor(value.st_dev)}")
+    _require(mount[separator + 1] == "xfs")
+    options = set(mount[5].split(",")) | set(mount[separator + 3].split(","))
+    _require("rw" in options and "ro" not in options and "noquota" in options)
+    _require(
+        not any(
+            option != "noquota" and ("quota" in option or "qnoenforce" in option)
+            for option in options
+        )
+    )
+    # XFS_IOC_FSGEOMETRY_V1 = _IOR('X', 100, struct xfs_fsop_geom_v1), size 112.
+    geometry = bytearray(112)
+    fcntl.ioctl(fd, 0x80705864, geometry)
+    block_size = struct.unpack_from("=I", geometry)[0]
+    data_blocks, rt_blocks, rt_extents = struct.unpack_from("=QQQ", geometry, 32)
+    dir_block_size = struct.unpack_from("=I", geometry, 104)[0]
+    _require(block_size == dir_block_size == 4096 and data_blocks > 0)
+    _require(rt_blocks == rt_extents == 0)
+    # FS_IOC_FSGETXATTR: reject REALTIME / RTINHERIT on the destination itself.
+    attributes = bytearray(28)
+    fcntl.ioctl(fd, 0x801C581F, attributes)
+    _require(not struct.unpack_from("=I", attributes)[0] & 0x101)
+    fs = os.fstatvfs(fd)
+    _require(fs.f_frsize == fs.f_bsize == block_size)
+    _require(0 <= fs.f_bavail <= fs.f_bfree <= fs.f_blocks <= data_blocks)
+    _require(0 <= fs.f_favail <= fs.f_ffree <= fs.f_files)
+    return block_size, data_blocks, fs.f_bavail, fs.f_favail
+
+
 def _destination_preflight(plan: ExecutionPlan) -> None:
     parent = Path(plan.evidence_parent)
     _ancestors(parent)
     value = parent.lstat()
-    _require(stat.S_ISDIR(value.st_mode) and stat.S_IMODE(value.st_mode) == 0o700)
-    _require((value.st_uid, value.st_gid) == (plan.uid, plan.gid))
+    _require(stat.S_ISDIR(value.st_mode) and stat.S_IMODE(value.st_mode) == 0o770)
+    _require((value.st_uid, value.st_gid) == (0, plan.gid))
     _require(not os.path.lexists(plan.attempt_dir))
     limits = CollectionLimits(**plan.limits)
-    fs = os.statvfs(parent)
-    needed, nodes = capacity_required(limits, max(fs.f_frsize, fs.f_bsize))
-    _require(fs.f_bavail * fs.f_frsize >= needed and fs.f_favail >= nodes)
+    fd = os.open(parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    try:
+        _require(_file_identity(os.fstat(fd)) == _file_identity(value))
+        block_size, data_blocks, available_blocks, available_nodes = _xfs_capacity(fd)
+        needed, nodes = capacity_required(limits, block_size)
+        attempt_blocks = (needed + block_size - 1) // block_size
+        # XFS low-space safety floor, not an exact metadata bound or a reservation.
+        residual_floor = (data_blocks + 19) // 20
+        _require(available_blocks >= attempt_blocks + residual_floor and available_nodes >= nodes)
+    finally:
+        os.close(fd)
 
 
 def _file_identity(value: os.stat_result) -> tuple[int, ...]:

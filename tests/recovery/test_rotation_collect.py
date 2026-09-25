@@ -610,6 +610,7 @@ def test_invalid_output_budget_has_no_io(setup, budget):
 
 def test_one_shot_caller_with_actual_collector_and_fake_transport(setup, monkeypatch):
     from dataclasses import asdict
+    from types import SimpleNamespace
     from unittest.mock import Mock
 
     from recovery import rotation_once as once
@@ -640,6 +641,21 @@ def test_one_shot_caller_with_actual_collector_and_fake_transport(setup, monkeyp
         monkeypatch.setattr(once, name, Mock())
     monkeypatch.setattr(once.tempfile, "tempdir", None)
     monkeypatch.setattr(os, "umask", Mock())
+    real = parent.lstat()
+    metadata = SimpleNamespace(**{key: getattr(real, key) for key in (
+        "st_dev", "st_ino", "st_mode", "st_nlink", "st_uid", "st_gid", "st_size",
+        "st_mtime_ns", "st_ctime_ns",
+    )})
+    metadata.st_uid, metadata.st_mode = 0, 0o40770
+    lstat, fstat = Path.lstat, os.fstat
+    monkeypatch.setattr(Path, "lstat", lambda p: metadata if p == parent else lstat(p))
+
+    def descriptor_stat(fd):
+        value = fstat(fd)
+        return metadata if (value.st_dev, value.st_ino) == (real.st_dev, real.st_ino) else value
+
+    monkeypatch.setattr(os, "fstat", descriptor_stat)
+    monkeypatch.setattr(once, "_xfs_capacity", lambda _: (4096, 10000000, 9000000, 10000))
     collector = Mock(wraps=collect.collect_inventory)
     assert once.run_worker(plan, environ=once.child_environment(plan, reader),
                            collector=collector, client_factory=lambda _: client) == 0
