@@ -1,6 +1,6 @@
 # PostgreSQL recovery rotation collection and snapshot classifier
 
-`POSTGRES-RECOVERY-ROTATION-DRYRUN-001` (A7) Phase 1은 명시적인 inventory/evidence snapshot, policy, Human-managed pin snapshot을 deterministic advisory report로 변환한다. 구현은 [`recovery.rotation_dryrun`](../../src/recovery/rotation_dryrun.py)에 있으며, filesystem, PostgreSQL, R2, scheduler 또는 현재 시각을 읽지 않는 Python API다. Phase 2 collection adapter는 별도 [`recovery.rotation_collect`](../../src/recovery/rotation_collect.py)에 있다. CLI, persistent pin store 또는 deletion executor는 제공하지 않는다.
+`POSTGRES-RECOVERY-ROTATION-DRYRUN-001` (A7) Phase 1은 명시적인 inventory/evidence snapshot, policy, Human-managed pin snapshot을 deterministic advisory report로 변환한다. 구현은 [`recovery.rotation_dryrun`](../../src/recovery/rotation_dryrun.py)에 있으며, filesystem, PostgreSQL, R2, scheduler 또는 현재 시각을 읽지 않는 Python API다. Phase 2 collection adapter는 별도 [`recovery.rotation_collect`](../../src/recovery/rotation_collect.py)에 있다. Phase 2b one-shot CLI는 [`recovery.rotation_once`](../../src/recovery/rotation_once.py)에 있다. Persistent pin store 또는 deletion executor는 제공하지 않는다.
 
 Retention 기준은 [accepted ADR](../decisions/operational-data-retention-and-archive-boundary.md#recovery-generation-baseline)이다. [Scheduler contract](./postgres-recovery-scheduler.md)의 generation 생성·publish·cadence·retry·restore behavior는 변경하지 않는다.
 
@@ -114,24 +114,120 @@ Collector는 capture를 삭제하거나 정리하지 않는다. 예외로 중단
 
 `replay_frozen_input(payload)`는 JSON string을 받아 동일한 Phase 1 report string을 반환한다. Filesystem, network, PostgreSQL, scheduler, clock을 읽지 않는다. Duplicate JSON key와 unsupported envelope는 거부한다. Frozen input은 caller-supplied attestation이며 replay 성공이나 artifact hash가 source authenticity를 증명하지 않는다. 같은 frozen input의 report는 collection 이후에도 동일하며 input enumeration 순서에도 독립적이다.
 
+## Phase 2b one-shot caller
+
+`recovery.rotation_once`는 Linux production용 root-side one-shot entrypoint와 privilege-drop 뒤의 worker를 제공한다. 별도 persistent launcher, service, user, ACL 또는 credential을 설치하지 않는다. 현재 구현/fixture validation은 production execution grant가 아니다. `A7-PHASE3-PROD-READONLY-HANDOFF-01`은 계속 `Prepared / Findings open / Not grant-ready`이며 Phase 3는 `Not authorized / Not started`, production handoff는 `Not granted`, exactly-one production attempt는 `Not authorized`, A8은 `Not selected`다.
+
+### Reviewed execution input
+
+Operator는 별도 Human grant의 immutable revision과 exact private target/runtime 값을 JSON stdin으로 전달한다. CLI는 credential 값을 argv로 받지 않는다. `ExecutionPlan.parse(...)`는 unknown/duplicate field, missing binding, invalid limits와 incompatible scheduler baseline을 거부한다. Private execution input을 public fixture 또는 tracked docs에 복사하지 않는다.
+
+| JSON field | Contract |
+| --- | --- |
+| `code_root`, `revision` | Caller를 포함하는 reviewed/merged revision의 root-controlled independent clean checkout와 full commit SHA |
+| `grant_ref` | `<40-character grant commit>:A7-PHASE3-PROD-READONLY-HANDOFF-01`; prepared planning commit 또는 mutable `main`을 grant로 사용하지 않는다 |
+| `recovery_root`, `evidence_parent` | Grant의 lexical absolute source/private destination. 서로 및 code root와 ancestor/descendant 관계가 없어야 한다 |
+| `attempt_id` | Grant의 한 attempt 이름. `snapshot_id`와 동일하며 `attempt_dir=evidence_parent/attempt_id`, `evidence_ref=attempt_dir/evidence.json`이다 |
+| `reader_env` | Approved root-only reader source. Basename은 `recovery-r2-readonly.env`이며 writer source를 선택하지 않는다 |
+| `endpoint`, `bucket` | Approved reader target. `load_recovery_r2_config(...)`의 normalized endpoint/bucket과 정확히 비교한다. Region은 `auto`, prefix는 empty다 |
+| `uid`, `gid` | Existing `pmts` identity의 approved numeric IDs |
+| `limits` | Existing `CollectionLimits`의 exact handoff budgets. Caller가 discovery/자동 완화하지 않는다 |
+| `tool_sha256` | `/usr/bin/python3.12`, `/usr/bin/setpriv`, `/usr/bin/timeout`, `/usr/bin/git`, `/usr/bin/systemctl`의 approved binary SHA-256 mapping. Credential hash는 수집하지 않는다 |
+| `scheduler_properties` | `pmts-postgres-recovery.timer`와 `.service`의 approved stable `systemctl show` property mappings |
+| `scheduler_sha256` | 위 두 unit의 `FragmentPath` 및 모든 `DropInPaths`에 대한 approved file SHA-256 mapping |
+
+Scheduler mappings에는 `LoadState=loaded`, `NeedDaemonReload=no`, `FragmentPath`, `DropInPaths`, `UnitFileState`가 필요하다. Timer에는 `ActiveState=active`, `UnitFileState=enabled`, `TimersCalendar`가 필요하다. `TimersCalendar`는 `systemctl show`의 `{ OnCalendar=<expression> ; next_elapse=<time> }` representation에서 configured `OnCalendar` expression만 비교한다. Transient `next_elapse` progression은 허용하고 cadence 변경은 거부한다. 여러 calendar는 JSON string 안에서 newline으로 구분하며, 실제 output의 반복 `TimersCalendar=` record를 모두 보존해 순서와 무관하게 비교한다. Empty/unknown representation과 다른 property의 중복은 fail closed한다. Service에는 `User=pmts`, `Restart=no`가 필요하다. Transient timestamp/PID가 포함되는 `ExecStart`/실행 시각을 stable property로 사용하지 않는다. Unit bytes와 loaded config의 reload state를 함께 확인한다. 정상 oneshot 실행 중의 service `active`/`activating` 또는 idle `inactive`를 허용하며 failed/deactivating 상태는 거부한다. Scheduler lock이나 mutation은 없다.
+
+`grant_ref` 문자열과 file metadata는 Human approval 또는 provider permission의 cryptographic proof가 아니다. Reviewed grant는 위 target, `pmts-postgres-recovery-reader`의 provider-enforced read-only authority, local write capability, confirmed-empty pins를 명시해야 한다. `CollectionAuthority`는 같은 immutable reference에 `#target`, `#reader`, `#local-identity`를, `PinSnapshot`은 `#pins-none`을 bind한다. 이 selector들의 의미도 grant에 보존한다. `local_write_capable=True`, `confirmed=True`, `pins=()`를 명시적으로 구성한다.
+
+Caller가 없는 과거 Phase 2 revision을 새 caller 실행 revision으로 가장하지 않는다. Phase 2b review/merge 뒤 private finding-resolution sync와 별도 Phase 3 review에서 exact new code revision/root와 위 execution input을 고정해야 한다. 이 문서는 production checkout 교체나 새로운 grant를 승인하지 않는다.
+
+### Launch and preflight boundary
+
+아래는 placeholder를 사용하는 invocation shape다. 실제 실행은 별도 granted handoff 이후에만 가능하다. Root operator는 trusted Python과 trusted approved checkout에서 시작해야 한다. 이미 import한 bootstrap code 자체의 신뢰를 같은 process의 사후 검사로 증명할 수는 없다.
+
+```bash
+/usr/bin/env -i PATH=/usr/bin:/bin LANG=C.UTF-8 LC_ALL=C.UTF-8 TZ=UTC \
+  PYTHONPATH=<approved-code-root>/src \
+  /usr/bin/python3.12 -S -B -P -u -m recovery.rotation_once \
+  < <reviewed-private-execution-input.json>
+```
+
+Root stage는 ambient environment 없이 다음을 검사한다.
+
+- Code root와 `.git`를 포함한 control tree는 root-owned이며 group/other-writable 또는 symlink entry가 없어야 한다. HEAD/root/clean status, ignored/untracked absence, skip-worktree/assume-unchanged absence, alternate object store absence와 실제 module path를 검사한다. Source inventory와 disjoint한 code tree만 탐색한다.
+- Python 3.12, exact executable, `-S -B -P -u`, approved binary digests와 trusted tool ancestors, existing `pmts` numeric identity를 확인한다.
+- Approved scheduler properties/unit bytes, private evidence parent metadata와 capacity, attempt path 부재를 확인한다. Evidence parent는 prepared `root:pmts / 0770` directory다. Owner는 uid `0`, group은 approved `pmts` gid이며 ancestors는 root-controlled다. Mismatch를 ownership/permission mutation으로 repair하지 않는다.
+- Reader source는 trusted ancestors 아래 root:root `0600` single-link regular file이어야 한다. No-follow descriptor와 before/after metadata를 검사하고 exact five-key `PMTS_RECOVERY_R2_*` allowlist를 parse한다. Shell sourcing, quote/expansion, comments, duplicates, optional prefix, unknown key를 허용하지 않는다. Endpoint/bucket/region validation에는 network I/O가 없다.
+
+Root는 `umask 0077` 뒤 reader values와 `PATH`, `LANG`, `LC_ALL`, `TZ`, `TMPDIR=evidence_parent`, `PYTHONPATH=code_root/src`만 담은 child environment를 구성한다. `setpriv --reuid=pmts --regid=pmts --clear-groups --inh-caps=-all --ambient-caps=-all --bounding-set=-all --no-new-privs` 뒤 `timeout --signal=TERM --kill-after=30s 30m`과 `/usr/bin/python3.12 -S -B -P -u`로 worker를 한 번 실행한다. Credential 값은 argv에 없다.
+
+Worker는 root가 연 read-only reader descriptor를 상속하고 `/proc/self/fd`, root owner/mode, exact source path, config/environment bytes 일치를 검사한다. `--worker`만 직접 호출하거나 임의 환경으로 root source 검사를 우회할 수 없다. Descriptor 번호는 secret이 아니다. Root-only file과 privilege drop은 same-UID environment exposure를 제거하지 않으며 provider read-only credential authority와 구분한다.
+
+Worker는 uid/euid/gid/egid, empty supplementary groups, `NoNewPrivs=1`, zero inheritable/permitted/effective/bounding/ambient capabilities, evidence parent에 대한 `pmts` read/write/traverse access, source root read/traverse 및 no-write, `completed`/`staging` read/traverse/write capability를 확인한다. 이 단계는 metadata/access checks만 하며 children을 열거하지 않는다. Code/runtime/scheduler/evidence/capacity를 다시 검사한 뒤 evidence parent directory descriptor에 nonblocking `flock`을 잡고 attempt absence/capacity를 마지막으로 확인한다. 이는 같은 caller의 중복 진입 방지이며 scheduler coordination lock이나 persistent lock file이 아니다.
+
+Client construction과 authority/pins/limits binding까지 성공한 뒤 단 한 번 `collect_inventory(...)`를 호출한다. 이 invocation이 attempt 시작이다. 그 전 failure는 R2 LIST/GET, `completed`/`staging` enumeration, attempt directory 생성 없이 종료한다. Collector가 attempt directory를 exclusive create하며 기존/partial directory는 재사용하지 않는다. 자동 repair, retry, limit relaxation, replacement attempt 또는 connectivity smoke를 수행하지 않는다.
+
+### Filesystem headroom
+
+Caller는 A2의 두 `TemporaryDirectory`가 모두 evidence parent를 사용하도록 clean `TMPDIR`와 `tempfile.tempdir`를 고정한다. Collector의 L0 capture는 `L=max_local_bytes` 이하이고, sequential A2 verification의 peak에는 stabilized local generation과 remote generation 두 개가 동시에 존재한다. 각각 dump `D=max_dump_bytes`, manifest `65536`, checksum `256` bytes 이하이다.
+
+최종 `input.json`/`report.json`/`evidence.json` 합계의 enforced byte budget은 다음과 같다. `N=max_local_entries`, `O=max_objects`, `P=max_pages`, `Q=max_page_bytes`다.
+
+```text
+B = 6 * (2*N*(N+1)*255 + 2*P*Q + (N+O)*65536)
+K = 4*N + 15
+payload_bytes = L + 2*(D + 65536 + 256) + B
+attempt_allocation_bytes = payload_bytes + K*allocation_block
+attempt_blocks = ceil(attempt_allocation_bytes / allocation_block)
+residual_floor_blocks = ceil(filesystem_data_blocks / 20)
+require available_blocks >= attempt_blocks + residual_floor_blocks
+required_inodes = K
+```
+
+`B`는 두 local name inventory의 filesystem name budget (`255` bytes), 두 LIST pass의 page budget, 각 local/remote generation에 manifest-sized metadata allowance를 배정하고 JSON escaping의 최대 6배 팽창을 반영한 output ceiling이다. 모든 가능한 metadata가 항상 이 ceiling에 들어간다는 보장은 아니다. Collector의 새 optional `max_output_bytes`가 serialized UTF-8 세 파일 합계를 쓰기 **전에** 검사하므로 oversized metadata는 attempt failure가 되고 cap을 초과해 쓰지 않는다. API default `None`은 기존 Phase 2 호출의 동작을 보존하지만 one-shot caller는 항상 `B`를 전달한다. 이 cap은 private `evidence.json`에도 기록한다.
+
+`K`는 최대 N capture directories와 3N files, attempt/captures directories, 두 A2 temporary roots/generation directories/각 3 files, 세 output files의 합계다. Node마다 allocation block 하나를 추가하는 것은 payload/file/directory allocation rounding allowance이며 complete XFS metadata bound가 아니다. 모든 ceiling은 integer arithmetic으로 계산한다.
+
+Supported profile은 Linux 64-bit little-endian `x86_64`/`aarch64`의 XFS, read-write/no-quota mount, `4096`-byte data/directory blocks, realtime volume 및 destination realtime inheritance 부재다. Evidence parent를 `O_RDONLY|O_DIRECTORY|O_NOFOLLOW`로 열고 `lstat`/`fstat` identity를 확인한다. `/proc/self/fdinfo`의 `mnt_id`로 `/proc/self/mountinfo`의 exact mount를 선택해 device/type/`rw`/`noquota`를 확인한다. `XFS_IOC_FSGEOMETRY_V1`은 data block size/count와 realtime 부재를, `FS_IOC_FSGETXATTR`는 destination의 `REALTIME`/`RTINHERIT` 부재를 확인한다. 두 ioctl은 read-only metadata 조회이며 source inventory에 접근하지 않는다. Unsupported ABI/profile, missing/ambiguous mount, ioctl failure, quota/accounting 활성화는 fail closed한다. Mount/device 이름이나 이전 free-block count를 code 또는 public configuration에 고정하지 않는다. Read-only ioctl layout은 [XFS geometry ABI](https://github.com/torvalds/linux/blob/v6.6/fs/xfs/libxfs/xfs_fs.h)와 [Linux fsxattr ABI](https://github.com/torvalds/linux/blob/v6.6/include/uapi/linux/fs.h)를 따른다.
+
+같은 descriptor의 execution-time `fstatvfs`에서 XFS userspace-available `f_bavail`과 inode availability `f_favail`을 사용한다. Block units와 counter consistency를 확인하고 `f_favail >= K`를 요구한다. Residual floor의 denominator는 geometry의 전체 data blocks다. Internal log를 제외할 수 있는 `statvfs.f_blocks`로 대체하지 않는다. XFS의 [userspace free-space reporting](https://github.com/torvalds/linux/blob/v6.6/fs/xfs/xfs_super.c#L775-L834)과 [low-space thresholds](https://kernel.googlesource.com/pub/scm/linux/kernel/git/torvalds/linux/+/906dde0f355bd97c080c215811ae7db1137c4af8/fs/xfs/xfs_mount.c#498)를 engineering 근거로 5% residual floor를 별도로 남긴다. 이는 conservative XFS-derived low-space safety floor이며 exact metadata worst-case formula나 production kernel의 byte-for-byte proof가 아니다. Unknown/부족한 capacity는 attempt start 전에 fail closed한다. Source inventory를 미리 열어 actual dump size로 budget을 낮추지 않는다.
+
+이 check는 filesystem reservation, quota guarantee 또는 post-preflight ENOSPC impossibility proof가 아니다. Scheduler를 포함한 concurrent filesystem activity로 preflight 이후 ENOSPC, timeout 또는 other I/O failure가 발생할 수 있다. 그런 attempt는 partial evidence를 보존하고 retry하지 않는다. Synthetic tests는 고정된 byte/block/node 수치와 5% ceiling 경계, supported/unknown profile, 두 A2 copy accounting, output-cap failure, real collector + fake transport + replay를 검증한다. Live production profile/capacity 검증이나 Phase 3 grant를 대신하지 않는다.
+
+### Sanitized exit contract
+
+| Exit | Operator output | Meaning |
+| --- | --- | --- |
+| `0` | `attempt_finished_advisory` | Collection report가 advisory. A7 PASS나 grant 판정이 아니다 |
+| `1` | `attempt_started_blocked_or_failed` | Invocation 이후 blocked report 또는 exception. Attempt 재사용 금지 |
+| `2` | `preflight_failed_attempt_not_started` | Invocation 이전 failure. Inventory I/O/attempt directory 생성 없음. Drift를 repair하지 말고 planning으로 돌아간다 |
+| `3` | `attempt_state_unknown_no_retry` | Launcher/timeout/abnormal termination 때문에 시작 여부를 확립할 수 없음. Non-consumption으로 추정하거나 retry하지 않는다 |
+
+Root는 child stderr를 노출하지 않고 child의 fixed status/exit pair만 인정한다. Provider response, raw exception, credential/path/config detail은 출력하지 않는다. Root process 자체가 강제 종료되어 status가 없으면 역시 attempt non-consumption을 추정하지 않는다.
+
+Phase 2b implementation → canonical validation/CI → separate Fresh-context review → Human merge decision → reviewed PR merge → private finding-resolution sync → separate Phase 3 Fresh-context read-only review 이후에만 Human Gate/production grant를 검토한다. Human Gate scope는 live reader credential use와 Phase 3 first production inventory I/O다. `Pre-Gate Merge Allowed: Yes`는 이 prerequisite의 reviewed merge만 허용하며 Human Gate는 계속 Pending이다.
+
 ## Phase 3 preconditions
 
-Phase 2 implementation/synthetic validation은 production access 또는 A7 closure를 승인하지 않는다. 별도 read-only Fresh-context review와 Human merge decision 뒤에도 Phase 3에는 새로운 explicit production read-only handoff가 필요하다. Handoff는 exact target/root, execution identity, R2 target, provider-enforced read-only credential과 safe injection evidence, Human-confirmed pins, limits, private destination과 정확히 한 collection attempt를 고정해야 한다.
+Phase 2/2b implementation과 synthetic validation은 production access 또는 A7 closure를 승인하지 않는다. 별도 read-only Fresh-context review와 Human merge decision 뒤에도 Phase 3에는 새로운 explicit production read-only handoff가 필요하다. Handoff는 exact target/root, execution identity, R2 target, provider-enforced read-only credential과 safe injection evidence, Human-confirmed pins, limits, private destination과 정확히 한 collection attempt를 고정해야 한다.
 
 Read-only identity가 있으면 우선 사용한다. Credential/injection, user/group, ownership, permission/ACL, sudo/policy 또는 launcher preparation이 필요하면 별도 authority decision으로 되돌린다. Collector API는 이를 provision하거나 production 준비를 자동 확인하지 않는다. Scheduler는 계속 active한 baseline이며 coordination lock을 획득하지 않는다. Unstable attempt의 추가 실행에는 새 handoff가 필요하다.
 
-A7 전체 `PASS / CLOSED`에는 reviewed/merged Phase 2 외에도 승인된 Phase 3 actual inventory evidence, deterministic replay, expected retained set의 independent comparison과 unresolved global blocker 부재가 필요하다. Empty candidate set 자체는 PASS가 아니다. Phase 2 완료 시 A7은 open이며 Phase 3 production handoff/actual dry-run은 별도로 남는다. A8은 선택하거나 시작하지 않는다.
+A7 전체 `PASS / CLOSED`에는 reviewed/merged Phase 2/2b와 후속 finding-resolution/review 외에도 승인된 Phase 3 actual inventory evidence, deterministic replay, expected retained set의 independent comparison과 unresolved global blocker 부재가 필요하다. Empty candidate set 자체는 PASS가 아니다. Phase 2 완료 시 A7은 open이며 Phase 3 production handoff/actual dry-run은 별도로 남는다. A8은 선택하거나 시작하지 않는다.
 
 ## Validation과 completion boundary
 
 ```bash
-poetry run pytest tests/recovery/test_rotation_dryrun.py tests/recovery/test_rotation_collect.py tests/steam/ingest/test_s3_compat.py
+poetry run pytest tests/recovery/test_rotation_dryrun.py tests/recovery/test_rotation_collect.py tests/recovery/test_rotation_once.py tests/steam/ingest/test_s3_compat.py
 ./scripts/check.sh
 git diff --check
 ```
 
 Focused tests는 latest-8, sparse observed buckets, ISO week-year, 대표 generation, overlapping reasons, timestamp ties/input permutations, invalid/conflicting verification, pin authority와 binding failure, incomplete/unstable inventory, empty-but-blocked report를 검증한다. I/O guard test는 classifier와 renderer가 filesystem/network/process operation 또는 destructive operation을 호출하지 않는지 확인한다.
 
+Phase 2b tests는 `tests/recovery/test_rotation_once.py`와 collector integration test에서 non-inventory preflight failure, exact binding, exactly-one invocation, credential/environment rejection, capacity/output caps와 sanitized exit를 검증한다. Linux privilege/runtime probes는 synthetic seams를 사용하며 실제 production credential, launcher 또는 inventory를 실행하지 않는다.
+
 Phase 2 tests는 synthetic source와 fake HTTP transport에서 actual A1/A2 호출, exact-bytes binding, full-prefix pagination, malformed response/token/budget failure, source 변화, pin authority와 replay를 검증한다. Production access나 current inventory evidence를 사용하지 않는다.
 
-Phase 1/2 구현·fixture validation은 A7 전체 `PASS / CLOSED`가 아니다. Fresh-context review는 별도 read-only session에서 수행한다. 이후 local/R2 collection path review, explicit production read-only handoff, actual current-inventory dry-run evidence가 필요하다. 이 module은 production 접근, scheduler invocation, persistent pin 관리, 실제 rotation 또는 A8 선택·실행을 승인하지 않는다.
+Phase 1/2/2b 구현·fixture validation은 A7 전체 `PASS / CLOSED`가 아니다. Fresh-context review는 별도 read-only session에서 수행한다. 이후 local/R2 collection path review, explicit production read-only handoff, actual current-inventory dry-run evidence가 필요하다. 이 module은 production 접근, scheduler invocation, persistent pin 관리, 실제 rotation 또는 A8 선택·실행을 승인하지 않는다.
