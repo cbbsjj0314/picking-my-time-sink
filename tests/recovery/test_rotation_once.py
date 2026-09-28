@@ -494,6 +494,48 @@ def test_trusted_metadata_rejects_permissions_owner_and_symlink(monkeypatch, mod
         once._trusted(Path("/synthetic/file"))
 
 
+@pytest.mark.parametrize("ancestor", ["/", "/synthetic", "/synthetic/parent"])
+@pytest.mark.parametrize(
+    "mode,uid,gid,accepted",
+    [
+        (0o40750, 0, 0, True),
+        (0o40750, 0, 1234, True),
+        (0o40770, 0, 1234, False),
+        (0o40752, 0, 1234, False),
+        (0o40750, 1234, 1234, False),
+        (0o100750, 0, 0, False),
+        (0o120777, 0, 0, False),
+    ],
+)
+def test_ancestor_integrity(monkeypatch, ancestor, mode, uid, gid, accepted):
+    path = Path("/synthetic/parent/file")
+    metadata = Mock(
+        side_effect=lambda p: SimpleNamespace(st_mode=mode, st_uid=uid, st_gid=gid)
+        if p == Path(ancestor)
+        else SimpleNamespace(st_mode=0o40755, st_uid=0, st_gid=0)
+    )
+    monkeypatch.setattr(Path, "lstat", lambda p: metadata(p))
+    if accepted:
+        once._ancestors(path)
+        assert [call.args[0] for call in metadata.call_args_list] == list(reversed(path.parents))
+    else:
+        with pytest.raises(once.PreflightError):
+            once._ancestors(path)
+
+
+@pytest.mark.parametrize("directory", [False, True])
+@pytest.mark.parametrize("uid,gid", [(0, 0), (0, 1234), (1234, 0)])
+def test_protected_object_requires_root_owner_and_group(monkeypatch, directory, uid, gid):
+    path = Path("/synthetic/protected")
+    metadata = SimpleNamespace(st_mode=0o40750 if directory else 0o100600, st_uid=uid, st_gid=gid)
+    monkeypatch.setattr(Path, "lstat", lambda _: metadata)
+    if uid == gid == 0:
+        assert once._trusted(path, directory=directory) is metadata
+    else:
+        with pytest.raises(once.PreflightError):
+            once._trusted(path, directory=directory)
+
+
 def test_privilege_drop_command_and_clean_environment(plan, reader):
     command = once.child_command(plan, 9)
     for option in (
