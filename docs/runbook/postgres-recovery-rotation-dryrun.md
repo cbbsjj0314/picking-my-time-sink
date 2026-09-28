@@ -153,12 +153,14 @@ Caller가 없는 과거 Phase 2 revision을 새 caller 실행 revision으로 가
   < <reviewed-private-execution-input.json>
 ```
 
+`_ancestors()`로 검사하는 code root, trusted tool, scheduler file, evidence parent, reader source의 모든 ancestor에는 공통 invariant를 적용한다. 각 ancestor는 directory이고 root-owned여야 하며 group/other write permission이 없어야 한다. Ancestor group ID는 제한하지 않는다. Protected object 자체에는 별도 owner/group/mode contract를 적용한다. `_trusted()`로 검사하는 code/control tree, trusted tool, scheduler file, reader source의 strict `root:root` 및 group/other write 금지와 아래 object별 추가 조건은 그대로 유지한다.
+
 Root stage는 ambient environment 없이 다음을 검사한다.
 
 - Code root와 `.git`를 포함한 control tree는 root-owned이며 group/other-writable 또는 symlink entry가 없어야 한다. HEAD/root/clean status, ignored/untracked absence, skip-worktree/assume-unchanged absence, alternate object store absence와 실제 module path를 검사한다. Source inventory와 disjoint한 code tree만 탐색한다.
 - Python 3.12, exact executable, `-S -B -P -u`, approved binary digests와 trusted tool ancestors, existing `pmts` numeric identity를 확인한다.
 - Approved scheduler properties/unit bytes, private evidence parent metadata와 capacity, attempt path 부재를 확인한다. Evidence parent는 prepared `root:pmts / 0770` directory다. Owner는 uid `0`, group은 approved `pmts` gid이며 ancestors는 root-controlled다. Mismatch를 ownership/permission mutation으로 repair하지 않는다.
-- Reader source는 trusted ancestors 아래 root:root `0600` single-link regular file이어야 한다. Ancestor directories는 root-owned이고 group/other write permission이 없어야 하며 group ID는 root일 필요가 없다. No-follow descriptor와 before/after metadata를 검사하고 exact five-key `PMTS_RECOVERY_R2_*` allowlist를 parse한다. Shell sourcing, quote/expansion, comments, duplicates, optional prefix, unknown key를 허용하지 않는다. Endpoint/bucket/region validation에는 network I/O가 없다.
+- Reader source는 trusted ancestors 아래 root:root `0600` single-link regular file이어야 한다. No-follow descriptor와 before/after metadata를 검사하고 exact five-key `PMTS_RECOVERY_R2_*` allowlist를 parse한다. Shell sourcing, quote/expansion, comments, duplicates, optional prefix, unknown key를 허용하지 않는다. Endpoint/bucket/region validation에는 network I/O가 없다.
 
 Root는 `umask 0077` 뒤 reader values와 `PATH`, `LANG`, `LC_ALL`, `TZ`, `TMPDIR=evidence_parent`, `PYTHONPATH=code_root/src`만 담은 child environment를 구성한다. `setpriv --reuid=pmts --regid=pmts --clear-groups --inh-caps=-all --ambient-caps=-all --bounding-set=-all --no-new-privs` 뒤 `timeout --signal=TERM --kill-after=30s 30m`과 `/usr/bin/python3.12 -S -B -P -u`로 worker를 한 번 실행한다. Credential 값은 argv에 없다.
 
