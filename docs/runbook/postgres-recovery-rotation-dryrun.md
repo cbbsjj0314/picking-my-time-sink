@@ -153,6 +153,8 @@ Caller가 없는 과거 Phase 2 revision을 새 caller 실행 revision으로 가
   < <reviewed-private-execution-input.json>
 ```
 
+`_ancestors()`로 검사하는 code root, trusted tool, scheduler file, evidence parent, reader source의 모든 ancestor에는 공통 invariant를 적용한다. 각 ancestor는 directory이고 root-owned여야 하며 group/other write permission이 없어야 한다. Ancestor group ID는 제한하지 않는다. Protected object 자체에는 별도 owner/group/mode contract를 적용한다. `_trusted()`로 검사하는 code/control tree, trusted tool, scheduler file, reader source의 strict `root:root` 및 group/other write 금지와 아래 object별 추가 조건은 그대로 유지한다.
+
 Root stage는 ambient environment 없이 다음을 검사한다.
 
 - Code root와 `.git`를 포함한 control tree는 root-owned이며 group/other-writable 또는 symlink entry가 없어야 한다. HEAD/root/clean status, ignored/untracked absence, skip-worktree/assume-unchanged absence, alternate object store absence와 실제 module path를 검사한다. Source inventory와 disjoint한 code tree만 탐색한다.

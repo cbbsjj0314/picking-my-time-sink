@@ -185,9 +185,15 @@ def _trusted(path: Path, *, directory: bool = False) -> os.stat_result:
     return value
 
 
+def _trusted_ancestor(path: Path) -> None:
+    value = path.lstat()
+    _require(stat.S_ISDIR(value.st_mode))
+    _require(value.st_uid == 0 and not value.st_mode & 0o022)
+
+
 def _ancestors(path: Path) -> None:
     for parent in reversed(path.parents):
-        _trusted(parent, directory=True)
+        _trusted_ancestor(parent)
 
 
 def _run(command: list[str], *, env: dict | None = None) -> str:
