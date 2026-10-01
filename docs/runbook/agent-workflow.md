@@ -1,173 +1,102 @@
 # Agent Workflow Runbook
 
-이 repo는 작은 PR-native workflow를 사용한다.
+## Default workflow
 
-Spec -> Ticket -> Agent implementation -> PR -> CI -> Review -> Human Gate -> Release.
-
-## 역할
-
-- ChatGPT/planning session은 product spec을 정의하고, 작업을 ticket으로 나누며, human의 active ticket 선택을 지원하고 acceptance criteria를 명확히 한다.
-- Codex는 human이 planning flow를 통해 명시적으로 선택·전달한 하나의 ticket을 구현하고, 집중된 branch/commit을 준비하며, ticket이 PR-native 실행으로 승인되면 작은 PR을 연다.
-- 사람은 위험한 scope를 승인하고, PR을 review하며, merge를 결정하고, release를 제어한다.
-
-## Ticket 내용
-
-Ticket은 `User Decision`, scope, out of scope, requirements, acceptance criteria, required checks, manual QA, `Risk Level`, `Human Gate Required`, `Review Level`, `Review Reason`, suggested branch name, suggested PR title을 명시해야 한다. Behavior 또는 semantics에 적용할 수 있으면 `User Acceptance Examples`도 포함한다.
-
-`Risk Level`, `Human Gate Required`, `Review Level`은 implementation 전에 확정한다. Implementation agent는 사전 결정된 세 값을 임의로 낮추지 않는다. 구현 중 scope 또는 위험이 커져 더 강한 gate가 필요해지면 구현을 계속하거나 자체 재분류하지 않고 planning 흐름으로 되돌린다.
-
-하나의 ticket은 보통 하나의 PR에 대응한다. Ticket이 서로 관련 없는 runtime, schema, API, web, operations 변경을 섞고 있다면 구현 전에 작업을 나눈다.
-
-## Ticket 선택 및 handoff
-
-- Human이 planning flow에서 한 번에 하나의 active ticket을 명시적으로 선택한다.
-- Codex는 선택된 ticket을 명시적으로 전달받은 뒤에만 implementation을 시작한다.
-- Planning board, queue, candidate list는 execution context일 수 있지만 다른 ticket을 선택하거나 승격할 권한을 주지 않는다.
-- Current ticket이 끝나거나 stronger planning decision이 필요해지면 Codex는 다음 ticket을 스스로 선택하지 않고 planning 흐름으로 되돌린다.
-
-## Canonical Handoff Envelope
-
-Implementation/review를 시작하는 handoff는 다음 최소 envelope을 전달한다. Planning 작업도 같은 envelope으로 현재 authority를 명확히 한다.
+Ordinary bounded work는 Human의 구체적인 요청에서 시작한다. 작은 UI/docs/bugfix처럼 scope와 성공 기준이 명확하고 아래 escalation 원칙에 해당하지 않는 작업은 다음 흐름을 따른다.
 
 ```text
-Repository: <unambiguous target repository identity, e.g. github.com/cbbsjj0314/picking-my-time-sink>
-Mode: Implementation | Read-only Review | Planning-contract
-Ticket: <ticket ID>
-Ticket Authority: <full canonical ticket supplied in the handoff or a resolvable canonical source/reference>
-Authorized Phase: <exact phase this Codex session may perform>
-Risk Level: Low | Medium | High
-Review Level: Standard | Fresh-context
-Human Gate Required: Yes | No
-PR Mode: Draft | N/A
+repo / clean-worktree preflight
+→ short plan when useful
+→ narrow implementation
+→ relevant focused tests
+→ ./scripts/check.sh when code changed
+→ Draft PR / applicable CI
+→ Human review / merge
 ```
 
-- `Repository`는 이번 session의 unambiguous target repository identity다. Host와 owner/repository를 명시하며, repository 이름만으로 식별하지 않는다. 특정 checkout이 필요하면 expected repository-root path도 함께 전달한다.
-- `Mode`는 session의 execution boundary다.
-- `Ticket`은 Human이 선택한 canonical ticket의 ID다.
-- `Ticket Authority`는 task semantics의 source of truth인 전체 ticket 또는 접근 가능한 canonical reference다.
-- `Authorized Phase`는 이번 session에서 허용된 정확한 작업 단계다. Implementation, validation, commit/push, Draft PR 준비 등 허용된 단계를 명시한다.
-- `Risk Level`, `Review Level`, `Human Gate Required`는 implementation 전에 확정된 ticket 값을 전달하며 handoff에서 재분류하지 않는다.
-- `PR Mode`는 PR 생성이 허용되면 `Draft`, 해당하지 않으면 `N/A`다. 이 field 자체가 PR 생성 권한을 주지는 않는다.
+Non-trivial change는 편집 전에 짧은 plan과 최소 observable success criteria를 제시한다. 현재 code, tests, durable docs를 확인하고 요청에 필요한 최소 boundary에서 구현한다. 관련 없는 refactor, cleanup 또는 다른 작업 선택으로 scope를 넓히지 않는다.
 
-실제로 존재하는 task-specific temporary constraint는 별도로 명시할 수 있다. 별도의 procedural merge hold는 `Human Gate Required`의 의미를 바꾸지 않으며, 그 해제는 명시된 Human authority에 따른다.
+Ordinary work에는 canonical ticket, full handoff envelope, `Risk Level`, `Review Level`, `Human Gate Required`, Fresh-context review, AC → evidence mapping 또는 private planning-state update를 일괄 요구하지 않는다. `Default`는 별도로 입력하거나 등록할 mode/status field가 아니다. 기존 ticket과 historical record는 migration하거나 backfill하지 않는다.
 
-Handoff는 canonical ticket의 second spec이 아니라 authority와 current execution mode를 전달하는 envelope이다. Requirements 전체, acceptance criteria 전체, validation documentation 전체, general repository workflow 전체를 장문으로 복제하지 않는다. `Ticket Authority`가 접근 불가능하거나 ambiguity가 material하면 Codex는 ticket을 임의로 재구성하지 않고 작업을 멈춰 planning 흐름으로 되돌린다.
+Codex는 요청된 scope를 구현하고 검증한 뒤 집중된 branch/commit과 Draft PR을 준비한다. 별도의 local-only, read-only 또는 publication 제한이 있으면 그 제한을 따른다. Human은 위험한 scope를 승인하고, review와 최종 merge 및 release를 결정한다.
 
-### Repository Identity Preflight
+## Repository Identity Preflight
 
-Codex는 editing 전에 현재 checkout이 handed-off `Repository`와 일치하는지 확인한다.
+편집 전에 intended repository, 현재 branch/base/HEAD와 clean worktree를 확인한다.
 
-```text
+```bash
 git rev-parse --show-toplevel
 git remote get-url origin
+git branch --show-current
+git rev-parse HEAD
 git status --short
 ```
 
-Repository-root identity와 remote의 host / owner / repository를 함께 확인한다. HTTPS / SSH URL 표기 차이는 같은 repository identity로 비교하며, root basename 또는 clean worktree만으로 일치를 판단하지 않는다. Expected repository-root path가 전달되었다면 실제 root도 그 path와 일치해야 한다. `git status --short` output이 없어야 clean-worktree verification을 통과한다.
+Repository-root와 remote의 host / owner / repository를 함께 확인한다. HTTPS / SSH 표기 차이는 같은 repository identity로 비교한다. Root basename이나 clean worktree만으로 repository 일치를 판단하지 않는다. Expected root 또는 revision이 주어지면 실제 값과 대조한다. `git status --short` output이 없어야 clean-worktree verification을 통과한다.
 
-`Repository`가 누락되거나 실제 repository가 불일치하거나 identity를 확인할 수 없거나 worktree가 clean하지 않으면 editing 전에 멈추고 그 상태를 보고한다. 다른 repository로 암묵적으로 이동하거나 그 repository를 수정하지 않으며, Human의 corrected handoff/session을 기다린다. Intended repository와 clean worktree를 모두 확인한 경우에만 `Mode`, ticket authority와 authorized scope 등 나머지 조건에 따라 implementation을 진행할 수 있다.
+Intended repository가 불명확하거나 실제 identity가 불일치하거나 확인할 수 없거나 worktree가 clean하지 않으면 편집 전에 멈추고 상태를 보고한다. 다른 repository로 암묵적으로 이동하거나 수정하지 않는다. Human의 clarification 또는 corrected handoff를 받은 뒤 나머지 scope/authority 조건을 확인한다. Ordinary request에 별도 handoff form을 작성할 필요는 없다.
 
-### Mode Boundaries
+## Escalated / Gated workflow
 
-- `Implementation`: handed-off ticket의 authorized implementation만 수행한다. Ticket이 PR-native 실행을 허용하면 required validation 후 Draft PR까지 준비할 수 있다. 다음 ticket을 선택하지 않는다.
-- `Read-only Review`: diff / docs / evidence를 inspect하고 검토 결과만 보고한다. 파일을 수정하지 않으며 같은 session에서 implementation으로 확장하지 않는다.
-- `Planning-contract`: scope / requirements / acceptance / validation contract를 확정한다. 같은 session에서 implementation으로 확장하지 않는다.
+Escalation은 작업 시작 시 한 번의 분류로 끝나지 않는다. 시작 전 또는 구현 도중 다음이 드러나면 default path를 중단한다.
 
-Ticket type과 `Mode`는 동일 개념이 아니다. `Atomic ticket` 또는 `Bounded polish batch`는 보통 `Mode: Implementation`으로 실행된다. Read-only/Planning에서 implementation이 필요하면 planning 흐름을 통해 별도의 explicit implementation handoff와 session으로 전환한다.
+- 결과나 허용 범위를 바꾸는 material ambiguity.
+- 되돌릴 수 없거나 복구 비용이 큰 effect.
+- Production 또는 external system에 대한 authority가 필요한 작업.
+- Security/privacy boundary의 위험.
+- Durable data 또는 trusted data semantics의 위험.
+
+일반 원칙은 현재 요청과 evidence만으로 안전한 scope, 영향 또는 권한을 확정할 수 없으면 계속하지 않는 것이다. 위 원칙과 다음 예시는 exhaustive taxonomy가 아니다. 목록에 없다는 이유로 ordinary work로 간주하지 않는다.
+
+Concrete examples에는 production/external mutation, destructive operation, DB schema/migration, backfill/reingest/live write, scheduler/recurring execution, auth/secrets/permissions, deploy/release, public/private evidence boundary, trusted mapping/`Combined`/KPI/recommendation semantics, 비용이 큰 cross-subsystem/architecture change가 포함된다. 요청된 통상적인 Git branch push와 Draft PR 생성은 아래 publication 경계 안에서 수행한다. 이것이 production/external mutation 권한을 주지는 않는다.
+
+발견한 위험과 부족한 authority/evidence를 보고하고 planning으로 돌아간다. 필요한 최소 stronger execution contract를 Human과 확정한 뒤 그 범위에서만 재개한다. 위험을 발견한 작업을 계속하거나 자체 재분류하여 gate를 낮추지 않는다. 이미 정해진 ticket, Risk / Review / Human Gate와 operational contract는 계속 준수한다.
+
+### Scoped authority and handoff
+
+Escalated work는 위험과 evidence value에 비례하여 scope, out of scope, 성공 기준, validation, 허용된 phase와 차단된 action을 명확히 한다. Ticket, Risk / Review / Human Gate, Fresh-context review, private durable note는 필요한 경우에만 사용한다. 모든 escalated work에 동일한 form이나 review layer를 추가하지 않는다.
+
+Stronger execution contract를 문서화할 때 기존 `docs/ticket-template.md`를 사용할 수 있다. Ordinary work의 mandatory entrypoint는 아니다. Ticket을 사용하는 작업은 Human이 선택·전달한 ticket에 한정한다. Board, queue, candidate list는 다른 ticket 선택이나 승격 권한을 주지 않는다.
+
+Handoff는 해당 작업에 필요한 repository identity, accepted contract/reference, authorized phase, required review/gate와 실제 temporary constraint를 전달한다. Stable workflow와 전체 requirements를 복제하지 않는다. Canonical authority가 지정되었는데 접근 불가능하거나 material ambiguity가 있으면 재구성하지 않고 멈춘다. 이미 확정된 `Risk Level`, `Review Level`, `Human Gate Required`는 implementation agent가 낮추지 않는다.
+
+Read-only review는 inspect/report만 수행하며 파일을 수정하지 않는다. Planning-contract는 scope/acceptance/validation을 확정하는 데 한정한다. 이러한 제한이 있는 session에서 implementation으로 암묵적으로 확장하지 않으며, 별도 explicit implementation handoff와 session으로 전환한다. Ordinary implementation에 이 Mode field를 의무화하지 않는다.
+
+A8 같은 destructive recovery rotation/delete는 별도 Human selection과 explicit stronger authority가 필요하다. Default workflow, 이전 phase의 PASS 또는 PR merge는 그 권한을 만들지 않는다.
 
 ## Draft PR Invariant
 
-Codex가 생성하는 모든 PR은 Draft로 연다. Human이 Ready for review 여부와 merge 여부를 결정한다. Codex는 PR을 Ready로 전환하거나 merge하지 않는다. Human의 specific override가 있는 별도 task를 제외하면 이 invariant를 유지한다.
+Codex가 생성하는 모든 PR은 Draft로 연다. Human이 Ready for review 여부와 최종 merge 여부를 결정한다. Codex는 PR을 Ready로 전환하거나 merge하지 않는다. `main` 직접 push, force-push, release/tag 생성도 하지 않는다. 별도 task의 specific Human override는 명시적으로 승인한 범위에만 적용한다.
 
-`Draft`는 required validation, CI, review 또는 Human Gate evidence를 생략한다는 뜻이 아니다. Draft PR 준비와 implementation evidence 작성은 acceptance 또는 merge-ready 판정과 다르며, 기존 review/Human Gate contract를 그대로 따른다.
+`Draft`는 required validation, CI, review 또는 Human Gate evidence를 생략한다는 뜻이 아니다. Draft PR 준비와 implementation evidence 작성은 acceptance 또는 merge-ready 판정과 다르다.
 
 ## Completion Contract
 
-PR-native implementation에서는 `.github/PULL_REQUEST_TEMPLATE.md`를 canonical completion interface로 사용한다. Implementation completion은 단순히 변경을 끝낸 상태가 아니라 다음을 ticket에 다시 연결한 상태다.
+`.github/PULL_REQUEST_TEMPLATE.md`를 canonical completion interface로 사용한다. Ordinary PR은 Summary / Changes / Validation 중심으로 구현한 scope, 변경 이유, 수행한 checks의 exact results를 짧게 기록한다. 필요한 deferred scope, documentation impact와 concrete uncertainty도 기록한다. 실행하지 않은 checks를 통과한 것으로 표현하지 않는다.
 
-- Ticket / spec reference.
-- Implemented scope와 필요한 경우 explicit deferred scope.
-- `Risk Level` / `Review Level` / `Human Gate Required` 및 해당 evidence 상태.
-- Required validation의 exact results.
-- AC → evidence mapping.
-- Durable documentation impact.
-- Remaining concrete uncertainty가 있으면 그 내용, 없으면 없음을 명시.
+Ticket / Spec reference, Risk / Review / Human Gate, independent review status/evidence, AC → evidence mapping은 해당 accepted contract가 요구할 때만 추가한다. Ticket 전체를 PR body에 복제하지 않는다. Required Fresh-context review가 미완료이면 `Pending`이며 implementation agent의 자체 검증은 independent review가 아니다.
 
-PR body는 canonical ticket을 장문으로 복제하지 않는다. Template은 ticket의 대체물이 아니라 implementation 결과와 evidence를 ticket에 다시 연결하는 completion contract다. Fresh-context review가 아직 완료되지 않았다면 `Pending`으로 기록하며 implementation agent의 completion evidence를 independent review로 취급하지 않는다.
-
-### Documentation Impact
-
-PR completion evidence에 다음 중 해당하는 의미를 짧게 기록한다.
-
-```text
-Documentation impact: Updated — <durable docs>
-Documentation impact: None — existing durable docs remain accurate because <short reason>
-```
-
-Schema / API / data semantics / operational contract가 바뀌면 기존 repo 규칙에 따라 관련 durable docs와 regression evidence를 같은 slice에 포함한다. 모든 trivial change에 새 documentation을 만들라는 의미는 아니다.
+Schema / API / data semantics / operational contract가 바뀌면 관련 durable docs와 regression evidence를 같은 slice에 포함한다. Documentation impact는 갱신한 문서를 적거나 기존 문서가 여전히 정확한 이유를 짧게 설명한다. Trivial change마다 새 문서를 만들 필요는 없다.
 
 ## Exploration and Verification Sufficiency
 
-Codex는 ticket 이해에 필요한 최소 repository surface부터 확인한다. 탐색 확대는 material ambiguity, discovered dependency, failing validation, newly discovered concrete risk 또는 missing acceptance evidence가 있을 때만 한다.
+요청과 accepted contract를 이해하는 데 필요한 최소 repository surface부터 확인한다. 탐색 확대는 material ambiguity, discovered dependency, failing validation, new concrete risk 또는 missing required evidence가 있을 때만 한다.
 
-Ticket-required focused checks를 먼저 수행할 수 있다. Code change에는 final code state에서 canonical full check인 repo-root `./scripts/check.sh`를 수행한다. 실행 및 failure 처리는 아래 Check 규칙을 따른다. Docs-only change는 runtime/code path가 바뀌지 않으면 current repo rules에 따라 runtime validation을 생략할 수 있으며, ticket-required static checks와 evidence는 충족해야 한다.
+Relevant focused regression checks를 수행하고, code change는 final code state에서 repo-root `./scripts/check.sh`로 full validation을 마친다. 실행 및 failure 처리는 아래 Check 규칙을 따른다. Docs-only change는 runtime/code path가 바뀌지 않으면 runtime validation을 생략할 수 있지만 required static checks와 applicable contract evidence는 충족해야 한다.
 
-다음 conjunction을 만족하면 verification은 충분하다.
+Required task checks와 applicable canonical validation을 충족하고, 요구된 acceptance evidence와 documentation impact가 확인되며 concrete unresolved concern이 없으면 검증을 멈춘다. 모든 ordinary PR에 AC mapping을 만들라는 뜻은 아니다.
 
-```text
-required ticket checks satisfied
-+ canonical repo validation satisfied when applicable
-+ AC evidence complete
-+ documentation impact accounted for
-+ no concrete unresolved concern
-= verification sufficient → stop
-```
+추가 또는 반복 validation은 check failure, 성공 뒤 relevant change, new concrete inconsistency/risk, missing required evidence 또는 reviewer 요청이 있을 때 수행한다. 이 stopping rule은 required CI, Fresh-context review나 Human Gate를 면제하지 않는다.
 
-그 뒤 단순히 더 확실해지기 위해 repository exploration이나 validation을 반복하지 않는다. 추가 또는 반복 validation은 required check failure, successful validation 뒤 relevant file/code 변경, new concrete inconsistency/risk discovery, missing AC evidence, ticket requirement 또는 reviewer-requested evidence가 있을 때 정당화된다. 이 stopping rule은 required CI, Fresh-context review 또는 Human Gate를 생략하거나 ticket acceptance를 선언할 권한을 주지 않는다.
+## Codex boundaries
 
-### Prompt-level Redundancy Boundary
-
-Handoff prompt에서 반복할 정보는 session마다 달라지거나 authority miss의 비용이 큰 `Repository`, `Mode`, Ticket ID / authority, `Authorized Phase`, Risk / Review / Human Gate, Draft PR mode, 실제 task-specific temporary constraint로 제한한다. Stable detailed workflow, full validation instructions, review definitions은 canonical ticket과 repository source of truth에 남긴다.
-
-## Ticket 유형
-
-Planning, review, execution boundary가 명확하도록 명시적인 ticket 유형을 사용한다.
-
-- `Atomic ticket`: 기본 단위이며, 보통 하나의 PR에 대응한다.
-- `Bounded polish batch`: 같은 screen/user flow/product boundary를 공유하고 같은 validation scope 아래에서 review할 수 있는 여러 관련 low/medium-risk 항목을 하나의 PR에 담는 유형이다.
-- `Read-only review`: 같은 ticket 안에서 구현으로 확장해서는 안 되는 review-only 작업이다.
-- `Planning-contract ticket`: scope/acceptance/validation을 확정하기 위한 planning-only 작업이며, 같은 ticket 안에서 구현으로 확장해서는 안 된다.
-
-High-risk 작업은 보통 `Planning-contract ticket` 또는 `Read-only review`로 시작해야 한다. 승인된 ticket이 implementation scope와 Human Gate approval을 명시적으로 정의하지 않는 한 high-risk 작업을 곧바로 구현으로 전환하지 않는다.
-
-## Codex 경계
-
-Codex는 다음을 수행해야 한다.
-
-- Ticket을 기준으로 작업하고 diff를 집중된 상태로 유지한다.
-- 기존 MVP, security, validation guardrail을 보존한다.
-- 구현이 해석에 의존할 때는 assumption을 명시한다.
-- Code change에는 repo root에서 `./scripts/check.sh`를 실행한다.
-- Ticket이 PR-native 실행으로 승인되면 branch 생성, commit, push, PR 생성을 수행한다.
-
-### Codex Preflight
-
-편집 전에 다음을 수행한다.
-
-- repo/branch를 확인한다.
-- `git status --short`를 실행한다.
-- 관련 없는 dirty change가 있으면 중단한다.
-
-Codex는 다음을 수행해서는 안 된다.
-
-- Ticket 없이 인접한 product feature로 scope를 확장하지 않는다.
-- Ticket이 명시적으로 요구하지 않는 한 scheduler, DB, provider fetch, schema, API, web behavior를 변경하지 않는다.
-- 현재 docs가 그렇게 말하지 않는 한 local 또는 private runtime evidence를 live scheduler authority로 취급하지 않는다.
-- 기본적으로 local checkpoint를 만들거나 private planning state를 정리·갱신하지 않는다.
+`AGENTS.md`의 security/privacy/data boundaries와 `docs/data-governance.md`를 유지한다. Secrets, credential, raw/private runtime evidence를 public diff나 PR body에 넣지 않는다. Local/private evidence를 current durable docs의 binding 없이 live scheduler authority로 취급하지 않는다. Scope 밖의 scheduler, DB, provider fetch, schema, API 또는 web behavior를 변경하지 않는다.
 
 ## Review
 
-`Fresh-context` review는 implementation conversation과 분리된 별도 read-only conversation에서 수행한다. Reviewer는 accepted contract, ticket, diff, tests, validation evidence를 검토하되 파일을 직접 수정하지 않고 다음을 보고한다.
+Ordinary work는 Human PR review를 따른다. Fresh-context review는 concrete risk와 필요한 independent evidence에 따라 accepted contract에서 요구할 때 수행한다. 기존 required review를 자체 판단으로 생략하지 않는다.
+
+`Fresh-context` review는 implementation conversation과 분리된 별도 read-only conversation에서 수행한다. Reviewer는 accepted contract, 해당 ticket, diff, tests, validation evidence를 검토하되 파일을 직접 수정하지 않고 다음을 보고한다.
 
 - Blocking findings.
 - Non-blocking findings.
@@ -177,7 +106,7 @@ Codex는 다음을 수행해서는 안 된다.
 
 수정이 필요하면 원래 implementation 흐름으로 되돌린다. Implementation agent가 수정했다는 사실만으로 review를 통과한 것으로 보지 않는다. 수정 뒤 Fresh-context reviewer가 blocking findings와 required evidence가 해결됐는지 다시 확인해야 한다.
 
-Fresh-context review의 원본 ChatGPT conversation은 public independent review evidence로 사용하지 않는다. 대신 검토한 contract와 ticket, blocking findings, missing evidence, remaining uncertainty, final status를 포함한 짧은 review 결과를 human-authored GitHub PR comment 또는 GitHub review로 기록한다. Implementation agent 자신의 완료 보고, 자체 검토 또는 자체 수정 결과는 independent review evidence가 될 수 없다.
+Fresh-context review의 원본 ChatGPT conversation은 public independent review evidence로 사용하지 않는다. 대신 검토한 contract와 해당 ticket, blocking findings, missing evidence, remaining uncertainty, final status를 포함한 짧은 review 결과를 human-authored GitHub PR comment 또는 GitHub review로 기록한다. Implementation agent 자신의 완료 보고, 자체 검토 또는 자체 수정 결과는 independent review evidence가 될 수 없다.
 
 ### Fresh-context trigger 후보
 
@@ -192,11 +121,11 @@ Fresh-context review의 원본 ChatGPT conversation은 public independent review
 - Scheduler, retry, concurrency, recurring 또는 automatic write.
 - Privacy와 public/private evidence boundary.
 
-Trigger 후보는 자동 의무가 아니며 모든 PR에 Fresh-context review를 요구하지 않는다. 최종 `Review Level`은 ticket에서 implementation 전에 확정한다. Trigger 후보에 해당하지만 `Standard`를 선택하면 `Review Reason`에 기존 contract를 그대로 따르는 이유를 적는다.
+Trigger 후보는 자동 의무가 아니며 모든 PR에 Fresh-context review를 요구하지 않는다. Review가 필요한 작업은 gated execution 전에 accepted contract에서 review 범위와 이유를 확정한다. 구현 중 새 위험이 발견되면 default path를 멈추고 review 필요성도 다시 확정한다. Ordinary PR에 `Review Level`이나 `Review Reason` 입력을 요구하지 않는다.
 
 ### Independent Review Status
 
-다음 네 값만 사용한다.
+Independent review evidence가 요구될 때 다음 네 값을 사용한다. Ordinary PR은 이 field를 생략한다.
 
 - `Not required`: `Review Level: Standard`이며 `Independent Review Evidence: N/A`를 사용한다.
 - `Pending`: Fresh-context review가 필요하지만 아직 완료되지 않았다. `Independent Review Evidence`에는 아직 evidence가 없음을 표시한다.

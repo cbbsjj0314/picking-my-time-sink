@@ -116,7 +116,7 @@ Collector는 capture를 삭제하거나 정리하지 않는다. 예외로 중단
 
 ## Phase 2b one-shot caller
 
-`recovery.rotation_once`는 Linux production용 root-side one-shot entrypoint와 privilege-drop 뒤의 worker를 제공한다. 별도 persistent launcher, service, user, ACL 또는 credential을 설치하지 않는다. 현재 구현/fixture validation은 production execution grant가 아니다. `A7-PHASE3-PROD-READONLY-HANDOFF-01`은 계속 `Prepared / Findings open / Not grant-ready`이며 Phase 3는 `Not authorized / Not started`, production handoff는 `Not granted`, exactly-one production attempt는 `Not authorized`, A8은 `Not selected`다.
+`recovery.rotation_once`는 Linux production용 root-side one-shot entrypoint와 privilege-drop 뒤의 worker를 제공한다. 별도 persistent launcher, service, user, ACL 또는 credential을 설치하지 않는다. 현재 구현/fixture validation은 production execution grant가 아니다. Phase 3 production execution에는 별도로 승인된 read-only handoff와 exact scope에 대한 Human grant가 필요하며, exactly-one production attempt는 그 authority에 한정된다. 이 구현은 A8 선택이나 destructive recovery rotation/delete를 승인하지 않는다.
 
 ### Reviewed execution input
 
