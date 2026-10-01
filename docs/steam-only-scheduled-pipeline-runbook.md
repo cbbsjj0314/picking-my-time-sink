@@ -102,6 +102,10 @@ The single-command Steam wrapper remains a one-shot manual handoff baseline and 
 
 Cadence jobs should expose local/private result, log, execution meta, and no-overlap lock evidence. Exact paths, host-specific schedule, and local smoke commands belong in `docs/local/`.
 
+`ccu-30m`은 daily rollup recompute/upsert와 stale aggregate-row reconciliation을 수행하되, 매 run마다 full-history `ccu.daily-rollup-result.jsonl`을 생성하지 않는다. Compact rollup evidence는 기존 `result.json`의 rollup step `records_out` / `paths.meta`, `triage.rollup_records`, job status와 execution meta로 남긴다. Rollup step meta는 `records_in`, `records_out`, `success`, error 정보를 유지하며, step `paths`에는 생성하지 않은 rollup `result` 경로를 포함하지 않는다.
+
+Full row-level JSONL이 필요한 diagnostic/debug 작업은 `gold_to_agg_ccu_daily.run(result_path=...)` 또는 해당 CLI의 `--result-path`를 명시한다. 이 boundary는 DB recompute/upsert도 수행하므로 read-only export가 아니다. 기존 historical artifact는 삭제하거나 다시 쓰지 않는다. `retained_ccu_rollup_probe`는 남아 있는 full rollup artifact와 비교할 수 있지만, latest retained rollup이 최신 cadence run의 결과라는 보장은 없다. Full rollup artifact가 없으면 `latest_rollup=null`, `comparison.compared=false`로 보고하며, artifact가 없는 run을 `compare_run_id`로 지정하면 오류를 반환한다. One-shot manual wrapper의 기존 output 동작은 유지한다.
+
 Windows desktop hosts may use Windows Task Scheduler to invoke `wsl.exe`, with
 the actual cadence command still running inside the WSL2 Linux runtime. That
 keeps `.env` loading, Poetry execution, local artifacts, and the current Linux

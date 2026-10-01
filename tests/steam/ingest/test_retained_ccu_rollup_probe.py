@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from steam.ingest import retained_ccu_rollup_probe
 
 
@@ -260,6 +262,64 @@ def test_probe_reports_rollup_mismatches_and_missing_rows(tmp_path: Path) -> Non
             "retained_peak_ccu": None,
         },
     ]
+
+
+@pytest.mark.parametrize("historical_rollup", [False, True])
+def test_probe_handles_compact_run_with_optional_historical_rollup(
+    tmp_path: Path,
+    historical_rollup: bool,
+) -> None:
+    jobs_dir = tmp_path / "jobs"
+    run_dir = jobs_dir / "ccu-30m" / "20260421T003000000000Z"
+    write_json(
+        run_dir / "result.json",
+        {"finished_at_utc": "2026-04-21T00:30:35Z", "status": "success"},
+    )
+    write_jsonl(
+        run_dir / "ccu.gold-result.jsonl",
+        [{
+            "canonical_game_id": 1,
+            "bucket_time": "2026-04-21T09:30:00+09:00",
+            "ccu": 200,
+            "skipped": False,
+        }],
+    )
+    historical_path = (
+        jobs_dir / "ccu-30m" / "20260421T000000000000Z" / "ccu.daily-rollup-result.jsonl"
+    )
+    if historical_rollup:
+        write_jsonl(
+            historical_path,
+            [{
+                "canonical_game_id": 1,
+                "bucket_date": "2026-04-21",
+                "avg_ccu": 100.0,
+                "peak_ccu": 100,
+            }],
+        )
+        historical_bytes = historical_path.read_bytes()
+
+    summary = retained_ccu_rollup_probe.run(
+        jobs_dir=jobs_dir,
+        summary_path=tmp_path / "summary.json",
+        recomputed_path=tmp_path / "recomputed.jsonl",
+        mismatch_path=tmp_path / "mismatches.jsonl",
+    )
+
+    assert summary["source"]["latest_gold_run_id"] == run_dir.name
+    assert summary["recomputed_rollup"]["row_count"] == 1
+    assert summary["comparison"]["compared"] is historical_rollup
+    if historical_rollup:
+        assert summary["latest_rollup"]["run_id"] == historical_path.parent.name
+        assert historical_path.read_bytes() == historical_bytes
+    else:
+        assert summary["latest_rollup"] is None
+    assert not (run_dir / "ccu.daily-rollup-result.jsonl").exists()
+    with pytest.raises(ValueError, match="Missing retained rollup artifact"):
+        retained_ccu_rollup_probe.build_summary(
+            jobs_dir=jobs_dir,
+            compare_run_id=run_dir.name,
+        )
 
 
 def test_probe_handles_empty_retained_artifacts(tmp_path: Path) -> None:
