@@ -222,9 +222,11 @@ def test_process_fact_rows_deletes_stale_rows_for_missing_source_day() -> None:
     assert store.rows[(1, "2026-03-07")]["avg_ccu"] == pytest.approx(150.0)
 
 
-def test_run_writes_result_path_and_meta_path_on_success(
+@pytest.mark.parametrize("write_result", [False, True])
+def test_run_reconciles_rollups_and_writes_meta_with_optional_result_path(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path,
+    write_result: bool,
 ) -> None:
     deleted_keys: list[tuple[int, str]] = []
     upserted_rows: list[tuple[int, str, float, int]] = []
@@ -306,7 +308,7 @@ def test_run_writes_result_path_and_meta_path_on_success(
     meta_path = tmp_path / "meta.json"
 
     results = gold_to_agg_ccu_daily.run(
-        result_path=result_path,
+        result_path=result_path if write_result else None,
         meta_path=meta_path,
     )
 
@@ -320,7 +322,11 @@ def test_run_writes_result_path_and_meta_path_on_success(
     ]
     assert deleted_keys == [(1, "2026-03-06")]
     assert upserted_rows == [(1, "2026-03-07", 150.0, 200)]
-    assert json.loads(result_path.read_text(encoding="utf-8").strip()) == results[0]
+    if write_result:
+        assert json.loads(result_path.read_text(encoding="utf-8").strip()) == results[0]
+    else:
+        assert not result_path.exists()
+        assert sorted(path.name for path in tmp_path.iterdir()) == ["meta.json"]
 
     meta = json.loads(meta_path.read_text(encoding="utf-8"))
     assert meta["job_name"] == "gold_to_agg_ccu_daily"

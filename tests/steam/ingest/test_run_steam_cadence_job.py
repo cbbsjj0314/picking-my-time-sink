@@ -94,16 +94,30 @@ def test_price_job_runs_fixed_hourly_boundary_with_scoped_paths(
     ]
 
 
-def test_ccu_job_marks_per_app_missing_evidence_as_partial_success(
+@pytest.mark.parametrize("missing_evidence", [False, True])
+def test_ccu_job_keeps_compact_rollup_evidence_and_missing_evidence_status(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
+    missing_evidence: bool,
 ) -> None:
+    rollup_calls: list[dict[str, object]] = []
+
+    def fake_rollup(**kwargs: object) -> list[dict[str, object]]:
+        rollup_calls.append(dict(kwargs))
+        return [
+            {"canonical_game_id": 1, "bucket_date": "2026-03-07"},
+            {"canonical_game_id": 1, "bucket_date": "2026-03-08"},
+        ]
+
     monkeypatch.setattr(
         run_steam_cadence_job.fetch_ccu_30m,
         "run",
         lambda **kwargs: [
             {"canonical_game_id": 1, "missing_reason": None},
-            {"canonical_game_id": 2, "missing_reason": "http_404"},
+            {
+                "canonical_game_id": 2,
+                "missing_reason": "http_404" if missing_evidence else None,
+            },
         ],
     )
     monkeypatch.setattr(
@@ -111,7 +125,10 @@ def test_ccu_job_marks_per_app_missing_evidence_as_partial_success(
         "run",
         lambda **kwargs: [
             {"canonical_game_id": 1, "missing_reason": None},
-            {"canonical_game_id": 2, "missing_reason": "http_404"},
+            {
+                "canonical_game_id": 2,
+                "missing_reason": "http_404" if missing_evidence else None,
+            },
         ],
     )
     monkeypatch.setattr(
@@ -119,16 +136,22 @@ def test_ccu_job_marks_per_app_missing_evidence_as_partial_success(
         "run",
         lambda **kwargs: [
             {"canonical_game_id": 1, "skipped": False},
-            {"canonical_game_id": 2, "skipped": True},
+            {"canonical_game_id": 2, "skipped": missing_evidence},
         ],
     )
     monkeypatch.setattr(
         run_steam_cadence_job.gold_to_agg_ccu_daily,
         "run",
-        lambda **kwargs: [{"canonical_game_id": 1}],
+        fake_rollup,
     )
 
     base_dir = tmp_path / "jobs"
+    historical_path = base_dir / "ccu-30m" / "historical-run" / "ccu.daily-rollup-result.jsonl"
+    historical_path.parent.mkdir(parents=True)
+    historical_bytes = b'{"canonical_game_id": 1, "avg_ccu": 150.0}\n'
+    historical_path.write_bytes(historical_bytes)
+    historical_stat = historical_path.stat()
+
     result = run_steam_cadence_job.run_job_with_evidence(
         run_steam_cadence_job.JOB_CCU_30M,
         base_dir=base_dir,
@@ -137,14 +160,42 @@ def test_ccu_job_marks_per_app_missing_evidence_as_partial_success(
 
     run_dir = base_dir / "ccu-30m" / "ccu-run"
     meta = json.loads((run_dir / "meta" / "job.meta.json").read_text(encoding="utf-8"))
-    assert result["status"] == "partial_success"
+    status = "partial_success" if missing_evidence else "success"
+    assert result["status"] == status
     assert result["success"] is True
-    assert result["partial_success"] is True
-    assert result["triage"]["missing_evidence_records"] == 1
-    assert result["triage"]["gold_loaded_records"] == 1
-    assert result["triage"]["gold_skipped_records"] == 1
+    assert result["partial_success"] is missing_evidence
+    assert result["job_name"] == "ccu-30m"
+    assert result["triage"] == {
+        "missing_evidence_records": int(missing_evidence),
+        "gold_loaded_records": 2 - int(missing_evidence),
+        "gold_skipped_records": int(missing_evidence),
+        "partial_reason": "per_app_missing_evidence" if missing_evidence else None,
+        "rollup_records": 2,
+    }
+    rollup_meta_path = run_dir / "meta" / "steps" / "gold_to_agg_ccu_daily.meta.json"
+    assert rollup_calls == [{"meta_path": rollup_meta_path}]
+    assert [step["name"] for step in result["steps"]] == [
+        "fetch_ccu_30m",
+        "bronze_to_silver_ccu",
+        "silver_to_gold_ccu",
+        "gold_to_agg_ccu_daily",
+    ]
+    assert result["steps"][-1] == {
+        "name": "gold_to_agg_ccu_daily",
+        "records_out": 2,
+        "paths": {"meta": str(rollup_meta_path)},
+    }
+    saved_result = (run_dir / "result.json").read_text(encoding="utf-8")
+    assert json.loads(saved_result) == result
+    assert "ccu.daily-rollup-result.jsonl" not in saved_result
+    assert not (run_dir / "ccu.daily-rollup-result.jsonl").exists()
+    assert historical_path.read_bytes() == historical_bytes
+    assert historical_path.stat().st_mtime_ns == historical_stat.st_mtime_ns
     assert meta["success"] is True
-    assert meta["partial_success"] is True
+    assert meta["status"] == status
+    assert meta["partial_success"] is missing_evidence
+    assert meta["records_in"] == 4
+    assert meta["records_out"] == 8
     assert run_steam_cadence_job.exit_code_for_status(str(result["status"])) == 0
 
 

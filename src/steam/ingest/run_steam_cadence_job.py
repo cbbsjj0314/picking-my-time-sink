@@ -269,7 +269,6 @@ def run_ccu_job(paths: JobPaths) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     bronze_path = paths.artifact("ccu.bronze.jsonl")
     silver_path = paths.artifact("ccu.silver.jsonl")
     gold_result_path = paths.artifact("ccu.gold-result.jsonl")
-    rollup_result_path = paths.artifact("ccu.daily-rollup-result.jsonl")
     fetch_meta_path = paths.step_meta("fetch_ccu_30m")
     gold_meta_path = paths.step_meta("silver_to_gold_ccu")
     rollup_meta_path = paths.step_meta("gold_to_agg_ccu_daily")
@@ -291,7 +290,6 @@ def run_ccu_job(paths: JobPaths) -> tuple[list[dict[str, Any]], dict[str, Any]]:
         meta_path=gold_meta_path,
     )
     rollup_rows = gold_to_agg_ccu_daily.run(
-        result_path=rollup_result_path,
         meta_path=rollup_meta_path,
     )
 
@@ -329,7 +327,7 @@ def run_ccu_job(paths: JobPaths) -> tuple[list[dict[str, Any]], dict[str, Any]]:
         _step_result(
             name="gold_to_agg_ccu_daily",
             rows=rollup_rows,
-            paths={"result": rollup_result_path, "meta": rollup_meta_path},
+            paths={"meta": rollup_meta_path},
         ),
     ]
     triage = {

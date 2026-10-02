@@ -484,6 +484,8 @@ Desktop HDD: no
 Scheduled full-history row output 자체는 compact summary로 줄이는 방향을
 별도 implementation slice에서 다룬다.
 
+Implementation update (`STEAM-CCU-ROLLUP-COMPACT-OUTPUT-001`): 현재 recurring `ccu-30m` path는 full-history JSONL을 기본 생성하지 않고, 기존 cadence `result.json`의 rollup count/status와 step execution meta를 유지한다. `gold_to_agg_ccu_daily`의 명시적 `result_path` diagnostic output과 one-shot manual wrapper 동작은 유지한다. 기존 artifact 삭제나 `latest 5` cleanup은 구현하지 않는다. 상세 current behavior는 [Steam-only scheduled pipeline runbook](../steam-only-scheduled-pipeline-runbook.md#4-cadence)을 따른다.
+
 ## Abnormal-run Evidence
 
 모든 정상 expected work를 완료하지 못했거나 expected execution evidence
