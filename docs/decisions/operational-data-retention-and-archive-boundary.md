@@ -724,7 +724,6 @@ Implementation은 작은 slices로 분리한다.
 10. PostgreSQL restore smoke
 11. historical shared-artifact consumer verification / retirement
 12. Price Bronze compression/representation optimization
-13. `ccu.daily-rollup-result.jsonl` compact-summary replacement
 
 Archive creation/verification과 destructive prune을 첫 implementation slice에
 함께 묶지 않는다.
