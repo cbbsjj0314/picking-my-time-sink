@@ -204,14 +204,21 @@
     - public fixture는 synthetic/sanitized payload만 둔다. live title, channel name, thumbnail URL 같은 raw UGC/provider response는 public에 그대로 남기지 않는다.
     - credentials, private runtime identifiers, local host/path detail은 public source docs, fixtures, API/UI semantics에 올리지 않는다.
 
-Updated by CATEGORY-MAPPING-COMBINED-SOURCE-VIEW-CONTRACT-001:
+기존 `srv_combined_game_overview` / `GET /combined/games/overview`와 identity table은 Steam source availability 및 nullable trusted Chzzk identity/context만 제공한다. Alphabetical single-row guard는 identity row grain만 보호한다. Activity는 아래 별도 boundary에서 모든 trusted categories를 game bucket으로 합친다.
 
-- The next `Combined` step remains docs/tests-only planning. It does not add a `Combined` API route, SQL serving view, web data surface, web fetch/hook, mapping coverage panel, product ranking, KPI, score, recommendation behavior, DB write/backfill, or scheduler/runtime job.
-- Future `Combined` may propose one row per `dim_game.canonical_game_id` as proposed future Combined row grain, but that is not current runtime behavior.
-- Updated by CATEGORY-MAPPING-COMBINED-BACKEND-API-CONTRACT-001: 첫 향후 Steam evidence-base contract family는 `srv_game_explore_period_metrics` / `/games/explore/overview` 로 선택한다. 이는 current Steam endpoint/service/view implementation as `Combined`, current `Combined` runtime lineage, ranking/KPI/score/recommendation source, runtime contract change가 아니다.
-- `srv_chzzk_category_game_mapping` 은 `Combined` 의 향후 backend identity input candidate다. `GET /chzzk/category-game-mappings` 는 read-only inspection/API surface로 남기며, DB serving view를 사용할 수 있을 때 backend-internal dependency가 아니다. Chzzk viewer/channel metrics는 bounded observed category evidence로 남기고, later approved implementation ticket 전에는 `Combined` product semantics로 merge하지 않는다.
-- Updated by CATEGORY-MAPPING-COMBINED-MINIMAL-BACKEND-API-001: `srv_combined_game_overview` and `GET /combined/games/overview` are now implemented as a backend-only read-only identity/source availability surface. They use `srv_game_explore_period_metrics` as the Steam row driver and `srv_chzzk_category_game_mapping` as the trusted Chzzk mapping DB input. The deterministic single-row mapping guard protects one-row-per-canonical-game grain only; it is not representative-category, best-mapping, ranking, product, or coverage semantics.
-- Updated by CATEGORY-MAPPING-COMBINED-WEB-SURFACE-001: the first minimal `Combined` web surface is open as a read-only identity/source availability table backed only by `GET /combined/games/overview`. It does not add mapping coverage, Chzzk viewer/channel metrics, candidate/unresolved/rejected/fallback mapping exposure, ranking/KPI/score/recommendation behavior, backend SQL/API/schema changes, DB write/backfill, scheduler/runtime job, or live fetch.
+### Useful Combined v1 activity
+
+`Useful Combined v1`은 승인된 Phase 1 contract를 Phase 2 SQL/API/Web으로 구현한다. 기존 identity overview와 별도 boundary이며 one row per `canonical_game_id`다. Product universe는 active Steam tracked games 중 trusted Chzzk mapping이 최소 1개 있는 게임이다.
+
+- Serving view: `srv_combined_game_activity_7d`, definition: `sql/postgres/029_srv_combined_game_activity_7d.sql`.
+- Inputs: `srv_game_explore_period_metrics`, `srv_chzzk_category_game_mapping`, `fact_chzzk_category_30m`만 사용한다. Candidate/unreviewed mapping은 읽지 않는다.
+- API: `GET /combined/games/activity`는 serving view를 읽는다. Canonical ID ascending order와 limit (default 50, maximum 200)은 transport 의미만 갖는다.
+- Web: 별도 activity fetch/hook을 사용하는 linear scatter 하나다. x=`period_avg_ccu_7d`, y=`chzzk_viewer_hours_observed_7d`; 둘 중 null이면 point를 만들지 않는다. 실제 observed zero는 y=0으로 표시한다. 기존 identity/source-availability table은 유지한다.
+- Shared window: Steam `ccu_period_anchor_date`의 KST `anchor_date - 6`부터 `anchor_date`까지 7일이다. Multiple trusted categories를 game + bucket으로 먼저 SUM한 뒤 viewer-hours/peak/distinct observed buckets/latest를 계산한다. Collection denominator는 game/mapping filter 없이 persisted global fact buckets를 센다. 고정 336을 분모로 쓰지 않는다.
+- Anchor-null이면 window-derived Chzzk 값은 모두 null이다. Anchor가 존재할 때 미관측 game의 observed count는 0이지만 viewer-hours/peak/latest는 null이다. Collection count가 0이면 ratio도 null이다. `bounded_sample`은 population completeness나 estimate를 뜻하지 않는다.
+- Response fields와 정확한 formula/null rules는 [metrics definitions §1.6](metrics-definitions.md#16-useful-combined-v1-7-day-activity-metrics)을 따른다. Latest field는 `chzzk_latest_observed_bucket_7d`다.
+- Human Gate Required: Yes; Human Decision Status: Approved — [Human-authored evidence](https://github.com/cbbsjj0314/picking-my-time-sink/pull/185#issuecomment-5968328872). Independent Review Status: Pending. Checked-in definition만 추가했으며 live DB에 적용하지 않았다.
+- Score/ranking/recommendation, full population completeness, collector expansion, mapping expansion, live fetch/write/backfill/scheduler change는 계속 범위 밖이다.
 
 ### 2.2 Category 검색 (매핑 보조)
 

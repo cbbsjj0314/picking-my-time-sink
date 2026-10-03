@@ -312,28 +312,23 @@ def test_combined_source_view_contract_blocks_premature_identity_and_kpi_unlocks
     assert "kpi readiness" in text or "ranking/kpi/score semantics" in text
 
 
-def test_combined_source_view_contract_selects_first_steam_evidence_base_only() -> None:
-    text = "\n".join(
-        [
-            _read_lower(COMBINED_READINESS_CONTRACT),
-            _read_lower(DATA_MODEL_SPEC),
-            _read_lower(SOURCE_INVENTORY),
-            _read_lower(DATA_GOVERNANCE),
-        ]
-    )
-
-    assert "첫 향후 steam evidence-base contract family" in text
-    assert "첫 steam evidence-base contract family" in text
-    assert "srv_combined_game_overview" in text
-    assert "get /combined/games/overview" in text
-    assert "srv_game_explore_period_metrics" in text
-    assert "/games/explore/overview" in text
-    assert "ranking/kpi/score/recommendation source" in text
-    assert "steam runtime contract change가 아니다" in text
-    assert "최신 ccu" in text
-    assert "최신 price" in text
-    assert "최신 reviews" in text
-    assert "최신 rankings" in text
+def test_combined_contract_reuses_existing_steam_metrics_without_extra_sources() -> None:
+    decision, metrics = _useful_combined_contract()
+    for text in (decision, metrics):
+        assert "srv_game_explore_period_metrics" in text
+        assert "ccu_period_anchor_date" in text
+        assert "period_avg_ccu_7d" in text
+        assert "period_peak_ccu_7d" in text
+        assert "srv_combined_game_overview" in text
+        assert "get /combined/games/overview" in text
+    assert "기존 daily-rollup formula, metric-wide anchor, full-window/null semantics" in decision
+    assert "steam raw-player-hours anchor로 대체하지 않는다" in metrics
+    assert "daily rows 7개" in metrics
+    inventory = _read_lower(SOURCE_INVENTORY)
+    assert (
+        "`srv_game_explore_period_metrics`, `srv_chzzk_category_game_mapping`, "
+        "`fact_chzzk_category_30m`만 사용한다"
+    ) in inventory
 
 
 def test_combined_source_view_contract_keeps_mapping_identity_minimal_only() -> None:
@@ -363,40 +358,39 @@ def test_combined_source_view_contract_keeps_mapping_identity_minimal_only() -> 
     )
 
 
-def _useful_combined_proposal() -> tuple[str, str]:
+def _useful_combined_contract() -> tuple[str, str]:
     decision = _read_lower(COMBINED_READINESS_CONTRACT).split(
         "## useful combined v1 — phase 1 planning contract\n", 1
     )[1].split("## public/private boundary\n", 1)[0]
     metrics = _read_lower(METRICS_DEFINITIONS).split(
-        "### 1.6 useful combined v1 proposed 7-day activity metrics\n", 1
+        "### 1.6 useful combined v1 7-day activity metrics\n", 1
     )[1].split("## 2.", 1)[0]
     return decision, metrics
 
 
-def test_useful_combined_proposal_keeps_phase_two_gated_and_review_pending() -> None:
-    decision, metrics = _useful_combined_proposal()
-
+def test_useful_combined_implementation_records_human_approval_and_review_pending() -> None:
+    decision, metrics = _useful_combined_contract()
     for text in (decision, metrics):
-        assert "proposed — human gate pending" in text
-        assert "not authorized / not started" in text
+        assert "implemented — human gate approved" in text
+        assert "issuecomment-5968328872" in text
         assert "srv_combined_game_overview" in text
         assert "get /combined/games/overview" in text
         assert "identity/source-availability" in text
+        assert "independent review status: pending" in text
+        assert "not authorized / not started" not in text
     assert "human gate required: yes" in decision
-    assert "human gate status: pending" in decision
-    assert "human-authored github pr comment 또는 review" in decision
+    assert "human decision status: approved" in decision
+    assert "human-authored github pr comment" in decision
     assert "별도의 explicit implementation handoff" in decision
-    assert "independent review status: pending — future phase 2 implementation review" in decision
-    assert "fresh-context review" in decision
+    assert "fresh-context review는 아직 수행하지 않았다" in decision
     assert "draft pr" in decision
     assert "canonical ticket은 필요하지 않다" in decision
-    assert "새 lineage row는 추가하지 않는다" in decision
     assert "live db/provider diagnostics" in decision
     assert "private planning-state/checkpoint sync" in decision
 
 
 def test_useful_combined_proposal_pins_trusted_universe_and_shared_steam_window() -> None:
-    decision, metrics = _useful_combined_proposal()
+    decision, metrics = _useful_combined_contract()
 
     for text in (decision, metrics):
         assert "active steam tracked game" in text
@@ -420,7 +414,7 @@ def test_useful_combined_proposal_pins_trusted_universe_and_shared_steam_window(
 
 
 def test_useful_combined_metrics_merge_categories_before_game_bucket_aggregation() -> None:
-    _, metrics = _useful_combined_proposal()
+    _, metrics = _useful_combined_contract()
 
     assert (
         "trusted mapped categories\n"
@@ -442,7 +436,7 @@ def test_useful_combined_metrics_merge_categories_before_game_bucket_aggregation
 
 
 def test_useful_combined_metrics_use_global_persisted_collection_denominator() -> None:
-    _, metrics = _useful_combined_proposal()
+    _, metrics = _useful_combined_contract()
 
     denominator_row = next(
         line for line in metrics.splitlines()
@@ -463,7 +457,7 @@ def test_useful_combined_metrics_use_global_persisted_collection_denominator() -
 
 
 def test_useful_combined_metrics_preserve_missing_versus_observed_zero() -> None:
-    _, metrics = _useful_combined_proposal()
+    _, metrics = _useful_combined_contract()
 
     assert (
         "| trusted-mapped game이 bounded sample에서 미관측, global collection evidence는 존재 "
@@ -485,14 +479,14 @@ def test_useful_combined_metrics_preserve_missing_versus_observed_zero() -> None
 
 
 def test_useful_combined_proposal_targets_one_scatter_without_combined_score() -> None:
-    decision, metrics = _useful_combined_proposal()
+    decision, metrics = _useful_combined_contract()
 
     assert "scatter plot 하나" in decision
     assert "each point represents one game" in decision
     assert "x-axis는 steam `period_avg_ccu_7d`" in decision
     assert "y-axis는 `chzzk_viewer_hours_observed_7d`" in decision
     assert "broad combined-page redesign" in decision
-    assert "현재 identity table은 남길 수" in decision
+    assert "현재 identity table은 그대로 남기며" in decision
     for text in (decision, metrics):
         assert "y=0으로 plot하지 않" in text
         assert "실제 observed zero는 y=0" in text
@@ -505,25 +499,35 @@ def test_useful_combined_proposal_targets_one_scatter_without_combined_score() -
     assert "`useful combined v1`에서 선택하거나 구현하지 않는다" in kpi_context
 
 
-def test_useful_combined_activity_names_remain_future_boundaries_in_phase_one() -> None:
-    decision, _ = _useful_combined_proposal()
-    assert "별도 future boundary" in decision
-    assert "srv_combined_game_activity_7d" in decision
-    assert "get /combined/games/activity" in decision
-    assert "현재 serving view, route, exact response model 또는 payload가 아니다" in decision
-
-    # Replace this planning-phase guard only in an explicitly approved Phase 2 slice.
-    for root, patterns in (
-        (Path("sql/postgres"), ("*.sql",)),
-        (Path("src/api"), ("*.py",)),
-        (Path("web/src"), ("*.ts", "*.tsx")),
+def test_useful_combined_activity_has_separate_runtime_and_lineage_boundaries() -> None:
+    decision, metrics = _useful_combined_contract()
+    assert "별도 boundary" in decision
+    assert "chzzk_latest_observed_bucket_7d" in metrics
+    assert "| shared steam anchor가 없음 | null | null | null | null / null / null |" in metrics
+    for path, needles in (
+        (Path("sql/postgres/029_srv_combined_game_activity_7d.sql"),
+         ("srv_combined_game_activity_7d", "chzzk_viewer_hours_observed_7d")),
+        (Path("src/api/routers/combined.py"), ("/games/activity", "combinedgameactivityresponse")),
+        (Path("web/src/api/combinedActivity.ts"), ("/games/activity",)),
+        (Path("web/src/App.tsx"), ("combinedgameactivityscatter", "combinedgameoverviewtable")),
     ):
-        for pattern in patterns:
-            for path in root.rglob(pattern):
-                source = _read_lower(path)
-                assert "srv_combined_game_activity_7d" not in source, path
-                assert "/games/activity" not in source, path
-                assert "chzzk_viewer_hours_observed_7d" not in source, path
+        for needle in needles:
+            assert needle in _read_lower(path)
+    for path in (DATA_MODEL_SPEC, DATA_GOVERNANCE, SOURCE_INVENTORY):
+        text = _read_lower(path)
+        assert "srv_combined_game_activity_7d" in text
+        assert "get /combined/games/activity" in text
+        assert "srv_combined_game_overview" in text
+        assert "issuecomment-5968328872" in text
+        assert "independent review status: pending" in text
+    lineage = _read_lower(DATA_GOVERNANCE)
+    assert "| minimal combined game overview api / ui |" in lineage
+    assert "| useful combined v1 activity api / scatter |" in lineage
+    activity_row = next(line for line in lineage.splitlines()
+                        if line.startswith("| useful combined v1 activity api / scatter |"))
+    for upstream in ("srv_game_explore_period_metrics", "srv_chzzk_category_game_mapping",
+                     "fact_chzzk_category_30m"):
+        assert upstream in activity_row
 
 
 def test_candidate_generation_gate_allows_only_synthetic_dry_run_builder() -> None:

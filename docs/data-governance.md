@@ -114,7 +114,7 @@ Local monitoring은 더 엄격한 thresholds, exact scheduler windows, host-spec
 
 ## 6. Minimal lineage
 
-아래는 현재 Steam-only MVP의 public lineage map이다.
+아래는 현재 구현된 serving surfaces의 public lineage map이다. Checked-in definition과 live DB application은 구분한다.
 
 | Surface | Serving object | Upstream data | Job boundary |
 | --- | --- | --- | --- |
@@ -129,28 +129,17 @@ Local monitoring은 더 엄격한 thresholds, exact scheduler windows, host-spec
 | Chzzk observed channel fact | optional nullable `unique_channels_observed` evidence for Chzzk category overview/source view | `fact_chzzk_category_channel_30m` category-channel observed buckets | local/private `channel-result.jsonl` to gold loader |
 | Chzzk trusted category-game mappings API | `srv_chzzk_category_game_mapping` | `chzzk_category_game_mapping`, `dim_game`, nullable latest context from `fact_chzzk_category_30m` | `GET /chzzk/category-game-mappings` exposes trusted mapping identity rows only; no direct web route use and no product `Combined` semantics |
 | Minimal Combined game overview API / UI | `srv_combined_game_overview` | `srv_game_explore_period_metrics`, `srv_chzzk_category_game_mapping` with deterministic single-row mapping guard | `GET /combined/games/overview`; read-only identity/source availability slice with minimal web table; no Chzzk viewer metrics, ranking/KPI/score/recommendation, mapping coverage, writes/backfills/scheduler/live fetch |
+| Useful Combined v1 activity API / scatter | `srv_combined_game_activity_7d` | `srv_game_explore_period_metrics`, `srv_chzzk_category_game_mapping`, `fact_chzzk_category_30m` | `GET /combined/games/activity`; active trusted-mapped games, Steam-anchored KST 7d, game-bucket merge, persisted global collection denominator, `bounded_sample`; checked-in definition only, no live DB application / collector expansion / score / ranking / recommendation |
 
-Updated by CATEGORY-MAPPING-COMBINED-SOURCE-VIEW-CONTRACT-001:
+`srv_combined_game_overview` / `GET /combined/games/overview`의 identity-only lineage는 유지한다. Activity에서는 alphabetical mapping guard를 재사용하지 않고 trusted categories를 game bucket으로 먼저 합친다. Candidate/unresolved/rejected mappings, `categoryType=GAME`, inferred mapping, guessed mapping, hidden fallback mapping은 `Combined` identity로 유효하지 않다.
 
-No `Combined` lineage row is added by this update because no `Combined` API route, SQL serving view, web data surface, mapping coverage panel, ranking/KPI/score semantics, DB write/backfill, or scheduler/runtime job is implemented.
-
-The proposed future `Combined` row grain is one row per `dim_game.canonical_game_id`, but it remains a future gated contract proposal only.
-
-Updated by CATEGORY-MAPPING-COMBINED-BACKEND-API-CONTRACT-001: 첫 향후 Steam evidence-base contract family는 `srv_game_explore_period_metrics` / `/games/explore/overview` 로 선택한다. 이 선택은 docs/tests-only이며 current `Combined` runtime lineage, ranking/KPI/score/recommendation semantics, Steam runtime contract change가 아니다. 최신 CCU, price, reviews, rankings는 별도 승인 전까지 보조/향후 evidence source 후보로만 남긴다.
-
-`srv_chzzk_category_game_mapping` 은 `Combined` 의 future backend identity input candidate다. `GET /chzzk/category-game-mappings` 는 read-only inspection/API surface로 남기며, DB serving view를 사용할 수 있을 때 backend-internal dependency가 되면 안 된다.
-
-Candidate/unresolved/rejected mappings, `categoryType=GAME`, inferred mapping, guessed mapping, hidden fallback mapping, and Chzzk viewer metrics are not valid `Combined` identity or `Combined` product semantics.
-
-Updated by CATEGORY-MAPPING-COMBINED-MINIMAL-BACKEND-API-001: `srv_combined_game_overview` and `GET /combined/games/overview` now provide the first minimal backend-only read-only `Combined` slice. The row driver is `srv_game_explore_period_metrics`; trusted Chzzk mapping identity/context comes from `srv_chzzk_category_game_mapping`, not from an internal call to `GET /chzzk/category-game-mappings`. Multiple trusted mappings for one `mapped_canonical_game_id` are collapsed by a deterministic single-row guard for row-grain safety only; this is not representative-category, best-mapping, ranking, product, or coverage semantics.
-
-The implemented fields are limited to canonical identity, Steam source availability, Chzzk mapping availability, nullable Chzzk category identity/context, and nullable latest bucket time. Updated by CATEGORY-MAPPING-COMBINED-WEB-SURFACE-001: these fields are now exposed in the first minimal read-only `Combined` web table using only `GET /combined/games/overview`. Chzzk viewer/channel metrics, ranking/KPI/score/recommendation semantics, mapping coverage fields, candidate/unresolved/rejected/fallback mapping exposure, backend SQL/API/schema changes, and writes/backfills/scheduler/live fetch remain deferred.
+`Useful Combined v1` activity lineage는 approved persisted inputs만 읽는 별도 read-only boundary다. Metric/null/window contract는 [§1.6](metrics-definitions.md#16-useful-combined-v1-7-day-activity-metrics)을 따른다. Human Decision Status: Approved — [Human Gate evidence](https://github.com/cbbsjj0314/picking-my-time-sink/pull/185#issuecomment-5968328872). Independent Review Status: Pending. Live DB application이나 data collection 확대는 수행하지 않았다.
 
 Chzzk `fact_chzzk_category_30m` 은 provider-specific DDL/parser candidate에서 local/private `category-result.jsonl` artifact-to-Postgres write path와 read-only category overview API로 승격되었다.
 
 Chzzk `fact_chzzk_category_channel_30m` 은 local/private `channel-result.jsonl` artifact-to-Postgres write path로 승격되었고, API/web serving에서는 matching category observed buckets 안의 `unique_channels_observed` nullable metric에만 사용한다. 
 
-아직 live fetch write boundary, UI, or `Combined` lineage가 없다.
+Channel fact는 Combined activity input이 아니다. Combined activity는 category fact만 사용한다. Live fetch write boundary는 이 변경에 포함하지 않는다.
 
 Chzzk bounded pagination/temporal raw captures는 local/private로 유지한다.
 

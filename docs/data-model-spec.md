@@ -252,12 +252,9 @@
     - `GET /chzzk/category-game-mappings` 는 이 view만 읽으며, direct upstream table join을 재구현하지 않는다.
     - 이 API는 trusted mapping identity rows만 노출한다. Web exposure, product ranking/KPI semantics, 또는 `Combined` semantics를 추가하지 않는다.
 
-Updated by CATEGORY-MAPPING-COMBINED-SOURCE-VIEW-CONTRACT-001:
+기존 Combined identity/source-availability boundary:
 
-- Proposed future `Combined` row grain is one row per `dim_game.canonical_game_id`, but this remains a future gated contract proposal only. It does not create a `Combined` API, SQL serving view, web data surface, mapping coverage panel, or runtime behavior.
-- Updated by CATEGORY-MAPPING-COMBINED-BACKEND-API-CONTRACT-001: 첫 향후 Steam evidence-base contract family는 `srv_game_explore_period_metrics` / `/games/explore/overview` 로 선택한다. 이는 docs/tests-only 향후 backend contract boundary이며, implemented `Combined` input, current `Combined` runtime lineage, ranking/KPI/score/recommendation source, Steam runtime contract change가 아니다. 최신 CCU, price, reviews, rankings는 별도 승인 전까지 보조/향후 evidence source 후보로만 남긴다.
-- `srv_chzzk_category_game_mapping` and `GET /chzzk/category-game-mappings` are current trusted identity surfaces and future gated identity input candidates only for `Combined`. Chzzk category viewer metrics remain observed category evidence and are not merged into `Combined` ranking, KPI, score, or recommendation semantics.
-- Candidate/unresolved/rejected rows, `categoryType=GAME`, inferred mapping, guessed mapping, hidden fallback mapping, and synthetic joins are not valid `Combined` identity.
+- Candidate/unresolved/rejected rows, `categoryType=GAME`, inferred mapping, guessed mapping, hidden fallback mapping, synthetic joins는 `Combined` identity가 아니다.
 - Updated by CATEGORY-MAPPING-COMBINED-MINIMAL-BACKEND-API-001:
     - view: `srv_combined_game_overview`
     - endpoint: `GET /combined/games/overview`
@@ -267,7 +264,21 @@ Updated by CATEGORY-MAPPING-COMBINED-SOURCE-VIEW-CONTRACT-001:
     - guard: if multiple trusted mapping rows share one `mapped_canonical_game_id`, a deterministic single-row guard keeps only one row for row-grain safety. This guard is non-semantic: no representative-category, best-mapping, primary-mapping, ranking, product, coverage, or multiple-category exposure semantics.
     - boundary: backend service reads `srv_combined_game_overview`; it does not call `GET /chzzk/category-game-mappings` internally and does not read `chzzk_category_game_candidate`.
     - Updated by CATEGORY-MAPPING-COMBINED-WEB-SURFACE-001: the first minimal web data surface is open as a read-only identity/source availability table using only `GET /combined/games/overview`.
-    - deferred: Chzzk viewer/channel metrics, ranking/KPI/score/recommendation semantics, mapping coverage fields, candidate/unresolved/rejected/fallback mapping exposure, backend SQL/API/schema changes, and writes/backfills/scheduler/live fetch.
+    - overview boundary: Chzzk viewer/channel metrics는 이 identity response에 포함하지 않는다. Activity는 아래 별도 boundary를 따른다. Ranking/KPI/score/recommendation, mapping coverage, candidate/unresolved/rejected/fallback mapping과 writes/backfills/scheduler/live fetch는 범위 밖이다.
+
+#### Useful Combined v1 activity
+
+`Useful Combined v1`은 승인된 Phase 1 contract를 Phase 2 SQL/API/Web으로 구현한다. 기존 identity overview와 별도 boundary이며 one row per `canonical_game_id`다. Product universe는 active Steam tracked games 중 trusted Chzzk mapping이 최소 1개 있는 게임이다.
+
+- Serving view: `srv_combined_game_activity_7d`, definition: `sql/postgres/029_srv_combined_game_activity_7d.sql`.
+- Inputs: `srv_game_explore_period_metrics`, `srv_chzzk_category_game_mapping`, `fact_chzzk_category_30m`만 사용한다. Candidate/unreviewed mapping은 읽지 않는다.
+- API: `GET /combined/games/activity`는 serving view를 읽는다. Canonical ID ascending order와 limit (default 50, maximum 200)은 transport 의미만 갖는다.
+- Web: 별도 activity fetch/hook을 사용하는 linear scatter 하나다. x=`period_avg_ccu_7d`, y=`chzzk_viewer_hours_observed_7d`; 둘 중 null이면 point를 만들지 않는다. 실제 observed zero는 y=0으로 표시한다. 기존 identity/source-availability table은 유지한다.
+- Shared window: Steam `ccu_period_anchor_date`의 KST `anchor_date - 6`부터 `anchor_date`까지 7일이다. Multiple trusted categories를 game + bucket으로 먼저 SUM한 뒤 viewer-hours/peak/distinct observed buckets/latest를 계산한다. Collection denominator는 game/mapping filter 없이 persisted global fact buckets를 센다. 고정 336을 분모로 쓰지 않는다.
+- Anchor-null이면 window-derived Chzzk 값은 모두 null이다. Anchor가 존재할 때 미관측 game의 observed count는 0이지만 viewer-hours/peak/latest는 null이다. Collection count가 0이면 ratio도 null이다. `bounded_sample`은 population completeness나 estimate를 뜻하지 않는다.
+- Response fields와 정확한 formula/null rules는 [metrics definitions §1.6](metrics-definitions.md#16-useful-combined-v1-7-day-activity-metrics)을 따른다. Latest field는 `chzzk_latest_observed_bucket_7d`다.
+- Human Gate Required: Yes; Human Decision Status: Approved — [Human-authored evidence](https://github.com/cbbsjj0314/picking-my-time-sink/pull/185#issuecomment-5968328872). Independent Review Status: Pending. Checked-in definition만 추가했으며 live DB에 적용하지 않았다.
+- Score/ranking/recommendation, full population completeness, collector expansion, mapping expansion, live fetch/write/backfill/scheduler change는 계속 범위 밖이다.
 
 ### 4.3 Steam Price (1시간)
 

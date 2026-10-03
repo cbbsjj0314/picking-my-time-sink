@@ -60,7 +60,10 @@ def test_combined_route_uses_minimal_backend_overview_surface() -> None:
 def test_source_tabs_explain_current_source_boundaries() -> None:
     source = SOURCE_TABS_ROW_PATH.read_text(encoding="utf-8")
 
-    assert "Combined minimal identity/source availability view." in source
+    assert (
+        "Combined Steam and bounded-observed Chzzk activity with identity/source availability."
+        in source
+    )
     assert "Steam source view" in source
     assert "Chzzk observed source view" in source
     assert "aria-label={boundaryCopy}" in source

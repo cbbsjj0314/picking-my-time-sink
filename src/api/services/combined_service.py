@@ -1,4 +1,4 @@
-"""Service functions for minimal Combined overview API responses."""
+"""Service functions for separate Combined overview and activity API responses."""
 
 from __future__ import annotations
 
@@ -60,3 +60,39 @@ def list_game_overview(limit: int = 50) -> list[dict[str, Any]]:
             rows = cursor.fetchall()
 
     return [to_response_record(row) for row in rows]
+
+
+LIST_COMBINED_GAME_ACTIVITY_SQL = """
+SELECT
+    canonical_game_id,
+    canonical_name,
+    steam_appid,
+    ccu_period_anchor_date,
+    period_avg_ccu_7d,
+    period_peak_ccu_7d,
+    chzzk_mapped_category_count,
+    chzzk_viewer_hours_observed_7d,
+    chzzk_peak_viewers_observed_7d,
+    chzzk_observed_bucket_count_7d,
+    chzzk_collection_bucket_count_7d,
+    chzzk_observation_ratio_7d,
+    chzzk_latest_observed_bucket_7d,
+    bounded_sample_caveat
+FROM srv_combined_game_activity_7d
+ORDER BY canonical_game_id ASC
+LIMIT %s
+"""
+
+
+def list_game_activity(limit: int = 50) -> list[dict[str, Any]]:
+    """Read the activity serving boundary without recomputing its joins or metrics."""
+
+    psycopg, dict_row = require_psycopg()
+    conninfo = build_pg_conninfo_from_env()
+
+    with psycopg.connect(conninfo=conninfo) as conn:
+        with conn.cursor(row_factory=dict_row) as cursor:
+            cursor.execute(LIST_COMBINED_GAME_ACTIVITY_SQL, (limit,))
+            rows = cursor.fetchall()
+
+    return [dict(row) for row in rows]

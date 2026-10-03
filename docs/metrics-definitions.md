@@ -1,7 +1,7 @@
 # 지표 정의서
 
 문서 목적: 용어/지표/Δ 기준을 고정해 구현 중 재해석을 방지
-버전: v0.30 (Useful Combined v1 planning proposal)
+버전: v0.31 (Useful Combined v1 activity)
 최종 수정일: 2026-10-03 (KST)
 
 ## 0. 시간/기간 프리셋
@@ -133,13 +133,13 @@
 - 현재 web `Explore` table은 visible rows의 `ccu_bucket_time`, `ccu_period_anchor_date`, `reviews_snapshot_date`, `price_bucket_time` 을 summary support text로 표시한다. 동일하지 않은 visible timestamp 묶음은 synthetic 대표 시각으로 합치지 않고 mixed snapshots로 표시한다.
 - `Top Selling` 순위는 의도적으로 `Explore` 개요 응답에 포함하지 않는다.
 
-### 1.6 Useful Combined v1 proposed 7-day activity metrics
+### 1.6 Useful Combined v1 7-day activity metrics
 
-Status: Proposed — Human Gate Pending. [Combined decision contract](decisions/combined-source-view-readiness-contract.md#useful-combined-v1--phase-1-planning-contract)의 Phase 1 planning proposal이다. Phase 2 implementation은 Not authorized / Not started이며 아래 fields는 현재 SQL/API/Web response가 아니다. Existing `srv_combined_game_overview` / `GET /combined/games/overview`의 identity/source-availability meaning을 변경하지 않는다.
+Status: Implemented — Human Gate Approved. [Combined decision contract](decisions/combined-source-view-readiness-contract.md#useful-combined-v1--phase-1-planning-contract)의 승인된 Phase 1 semantics를 `srv_combined_game_activity_7d` / `GET /combined/games/activity` / web scatter로 구현한다. [Human Gate evidence](https://github.com/cbbsjj0314/picking-my-time-sink/pull/185#issuecomment-5968328872); Independent Review Status: Pending. Existing `srv_combined_game_overview` / `GET /combined/games/overview`의 identity/source-availability meaning을 변경하지 않는다.
 
 공통 grain은 active Steam tracked game 중 trusted Chzzk mapping이 최소 1개 있는 `canonical_game_id`마다 selected 7-day window의 1개 row다. Trusted mappings는 `srv_chzzk_category_game_mapping`에서 읽는 identity input이다. Candidate/unresolved/inferred/guessed/fuzzy/rejected/fallback mapping은 제외한다.
 
-Shared anchor는 `srv_game_explore_period_metrics.ccu_period_anchor_date`이며 `agg_steam_ccu_daily.bucket_date`의 metric-wide latest available KST date 의미를 재사용한다. Window는 `anchor_date - 6` through `anchor_date`, inclusive인 seven KST dates다. Chzzk `bucket_time`을 KST로 해석하여 같은 window의 half-hour buckets만 사용한다. 시간 경계로는 KST `anchor_date - 6` 00:00 inclusive부터 `anchor_date + 1` 00:00 exclusive까지다. 독립 Chzzk latest-date anchor, per-game older anchor fallback, Steam raw-player-hours anchor로 대체하지 않는다. Shared anchor가 없으면 selected window를 계산할 수 없으며 관측 부재나 zero로 판정하지 않는다.
+Shared anchor는 `srv_game_explore_period_metrics.ccu_period_anchor_date`이며 `agg_steam_ccu_daily.bucket_date`의 metric-wide latest available KST date 의미를 재사용한다. Window는 `anchor_date - 6` through `anchor_date`, inclusive인 seven KST dates다. Chzzk `bucket_time`을 KST로 해석하여 같은 window의 half-hour buckets만 사용한다. 시간 경계로는 KST `anchor_date - 6` 00:00 inclusive부터 `anchor_date + 1` 00:00 exclusive까지다. 독립 Chzzk latest-date anchor, per-game older anchor fallback, Steam raw-player-hours anchor로 대체하지 않는다. Shared anchor가 없으면 selected window를 계산할 수 없으며 관측 부재나 zero로 판정하지 않는다. 이때 window-derived Chzzk viewer-hours/peak/observed count/collection count/ratio/latest는 모두 null이다. Mapped category count와 `bounded_sample` caveat는 유지한다.
 
 Steam signals는 기존 §1.4/§1.5/§3.3의 full-window/null rule을 그대로 따른다. `period_avg_ccu_7d`는 primary comparison signal이고 `period_peak_ccu_7d`는 supporting signal이다. Daily rows 7개가 있어야 각각 `AVG(avg_ccu)` / `MAX(peak_ccu)`를 제공하며, 부족하면 null이다. Daily row 존재는 intra-day bucket completeness를 보장하지 않는다. Chzzk와 공통 단위로 바꾸거나 combined score를 만들지 않는다.
 
@@ -156,7 +156,7 @@ Multiple trusted Chzzk categories가 한 canonical game에 연결되는 것은 s
 
 아래 formula는 shared anchor가 존재하는 selected window에 적용한다. Comparison baseline은 같은 window의 Steam activity와 Chzzk bounded-observed activity라는 별도 dimensions다. Previous-period delta, ratio between providers, weighting, score 또는 ranking baseline은 v1에서 정의하지 않는다.
 
-| Proposed field | Formula / meaning | Unit | Null / missing rule |
+| Field | Formula / meaning | Unit | Null / missing rule |
 | --- | --- | --- | --- |
 | `chzzk_viewer_hours_observed_7d` | `SUM(game_bucket_observed_viewers * 0.5 hours)` | observed viewer-hours | merged game bucket이 없으면 null; estimated/complete viewer-hours가 아니다 |
 | `chzzk_peak_viewers_observed_7d` | `MAX(game_bucket_observed_viewers)` | observed viewers | merged game bucket이 없으면 null |
@@ -164,7 +164,7 @@ Multiple trusted Chzzk categories가 한 canonical game에 연결되는 것은 s
 | `chzzk_collection_bucket_count_7d` | shared window의 `fact_chzzk_category_30m` 전체에서 `COUNT(DISTINCT bucket_time)`; persisted global category-fact evidence가 있는 bucket 수 | half-hour buckets | global category-fact bucket이 없으면 `0`; game/mapping filter를 적용하지 않는다 |
 | `chzzk_observation_ratio_7d` | `chzzk_observed_bucket_count_7d / chzzk_collection_bucket_count_7d` when denominator > 0 | ratio 0..1 | denominator가 `0`이면 null; denominator > 0이고 game observation이 없으면 `0` |
 | `chzzk_mapped_category_count` | game에 연결된 trusted `COUNT(DISTINCT chzzk_category_id)`; window 관측 여부와 독립적이다 | categories | product universe에서 최소 `1`; fact 부재로 줄이지 않는다 |
-| nullable latest observed Chzzk bucket | selected window의 merged game buckets에서 `MAX(bucket_time)`; exact future field name은 Phase 2 response contract에서 정한다 | timezone-aware bucket instant | game observation이 없으면 null; window 밖 latest mapping-context timestamp로 채우지 않는다 |
+| `chzzk_latest_observed_bucket_7d` | selected window의 merged game buckets에서 `MAX(bucket_time)` | timezone-aware bucket instant | game observation이 없으면 null; window 밖 latest mapping-context timestamp로 채우지 않는다 |
 | `bounded_sample_caveat` | existing `"bounded_sample"` semantics 유지 | caveat literal | bucket coverage와 독립적이며 full live-list population / pagination exhaustion을 주장하지 않는다 |
 
 Collection denominator는 persisted category-fact collection opportunity를 뜻한다. Scheduler attempt/success counts나 full collection completeness의 증명이 아니다. 이 game visibility denominator를 theoretical `336`으로 대체하지 않는다. `336`은 나중에 별도 window/completeness context로만 사용할 수 있다. Observation ratio가 `1`이어도 complete Chzzk population evidence가 아니다.
@@ -173,6 +173,7 @@ Missing-vs-zero는 다음과 같이 유지한다. Viewer-hours/peak/latest는 ob
 
 | Selected-window case | Observed bucket count | Collection bucket count | Observation ratio | Viewer-hours / peak / latest bucket |
 | --- | --- | --- | --- | --- |
+| shared Steam anchor가 없음 | null | null | null | null / null / null |
 | trusted-mapped game이 bounded sample에서 미관측, global collection evidence는 존재 | `0` | `> 0` | `0` | null / null / null |
 | global category-fact evidence가 없음 | `0` | `0` | null | null / null / null |
 | 실제 persisted game bucket 하나가 observed viewers `0`이고 global bucket 하나가 존재 | `1` | `1` | `1` | `0` / `0` / 해당 bucket |
@@ -181,7 +182,7 @@ Missing-vs-zero는 다음과 같이 유지한다. Viewer-hours/peak/latest는 ob
 
 Sanitized contract example: synthetic game에 trusted categories A/B가 있고 같은 bucket t1에서 각각 `10` / `20`, t2에서 A만 `4`를 관측하면 merged values는 `30` / `4`다. Global category-fact buckets가 t1/t2/t3이면 viewer-hours는 `17`, peak는 `30`, observed bucket count는 `2` (category count 합인 `3`이 아님), collection bucket count는 `3`, observation ratio는 `2/3`, mapped category count는 `2`, latest observed bucket은 t2다. t3 또는 B의 t2 missing을 zero로 만들지 않는다.
 
-Future scatter plot은 game당 point 하나로 x=`period_avg_ccu_7d`, y=`chzzk_viewer_hours_observed_7d`를 사용한다. 둘 중 null이면 point를 만들지 않는다. 미관측 게임을 y=0으로 plot하지 않고 별도 `Not observed in bounded sample` 상태로 남길 수 있다. 실제 observed zero는 y=0으로 표시할 수 있다. Weighted `PMTS score`, one-dimensional combined ranking, recommendation score, unexplained Steam/Chzzk weighting은 정의하지 않는다.
+현재 linear scatter plot은 game당 point 하나로 x=`period_avg_ccu_7d`, y=`chzzk_viewer_hours_observed_7d`를 사용한다. 둘 중 null이면 point를 만들지 않는다. 미관측 게임을 y=0으로 plot하지 않고 별도 `Not observed in bounded sample` 상태로 남길 수 있다. 실제 observed zero는 y=0으로 표시할 수 있다. Weighted `PMTS score`, one-dimensional combined ranking, recommendation score, unexplained Steam/Chzzk weighting은 정의하지 않는다.
 
 ## 2. Steam 리뷰 대시보드(살 만한가)
 
@@ -598,7 +599,7 @@ Grounded free row 예시:
 
 ## 7. 관계(동행) — MVP 최소 KPI
 
-이 장의 KPI는 historical/deferred 후보이며 `Useful Combined v1`에서 선택하거나 구현하지 않는다. Pending v1 proposal은 §1.6의 separate activity dimensions와 scatter target을 따른다.
+이 장의 KPI는 historical/deferred 후보이며 `Useful Combined v1`에서 선택하거나 구현하지 않는다. 구현된 v1은 §1.6의 separate activity dimensions와 scatter를 따른다.
 
 MVP에서는 시차 이벤트 탐지까지 가지 않고 KPI 1~2개로 최소 정의한다.
 

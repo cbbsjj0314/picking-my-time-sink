@@ -6,7 +6,7 @@ interface SourceTabsRowProps {
 }
 
 const sourceTabBoundaryCopy = {
-  Combined: 'Combined minimal identity/source availability view.',
+  Combined: 'Combined Steam and bounded-observed Chzzk activity with identity/source availability.',
   Steam: 'Steam source view',
   Chzzk: 'Chzzk observed source view',
 } as const satisfies Record<SourceTab, string>
