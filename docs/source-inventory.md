@@ -217,7 +217,7 @@
 - Shared window: Steam `ccu_period_anchor_date`의 KST `anchor_date - 6`부터 `anchor_date`까지 7일이다. Multiple trusted categories를 game + bucket으로 먼저 SUM한 뒤 viewer-hours/peak/distinct observed buckets/latest를 계산한다. Collection denominator는 game/mapping filter 없이 persisted global fact buckets를 센다. 고정 336을 분모로 쓰지 않는다.
 - Anchor-null이면 window-derived Chzzk 값은 모두 null이다. Anchor가 존재할 때 미관측 game의 observed count는 0이지만 viewer-hours/peak/latest는 null이다. Collection count가 0이면 ratio도 null이다. `bounded_sample`은 population completeness나 estimate를 뜻하지 않는다.
 - Response fields와 정확한 formula/null rules는 [metrics definitions §1.6](metrics-definitions.md#16-useful-combined-v1-7-day-activity-metrics)을 따른다. Latest field는 `chzzk_latest_observed_bucket_7d`다.
-- Human Gate Required: Yes; Human Decision Status: Approved — [Human-authored evidence](https://github.com/cbbsjj0314/picking-my-time-sink/pull/185#issuecomment-5968328872). Independent Review Status: Pending. Checked-in definition만 추가했으며 live DB에 적용하지 않았다.
+- Human Gate Required: Yes; Human Decision Status: Approved — [Human-authored evidence](https://github.com/cbbsjj0314/picking-my-time-sink/pull/185#issuecomment-5968328872). Independent Review Status: Passed — [Fresh-context review evidence](https://github.com/cbbsjj0314/picking-my-time-sink/pull/185#issuecomment-5968984373). Phase 2 implementation은 PR #185로 merge되었다. Checked-in definition은 live DB에 적용하지 않았으며 production/live PostgreSQL application은 별도 authority가 필요하다.
 - Score/ranking/recommendation, full population completeness, collector expansion, mapping expansion, live fetch/write/backfill/scheduler change는 계속 범위 밖이다.
 
 ### 2.2 Category 검색 (매핑 보조)

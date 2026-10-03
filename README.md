@@ -7,9 +7,9 @@ Picking My Time Sink는 Steam 데이터를 중심으로 수집·정규화·서�
 - **현재 기준(Baseline)**: Steam 데이터 중심 베이스라인
 - **주요 데이터**: Steam 랭킹, 동시 접속자 수(CCU), 가격, 유저 리뷰
 - **데이터 흐름**: Postgres serving view → FastAPI 엔드포인트 → 웹 소스 뷰
-- **Chzzk 연동 현황**: 카테고리별 관측 데이터와 읽기 전용 API를 bounded 범위에서 구현했고, 게임 mapping과 통합 KPI 산정은 향후 과제
-- **미구현 항목**: 통합(Steam + Chzzk) KPI, Steam-Chzzk mapping
-- **Mapping 설계 범위**: `docs/decisions/category-to-game-mapping-contract.md`에 카테고리-게임 mapping 설계 가이드라인을 문서화했으며, 자동 mapping 및 통합 KPI/score/ranking/recommendation은 지원하지 않음. 승인된 `Useful Combined v1`은 trusted mapping 기반 bounded-observed activity만 별도로 제공함
+- **Chzzk 연동 현황**: 카테고리별 관측 데이터와 읽기 전용 API, trusted category-to-game mapping storage/serving contract, trusted mapping 기반 `Useful Combined v1` activity를 bounded 범위에서 구현했고, mapping coverage/expansion과 broader KPI/score/ranking/recommendation은 향후 과제
+- **미구현 항목**: `Useful Combined v1` 밖의 broader KPI/score/ranking/recommendation, trusted mapping coverage/expansion 및 automatic/fuzzy/inferred mapping
+- **Mapping 설계 범위**: `docs/decisions/category-to-game-mapping-contract.md`에 카테고리-게임 mapping 설계 가이드라인을 문서화했고 trusted mapping storage/serving contract와 `Useful Combined v1`의 trusted mapping runtime input은 구현되어 있다. 추가 reviewed mappings와 automatic/fuzzy/inferred mapping, broader KPI/score/ranking/recommendation은 지원하지 않음
 - **도입 검토 기술(Future work)**: dbt, Dagster, ClickHouse
 - **비공개 범위**: provider raw payload, credentials, private runtime detail, host/path 세부 정보, 스케줄러 XML/로그, row-level UGC 제외
 
@@ -20,7 +20,7 @@ Picking My Time Sink는 Steam 데이터를 중심으로 수집·정규화·서�
 | Steam 베이스라인 | 구현 완료 | 랭킹, CCU, 가격, 리뷰 수집·적재·서빙·웹 뷰 연동 |
 | Chzzk 관측 API | 일부 구현 | 카테고리/채널 관측 데이터와 읽기 전용 `/chzzk/categories/overview` 제공 |
 | Chzzk 관측 소스 뷰 | 제한적 구현 완료 | 카테고리 중심의 관측 데이터 브라우저, `/chzzk/categories/overview` 기반, Steam 수준의 메인 베이스라인은 아님 |
-| Combined identity / activity | API / scatter 구현 | 기존 identity overview와 별도 `GET /combined/games/activity` 기반 Steam × Chzzk bounded-observed 7d scatter를 제공한다. Mapping 확장 및 통합 KPI/score/ranking/recommendation은 범위 밖이다 |
+| Combined identity / activity | API / scatter 구현 | 기존 identity overview와 별도 `GET /combined/games/activity` 기반 Steam × Chzzk bounded-observed 7d scatter를 제공한다. Trusted mapping coverage/expansion, 추가 reviewed mappings, automatic/fuzzy/inferred mapping 및 broader KPI/score/ranking/recommendation은 범위 밖이다 |
 | dbt / Dagster / ClickHouse | 검토 중 | 인프라 확장 시 조건부 검토 대상 |
 
 ## 현재 구현 범위
@@ -71,7 +71,7 @@ API와 웹의 소스 뷰 기능은 `/chzzk/categories/overview`를 기반으로 
 
 현재 단계에서의 성과는 Chzzk 카테고리 테이블에서 관측된 지표를 정상적으로 읽어오는 구조를 다지고, 샘플링 제한에 따른 한계점(Bounded sample caveat) 및 데이터 수집 범위를 화면에 명확히 분리하여 보여주는 방향성을 검증했다는 점이다.
 
-정기 수집 파이프라인 및 Write-path 안정화, 카테고리-게임 매핑, 통합 KPI 시스템 구축은 향후 과제로 남겨두었다.
+정기 수집 파이프라인 및 Write-path 안정화, trusted mapping coverage/expansion, 추가 reviewed mappings, automatic/fuzzy/inferred mapping, broader KPI/score/ranking/recommendation 구축은 향후 과제로 남겨두었다.
 
 ## Architecture
 
@@ -142,7 +142,7 @@ Activity endpoint와 scatter는 [Useful Combined v1](docs/metrics-definitions.md
 
 `GET /combined/games/overview`는 canonical game identity, Steam source availability, nullable Chzzk mapping context를 반환하는 최소 읽기 전용 Combined overview 엔드포인트다.
 
-카테고리-게임 mapping 확장, Chzzk metric merge, ranking/KPI/score/recommendation 같은 통합 KPI 체계는 후속 작업으로 남아 있다.
+Trusted mapping coverage/expansion, 추가 reviewed mappings, automatic/fuzzy/inferred mapping, `Useful Combined v1` 밖의 broader KPI/score/ranking/recommendation은 후속 작업으로 남아 있다.
 
 ## 검증과 품질 관리
 
@@ -164,7 +164,7 @@ Activity endpoint와 scatter는 [Useful Combined v1](docs/metrics-definitions.md
 다음 항목들은 향후 개발을 목표로 하는 과제이며, 아직 구현되지 않았다.
 
 * Chzzk 정기 수집 파이프라인 및 Write-path 안정화
-* 카테고리-게임 mapping
+* Trusted mapping coverage/expansion, 추가 reviewed mappings, automatic/fuzzy/inferred mapping
 * Useful Combined v1 밖의 metric 확장 및 KPI/score/ranking/recommendation 시스템
 * dbt Core 기반의 도메인별(Bounded) 모델링, 테스트 및 문서화
 * Dagster를 활용한 데이터 오케스트레이션 및 컨트롤 플레인 파일럿 구현
