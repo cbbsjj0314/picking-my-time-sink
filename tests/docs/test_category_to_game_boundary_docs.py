@@ -368,24 +368,27 @@ def _useful_combined_contract() -> tuple[str, str]:
     return decision, metrics
 
 
-def test_useful_combined_implementation_records_human_approval_and_review_pending() -> None:
+def test_useful_combined_implementation_records_human_approval_and_review_passed() -> None:
     decision, metrics = _useful_combined_contract()
     for text in (decision, metrics):
         assert "implemented — human gate approved" in text
         assert "issuecomment-5968328872" in text
+        assert "issuecomment-5968984373" in text
         assert "srv_combined_game_overview" in text
         assert "get /combined/games/overview" in text
         assert "identity/source-availability" in text
-        assert "independent review status: pending" in text
+        assert "independent review status: passed" in text
         assert "not authorized / not started" not in text
     assert "human gate required: yes" in decision
     assert "human decision status: approved" in decision
     assert "human-authored github pr comment" in decision
     assert "별도의 explicit implementation handoff" in decision
-    assert "fresh-context review는 아직 수행하지 않았다" in decision
-    assert "draft pr" in decision
+    assert "pr #185는 squash merge되었다" in decision
+    assert "fresh-context independent review evidence" in decision
     assert "canonical ticket은 필요하지 않다" in decision
     assert "live db/provider diagnostics" in decision
+    assert "production/live postgresql application" in decision
+    assert "별도 authority" in decision
     assert "private planning-state/checkpoint sync" in decision
 
 
@@ -519,7 +522,10 @@ def test_useful_combined_activity_has_separate_runtime_and_lineage_boundaries() 
         assert "get /combined/games/activity" in text
         assert "srv_combined_game_overview" in text
         assert "issuecomment-5968328872" in text
-        assert "independent review status: pending" in text
+        assert "issuecomment-5968984373" in text
+        assert "independent review status: passed" in text
+        assert "live db" in text
+        assert "별도 authority" in text
     lineage = _read_lower(DATA_GOVERNANCE)
     assert "| minimal combined game overview api / ui |" in lineage
     assert "| useful combined v1 activity api / scatter |" in lineage
