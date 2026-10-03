@@ -1,17 +1,13 @@
 # Combined Source View Readiness Contract
 
-Status: current minimal Combined identity/source-availability guardrail
-Date: 2026-05-19 (KST)
+Status: Useful Combined v1 activity implemented; identity/source-availability guardrail preserved
+Date: 2026-10-03 (KST)
 
-Role: current `Combined` identity/source-availability guardrail, not a broader `Combined` product semantics contract.
+Role: 기존 minimal identity/source-availability boundary와 승인된 `Useful Combined v1` activity boundary를 구분한다. 현재 구현 계약은 아래 Phase 1 planning contract 및 Phase 2 implementation 기록과 [metrics definitions §1.6](../metrics-definitions.md#16-useful-combined-v1-7-day-activity-metrics)을 따른다. Score/ranking/recommendation 및 다른 deferred scope는 계속 별도 승인 대상이다.
 
-이 문서는 첫 minimal `Combined` web surface 이후에도 broader `Combined` product semantics가 닫혀 있어야 하는 조건을 고정한다.
+## Historical implementation boundaries
 
-이 결정은 schema, API, runtime, loader, scheduler, DB write, category-to-game trusted mapping, 또는 broader `Combined` semantics 구현 승인이 아니다.
-
-현재 durable context는 `README.md`, `docs/source-inventory.md`, `docs/data-model-spec.md`, `docs/decisions/category-to-game-mapping-contract.md` 를 따른다.
-
-목적은 approved minimal identity/source-availability surface 밖에서 trusted mapping과 serving semantics가 별도 승인될 때까지 broader `Combined` product semantics를 blocked 상태로 유지하는 것이다.
+아래 과거 update는 각 slice 당시의 승인 범위를 기록한다. 현재 activity 구현 상태는 `Useful Combined v1` section을 따른다.
 
 Updated by CATEGORY-MAPPING-COMBINED-SOURCE-VIEW-CONTRACT-001:
 
@@ -64,7 +60,7 @@ Updated by CATEGORY-MAPPING-COMBINED-WEB-SURFACE-001:
 
 ## Current Context
 
-- `Combined` 는 web source tab에 존재하며, 현재 minimal identity/source-availability table을 제공한다.
+- `Combined` 는 기존 minimal identity/source-availability table과 별도 `Useful Combined v1` activity scatter를 제공한다.
 - 이 table은 `GET /combined/games/overview` 만 사용하는 read-only web source surface다.
 - Steam source view와 Chzzk source view는 현재 분리되어 있다.
 - Chzzk category evidence는 observed source evidence이며 canonical game identity가 아니다.
@@ -73,20 +69,20 @@ Updated by CATEGORY-MAPPING-COMBINED-WEB-SURFACE-001:
 
 ## Blocked-State Rule
 
-Broader `Combined` product semantics는 아래 readiness gates가 모두 별도 승인될 때까지 blocked 상태로 남아야 한다.
+승인된 `Useful Combined v1` activity 밖의 broader `Combined` product semantics는 아래 readiness gates가 별도 승인될 때까지 blocked 상태로 남는다.
 
 - `candidate`, `unresolved`, `rejected` category-to-game evidence는 `Combined` row, KPI, ranking, sorting, game identity를 만들거나 보강하는 데 사용할 수 없다.
 - `categoryType=GAME` 만으로는 `Combined` row, canonical game relationship, Steam-Chzzk mapping을 만들 수 없다.
 - hidden inferred mapping, synthetic join, fallback mapping, guessed mapping은 허용하지 않는다.
-- Approved minimal identity/source-availability fields 밖에서는 trusted mapping과 serving semantics가 승인되기 전까지 `Combined` product semantics가 없다.
+- Approved minimal identity/source-availability 및 `Useful Combined v1` activity 밖의 trusted mapping과 serving semantics는 추가 승인이 필요하다.
 
 `srv_chzzk_category_game_mapping` 같은 internal read-only DB serving view contract는 단독으로 `Combined` readiness gate를 충족하지 않는다.
 
 `GET /chzzk/category-game-mappings` API response shape도 trusted mapping identity rows만 노출하며, 단독으로 `Combined` readiness gate를 충족하지 않는다.
 
-Future backend `Combined` should not need to call `GET /chzzk/category-game-mappings` internally when `srv_chzzk_category_game_mapping` is available as the DB serving view.
+현재 Combined backend는 `srv_chzzk_category_game_mapping` DB view를 사용하며 `GET /chzzk/category-game-mappings`를 내부 호출하지 않는다.
 
-Product serving behavior, ranking/KPI semantics, Chzzk metric merge, mapping coverage, and broader `Combined` semantics remain separate Human Gate items.
+아래 승인된 game-bucket Chzzk metric merge와 activity serving 이외의 ranking/KPI, mapping coverage, broader `Combined` semantics는 별도 Human Gate 대상이다.
 
 ## Readiness Gates
 
@@ -102,34 +98,82 @@ Product serving behavior, ranking/KPI semantics, Chzzk metric merge, mapping cov
 
 ## Allowed While Product Semantics Are Blocked
 
-Broader `Combined` product semantics가 blocked 상태인 동안 허용되는 작업은 아래 boundary에 한정한다.
+승인된 `Useful Combined v1` 밖의 product semantics는 blocked 상태다. 현재 허용된 boundary는 다음과 같다.
 
 - Public product-semantics blocked explanation
 - Durable readiness checklist
 - Read-only review 또는 planning-contract follow-up
 - Separate Steam and Chzzk source views
 - Minimal read-only identity/source-availability table using `GET /combined/games/overview`
-- No broader `Combined` product semantics
+- 아래 승인된 `Useful Combined v1` activity SQL/API/scatter
+- No broader `Combined` product semantics beyond the approved v1
 
 ## Explicit Non-Goals
 
-이 문서는 아래 작업을 승인하거나 구현하지 않는다.
+승인된 v1 밖의 다음 작업은 범위 밖이다.
 
-- Broader `Combined` UI implementation beyond the minimal identity/source-availability table
-- `Combined` API 또는 response shape changes
-- Schema, SQL, migration, DDL
+- 추가 Combined UI/API/metric semantics
+- Live schema/view application, migration/DDL execution
 - DB write, backfill, reingest, bootstrap
-- Live fetch
-- Category-to-game mapping implementation
-- Automatic matching
-- Trusted mapping usage
-- Generalized provider abstraction
-- `gold_stream_game_30m`
-- KPI formula, ranking/sort semantics, table grain, storage shape, UI field behavior
+- Live fetch 및 collector expansion
+- Category-to-game mapping creation/promotion/expansion, automatic matching
+- Generalized provider abstraction, `gold_stream_game_30m`
+- KPI formula, score, ranking, recommendation
+
+## Useful Combined v1 — Phase 1 planning contract
+
+Proposal date: 2026-10-03 (KST)
+
+Status: Implemented — Human Gate Approved. Phase 1 contract를 승인된 Phase 2 SQL/API/Web slice로 구현했다. 기존 minimal identity/source-availability contract는 유지한다. Checked-in serving definition은 live DB에 적용하지 않았다.
+
+### Authority / phase boundary
+
+- Human Gate Required: Yes. Human Decision Status: Approved. Human Gate status: Approved.
+- Approval evidence: [Human-authored approval on PR #185](https://github.com/cbbsjj0314/picking-my-time-sink/pull/185#issuecomment-5968328872). Reviewed Phase 1 HEAD는 `a052d582d93ee1ab511d498491e6c430fcc19d2f`다. 이 human-authored GitHub PR comment와 별도의 explicit implementation handoff가 동일 branch / Draft PR의 bounded Phase 2 구현을 승인했다. Canonical ticket은 필요하지 않다.
+- Phase 2 implementation: Implemented — checked-in SQL serving definition, separate API, minimal web scatter, docs/lineage/regression evidence.
+- Independent Review Status: Pending — Fresh-context review는 아직 수행하지 않았다. Phase 2 구현과 required validation 이후 최종 Human merge decision 전에 별도 read-only conversation에서 검토한다. 이유는 `Combined` semantics, Steam–Chzzk join/cardinality, bounded observation과 null-vs-zero 의미다.
+- Live DB application, live DB/provider diagnostics, collector expansion, DB write/backfill/reingest/bootstrap, scheduler/runtime mutation, trusted mapping mutation, private planning-state/checkpoint sync는 범위 밖이다. Draft PR을 유지하며 Ready 전환과 merge는 Human 결정이다.
+
+### Product question / universe
+
+첫 surface는 다음 질문에 답하는 것을 목표로 한다.
+
+> 현재 PMTS가 추적하면서 trusted Chzzk mapping도 가진 게임 중, 최근 7일 Steam에서는 많이 플레이되고 Chzzk의 bounded live sample에서도 많이 관측된 게임은 무엇인가?
+
+Product row는 `srv_game_explore_period_metrics`의 active Steam tracked games (`tracked_game.is_active = true`) 중 trusted Chzzk category mapping이 최소 1개 있는 게임으로 제한한다. Grain은 one row per `dim_game.canonical_game_id`다. 관측이 없더라도 trusted-mapped game은 이 universe에 남는다.
+
+Trusted identity input은 `srv_chzzk_category_game_mapping`이다. Candidate, unresolved, inferred, guessed, fuzzy, rejected, hidden fallback mapping, synthetic joins, `categoryType=GAME` alone은 product identity가 아니다. 이 contract는 trusted mapping creation/promotion/expansion이나 automatic matching을 승인하지 않는다.
+
+### Shared window / separate activity dimensions
+
+- Shared anchor는 기존 Steam `ccu_period_anchor_date`다. Seven KST dates는 `anchor_date - 6` through `anchor_date`, inclusive다. Chzzk evidence도 이 window의 KST half-hour buckets로 제한한다. Chzzk에 독립적인 두 번째 “latest 7 days” anchor를 만들지 않는다.
+- Primary Steam signal은 `period_avg_ccu_7d`, supporting signal은 `period_peak_ccu_7d`다. `srv_game_explore_period_metrics`의 기존 daily-rollup formula, metric-wide anchor, full-window/null semantics를 재사용한다.
+- Chzzk는 bounded observed activity다. Fields와 formula, unit, null rule은 [metrics definitions §1.6](../metrics-definitions.md#16-useful-combined-v1-7-day-activity-metrics)을 따른다. Full Chzzk population activity, estimated 또는 complete Chzzk viewer-hours를 주장하지 않는다.
+- Multiple trusted categories는 canonical game + `bucket_time`으로 먼저 합친다. Category `concurrent_sum`을 SUM한 하나의 `game_bucket_observed_viewers`를 만든 후 7일 집계를 한다. 기존 alphabetical deterministic single-mapping guard는 identity row-grain safety일 뿐이며 activity semantic으로 재사용하지 않는다.
+- `chzzk_observed_bucket_count_7d`는 merge 이후 distinct game buckets를 세고 category bucket counts를 합산하지 않는다. `chzzk_peak_viewers_observed_7d`는 merged game-bucket 값의 MAX다.
+- `chzzk_collection_bucket_count_7d`는 shared window에서 `fact_chzzk_category_30m`에 persisted global category-fact evidence가 있는 distinct `bucket_time` 수다. 특정 게임이나 trusted categories에 제한한 분모가 아니다. 고정 `336`은 game visibility denominator로 사용하지 않는다.
+- 관측이 없는 게임은 observed count가 `0`이고, collection denominator가 양수일 때만 observation ratio가 `0`이다. Denominator가 `0`이면 ratio는 null이다. Viewer-hours, peak viewers, selected-window latest observed bucket은 null로 남기고 `Not observed in bounded sample`로 해석한다. Viewers/viewer-hours `0`, “no Chzzk streams” 또는 full-population-zero 의미를 합성하지 않는다. Persisted observed zero bucket은 실제 관측된 zero로 구분한다.
+- Weighted `PMTS score`, one-dimensional combined ranking, recommendation score, unexplained Steam/Chzzk weighting을 만들지 않는다. Steam activity와 Chzzk bounded-observed activity는 별도 dimensions다.
+
+### Phase 2 backend / UI implementation
+
+`srv_combined_game_overview`와 `GET /combined/games/overview`는 기존 minimal identity/source-availability meaning, universe, response fields를 유지한다. Activity product path는 별도 boundary인 `srv_combined_game_activity_7d` / `GET /combined/games/activity`로 구현한다. `CombinedGameActivityResponse`는 canonical identity, shared anchor, §1.6 metrics와 `bounded_sample_caveat`만 노출한다. Latest field는 `chzzk_latest_observed_bucket_7d`다. API는 canonical ID ascending order와 기본 50 / 최대 200의 transport limit을 사용하며 ranking 의미를 부여하지 않는다. DB serving view가 있는 trusted identity를 위해 backend가 mapping API를 내부 호출하지 않는다.
+
+현재 UI는 기존 `Combined` view 안의 linear scatter plot 하나다. 별도 activity client/hook이 activity endpoint를 읽으며 overview fetch 의미는 유지한다. Each point represents one game: x-axis는 Steam `period_avg_ccu_7d`, y-axis는 `chzzk_viewer_hours_observed_7d`다. 두 값이 모두 존재하는 게임만 plot한다. Chzzk observation이 없는 게임을 y=0으로 plot하지 않으며, Combined surface의 다른 위치에 `Not observed in bounded sample` 상태로 남길 수 있다. 실제 observed zero는 y=0이 될 수 있다.
+
+목적은 Steam-vs-Chzzk 관계를 시각적으로 살펴보는 것이다. 현재 identity table은 그대로 남기며 broad Combined-page redesign, 추가 cards/dashboard/recommendations, multiple charts는 v1 필수 범위가 아니다.
+
+### Phase 2 evidence / exclusions
+
+`029_srv_combined_game_activity_7d.sql`, Combined activity API, 별도 web client/hook/view-model/scatter와 focused SQL/API/web/docs regressions가 구현 계약을 보호한다. SQL behavioral tests는 synthetic in-memory DuckDB에서 checked-in view definition을 실행한다. Live/production PostgreSQL 실행 증거는 아니며 DDL application은 별도 authority가 필요하다. 기존 overview view/model/endpoint/identity table의 의미는 유지한다.
+
+Shared anchor가 null이면 window-derived Chzzk 값은 모두 null이다. Anchor가 있고 collection bucket이 없으면 counts는 0, ratio/viewer-hours/peak/latest는 null이다. Persisted observed zero는 미관측과 구분한다. 새 activity lineage는 `docs/data-governance.md`에 overview lineage와 별도로 기록한다.
+
+Collector pagination/page count, provider fetch, scheduler/runtime configuration, DB writes/DDL execution, backfill/reingest/bootstrap, trusted mapping creation/promotion/expansion, score/ranking/recommendation, watchlist/personal-interest model, Twitch/generalized provider abstraction은 범위 밖이다. `bounded_sample`과 public/private evidence boundary는 유지한다.
 
 ## Public/Private Boundary
 
-Public docs에는 durable blocked-state/readiness contract만 남긴다.
+Public docs에는 durable activity/identity contract와 deferred scope의 readiness boundary만 남긴다.
 
 Public docs에는 raw provider payload, row-level UGC, live title, thumbnail, channel display value, credential, private runtime path, local scheduler evidence, screenshot, scheduler XML/stdout, host/path detail, raw API response를 포함하지 않는다.
 

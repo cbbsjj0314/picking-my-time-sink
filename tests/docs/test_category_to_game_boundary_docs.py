@@ -25,6 +25,7 @@ COMBINED_READINESS_CONTRACT = Path(
     "docs/decisions/combined-source-view-readiness-contract.md"
 )
 DATA_GOVERNANCE = Path("docs/data-governance.md")
+METRICS_DEFINITIONS = Path("docs/metrics-definitions.md")
 DATA_MODEL_SPEC = Path("docs/data-model-spec.md")
 SOURCE_INVENTORY = Path("docs/source-inventory.md")
 IMPLEMENTATION_SURFACE_REVIEW = Path(
@@ -311,28 +312,23 @@ def test_combined_source_view_contract_blocks_premature_identity_and_kpi_unlocks
     assert "kpi readiness" in text or "ranking/kpi/score semantics" in text
 
 
-def test_combined_source_view_contract_selects_first_steam_evidence_base_only() -> None:
-    text = "\n".join(
-        [
-            _read_lower(COMBINED_READINESS_CONTRACT),
-            _read_lower(DATA_MODEL_SPEC),
-            _read_lower(SOURCE_INVENTORY),
-            _read_lower(DATA_GOVERNANCE),
-        ]
-    )
-
-    assert "첫 향후 steam evidence-base contract family" in text
-    assert "첫 steam evidence-base contract family" in text
-    assert "srv_combined_game_overview" in text
-    assert "get /combined/games/overview" in text
-    assert "srv_game_explore_period_metrics" in text
-    assert "/games/explore/overview" in text
-    assert "ranking/kpi/score/recommendation source" in text
-    assert "steam runtime contract change가 아니다" in text
-    assert "최신 ccu" in text
-    assert "최신 price" in text
-    assert "최신 reviews" in text
-    assert "최신 rankings" in text
+def test_combined_contract_reuses_existing_steam_metrics_without_extra_sources() -> None:
+    decision, metrics = _useful_combined_contract()
+    for text in (decision, metrics):
+        assert "srv_game_explore_period_metrics" in text
+        assert "ccu_period_anchor_date" in text
+        assert "period_avg_ccu_7d" in text
+        assert "period_peak_ccu_7d" in text
+        assert "srv_combined_game_overview" in text
+        assert "get /combined/games/overview" in text
+    assert "기존 daily-rollup formula, metric-wide anchor, full-window/null semantics" in decision
+    assert "steam raw-player-hours anchor로 대체하지 않는다" in metrics
+    assert "daily rows 7개" in metrics
+    inventory = _read_lower(SOURCE_INVENTORY)
+    assert (
+        "`srv_game_explore_period_metrics`, `srv_chzzk_category_game_mapping`, "
+        "`fact_chzzk_category_30m`만 사용한다"
+    ) in inventory
 
 
 def test_combined_source_view_contract_keeps_mapping_identity_minimal_only() -> None:
@@ -360,6 +356,178 @@ def test_combined_source_view_contract_keeps_mapping_identity_minimal_only() -> 
         "`combined` product semantics로 merge하지 않는다" in text
         or "not representative-category" in text
     )
+
+
+def _useful_combined_contract() -> tuple[str, str]:
+    decision = _read_lower(COMBINED_READINESS_CONTRACT).split(
+        "## useful combined v1 — phase 1 planning contract\n", 1
+    )[1].split("## public/private boundary\n", 1)[0]
+    metrics = _read_lower(METRICS_DEFINITIONS).split(
+        "### 1.6 useful combined v1 7-day activity metrics\n", 1
+    )[1].split("## 2.", 1)[0]
+    return decision, metrics
+
+
+def test_useful_combined_implementation_records_human_approval_and_review_pending() -> None:
+    decision, metrics = _useful_combined_contract()
+    for text in (decision, metrics):
+        assert "implemented — human gate approved" in text
+        assert "issuecomment-5968328872" in text
+        assert "srv_combined_game_overview" in text
+        assert "get /combined/games/overview" in text
+        assert "identity/source-availability" in text
+        assert "independent review status: pending" in text
+        assert "not authorized / not started" not in text
+    assert "human gate required: yes" in decision
+    assert "human decision status: approved" in decision
+    assert "human-authored github pr comment" in decision
+    assert "별도의 explicit implementation handoff" in decision
+    assert "fresh-context review는 아직 수행하지 않았다" in decision
+    assert "draft pr" in decision
+    assert "canonical ticket은 필요하지 않다" in decision
+    assert "live db/provider diagnostics" in decision
+    assert "private planning-state/checkpoint sync" in decision
+
+
+def test_useful_combined_proposal_pins_trusted_universe_and_shared_steam_window() -> None:
+    decision, metrics = _useful_combined_contract()
+
+    for text in (decision, metrics):
+        assert "active steam tracked game" in text
+        assert "trusted chzzk" in text
+        assert "최소 1개" in text
+        assert "srv_chzzk_category_game_mapping" in text
+        for forbidden_identity in (
+            "candidate", "unresolved", "inferred", "guessed", "fuzzy", "rejected", "fallback"
+        ):
+            assert forbidden_identity in text
+        assert "ccu_period_anchor_date" in text
+        assert "anchor_date - 6` through `anchor_date`, inclusive" in text
+        assert "kst half-hour buckets" in text or "half-hour buckets" in text
+        assert "period_avg_ccu_7d" in text
+        assert "period_peak_ccu_7d" in text
+    assert "agg_steam_ccu_daily.bucket_date" in metrics
+    assert "독립 chzzk latest-date anchor" in metrics
+    assert "daily rows 7개" in metrics
+    assert "부족하면 null" in metrics
+    assert "shared anchor가 없으면 selected window를 계산할 수 없으며" in metrics
+
+
+def test_useful_combined_metrics_merge_categories_before_game_bucket_aggregation() -> None:
+    _, metrics = _useful_combined_contract()
+
+    assert (
+        "trusted mapped categories\n"
+        "→ group by canonical_game_id + bucket_time within the shared window\n"
+        "→ sum(category concurrent_sum) = game_bucket_observed_viewers\n"
+        "→ aggregate merged game buckets over the selected 7-day window"
+    ) in metrics
+    assert "alphabetical deterministic single-mapping guard는 activity semantic이 아니다" in metrics
+    assert "sum(game_bucket_observed_viewers * 0.5 hours)" in metrics
+    assert "max(game_bucket_observed_viewers)" in metrics
+    assert "merge 이후 game별 `count(distinct bucket_time)`" in metrics
+    assert "category bucket counts의 합이 아니다" in metrics
+    assert "trusted `count(distinct chzzk_category_id)`" in metrics
+    assert "window 관측 여부와 독립적" in metrics
+    assert "selected window의 merged game buckets에서 `max(bucket_time)`" in metrics
+    assert "window 밖 latest mapping-context timestamp로 채우지 않는다" in metrics
+    assert "viewer-hours는 `17`, peak는 `30`, observed bucket count는 `2`" in metrics
+    assert "collection bucket count는 `3`, observation ratio는 `2/3`" in metrics
+
+
+def test_useful_combined_metrics_use_global_persisted_collection_denominator() -> None:
+    _, metrics = _useful_combined_contract()
+
+    denominator_row = next(
+        line for line in metrics.splitlines()
+        if line.startswith("| `chzzk_collection_bucket_count_7d` |")
+    )
+    assert "shared window의 `fact_chzzk_category_30m` 전체" in denominator_row
+    assert "count(distinct bucket_time)" in denominator_row
+    assert "persisted global category-fact evidence" in denominator_row
+    assert "game/mapping filter를 적용하지 않는다" in denominator_row
+    assert (
+        "chzzk_observed_bucket_count_7d / chzzk_collection_bucket_count_7d"
+    ) in metrics
+    assert "when denominator > 0" in metrics
+    assert "denominator가 `0`이면 null" in metrics
+    assert "game visibility denominator를 theoretical `336`으로 대체하지 않는다" in metrics
+    assert "observation ratio가 `1`이어도 complete chzzk population evidence가 아니다" in metrics
+    assert '`bounded_sample_caveat` | existing `"bounded_sample"` semantics 유지' in metrics
+
+
+def test_useful_combined_metrics_preserve_missing_versus_observed_zero() -> None:
+    _, metrics = _useful_combined_contract()
+
+    assert (
+        "| trusted-mapped game이 bounded sample에서 미관측, global collection evidence는 존재 "
+        "| `0` | `> 0` | `0` | null / null / null |"
+    ) in metrics
+    assert (
+        "| global category-fact evidence가 없음 | `0` | `0` | null | null / null / null |"
+    ) in metrics
+    assert (
+        "| 실제 persisted game bucket 하나가 observed viewers `0`이고 global bucket 하나가 존재 "
+        "| `1` | `1` | `1` | `0` / `0` / 해당 bucket |"
+    ) in metrics
+    assert "`not observed in bounded sample`" in metrics
+    assert "equivalent full-population-zero semantics를 합성하지 않는다" in metrics
+    assert "estimated/complete viewer-hours가 아니다" in metrics
+    assert (
+        "gap fill, interpolation, extrapolation, coverage-adjusted estimate를 하지 않는다"
+    ) in metrics
+
+
+def test_useful_combined_proposal_targets_one_scatter_without_combined_score() -> None:
+    decision, metrics = _useful_combined_contract()
+
+    assert "scatter plot 하나" in decision
+    assert "each point represents one game" in decision
+    assert "x-axis는 steam `period_avg_ccu_7d`" in decision
+    assert "y-axis는 `chzzk_viewer_hours_observed_7d`" in decision
+    assert "broad combined-page redesign" in decision
+    assert "현재 identity table은 그대로 남기며" in decision
+    for text in (decision, metrics):
+        assert "y=0으로 plot하지 않" in text
+        assert "실제 observed zero는 y=0" in text
+        assert "weighted `pmts score`" in text
+        assert "one-dimensional combined ranking" in text
+        assert "recommendation score" in text
+        assert "unexplained steam/chzzk weighting" in text
+    assert "둘 중 null이면 point를 만들지 않는다" in metrics
+    kpi_context = _near(_read_lower(METRICS_DEFINITIONS), "이 장의 kpi는 historical/deferred")
+    assert "`useful combined v1`에서 선택하거나 구현하지 않는다" in kpi_context
+
+
+def test_useful_combined_activity_has_separate_runtime_and_lineage_boundaries() -> None:
+    decision, metrics = _useful_combined_contract()
+    assert "별도 boundary" in decision
+    assert "chzzk_latest_observed_bucket_7d" in metrics
+    assert "| shared steam anchor가 없음 | null | null | null | null / null / null |" in metrics
+    for path, needles in (
+        (Path("sql/postgres/029_srv_combined_game_activity_7d.sql"),
+         ("srv_combined_game_activity_7d", "chzzk_viewer_hours_observed_7d")),
+        (Path("src/api/routers/combined.py"), ("/games/activity", "combinedgameactivityresponse")),
+        (Path("web/src/api/combinedActivity.ts"), ("/games/activity",)),
+        (Path("web/src/App.tsx"), ("combinedgameactivityscatter", "combinedgameoverviewtable")),
+    ):
+        for needle in needles:
+            assert needle in _read_lower(path)
+    for path in (DATA_MODEL_SPEC, DATA_GOVERNANCE, SOURCE_INVENTORY):
+        text = _read_lower(path)
+        assert "srv_combined_game_activity_7d" in text
+        assert "get /combined/games/activity" in text
+        assert "srv_combined_game_overview" in text
+        assert "issuecomment-5968328872" in text
+        assert "independent review status: pending" in text
+    lineage = _read_lower(DATA_GOVERNANCE)
+    assert "| minimal combined game overview api / ui |" in lineage
+    assert "| useful combined v1 activity api / scatter |" in lineage
+    activity_row = next(line for line in lineage.splitlines()
+                        if line.startswith("| useful combined v1 activity api / scatter |"))
+    for upstream in ("srv_game_explore_period_metrics", "srv_chzzk_category_game_mapping",
+                     "fact_chzzk_category_30m"):
+        assert upstream in activity_row
 
 
 def test_candidate_generation_gate_allows_only_synthetic_dry_run_builder() -> None:

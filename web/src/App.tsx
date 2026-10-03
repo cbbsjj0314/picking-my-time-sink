@@ -1,5 +1,6 @@
 import { startTransition, useDeferredValue, useEffect, useState } from 'react'
 import { ChzzkCategoryTable } from './components/ChzzkCategoryTable'
+import { CombinedGameActivityScatter } from './components/CombinedGameActivityScatter'
 import { CombinedGameOverviewTable } from './components/CombinedGameOverviewTable'
 import { SourceTabsRow } from './components/SourceTabsRow'
 import { SteamDiscoverModeRow } from './components/SteamDiscoverModeRow'
@@ -8,6 +9,7 @@ import { SteamExploreTable } from './components/SteamExploreTable'
 import { SteamRankingList } from './components/SteamRankingList'
 import { StickyShell } from './components/StickyShell'
 import { useChzzkCategoryOverview } from './hooks/useChzzkCategoryOverview'
+import { useCombinedGameActivity } from './hooks/useCombinedGameActivity'
 import { useCombinedGameOverview } from './hooks/useCombinedGameOverview'
 import { useSteamExploreOverview } from './hooks/useSteamExploreOverview'
 import { useSteamOverview } from './hooks/useSteamOverview'
@@ -37,7 +39,7 @@ const getSearchPlaceholder = (sourceTab: SourceTab, steamDiscoverMode: SteamDisc
     return 'Search Chzzk observed categories'
   }
 
-  return 'Search Combined identity rows'
+  return 'Search Combined games'
 }
 
 function App() {
@@ -95,6 +97,7 @@ function App() {
     enabled: sourceTab === 'Combined',
     searchQuery: deferredSearch,
   })
+  const combinedActivity = useCombinedGameActivity(sourceTab === 'Combined')
   const activeGames = steamGames
   const searchPlaceholder = getSearchPlaceholder(sourceTab, steamDiscoverMode)
 
@@ -226,15 +229,21 @@ function App() {
             totalRowCount={chzzkCategoryTotalRowCount}
           />
         ) : (
-          <CombinedGameOverviewTable
-            error={combinedGameError}
-            loading={combinedGameLoading}
-            onSortChange={requestCombinedGameSort}
-            rows={combinedGameRows}
-            searchQuery={deferredSearch}
-            sortState={combinedGameSortState}
-            totalRowCount={combinedGameTotalRowCount}
-          />
+          <>
+            <CombinedGameActivityScatter
+              {...combinedActivity}
+              searchQuery={deferredSearch}
+            />
+            <CombinedGameOverviewTable
+              error={combinedGameError}
+              loading={combinedGameLoading}
+              onSortChange={requestCombinedGameSort}
+              rows={combinedGameRows}
+              searchQuery={deferredSearch}
+              sortState={combinedGameSortState}
+              totalRowCount={combinedGameTotalRowCount}
+            />
+          </>
         )}
       </main>
     </div>

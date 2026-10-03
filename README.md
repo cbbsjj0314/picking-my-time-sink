@@ -9,7 +9,7 @@ Picking My Time Sink는 Steam 데이터를 중심으로 수집·정규화·서�
 - **데이터 흐름**: Postgres serving view → FastAPI 엔드포인트 → 웹 소스 뷰
 - **Chzzk 연동 현황**: 카테고리별 관측 데이터와 읽기 전용 API를 bounded 범위에서 구현했고, 게임 mapping과 통합 KPI 산정은 향후 과제
 - **미구현 항목**: 통합(Steam + Chzzk) KPI, Steam-Chzzk mapping
-- **Mapping 설계 범위**: `docs/decisions/category-to-game-mapping-contract.md`에 카테고리-게임 mapping 설계 가이드라인을 문서화했으며, 자동 mapping, Chzzk metric merge, 통합 KPI/score/recommendation 활용은 아직 지원하지 않음
+- **Mapping 설계 범위**: `docs/decisions/category-to-game-mapping-contract.md`에 카테고리-게임 mapping 설계 가이드라인을 문서화했으며, 자동 mapping 및 통합 KPI/score/ranking/recommendation은 지원하지 않음. 승인된 `Useful Combined v1`은 trusted mapping 기반 bounded-observed activity만 별도로 제공함
 - **도입 검토 기술(Future work)**: dbt, Dagster, ClickHouse
 - **비공개 범위**: provider raw payload, credentials, private runtime detail, host/path 세부 정보, 스케줄러 XML/로그, row-level UGC 제외
 
@@ -20,7 +20,7 @@ Picking My Time Sink는 Steam 데이터를 중심으로 수집·정규화·서�
 | Steam 베이스라인 | 구현 완료 | 랭킹, CCU, 가격, 리뷰 수집·적재·서빙·웹 뷰 연동 |
 | Chzzk 관측 API | 일부 구현 | 카테고리/채널 관측 데이터와 읽기 전용 `/chzzk/categories/overview` 제공 |
 | Chzzk 관측 소스 뷰 | 제한적 구현 완료 | 카테고리 중심의 관측 데이터 브라우저, `/chzzk/categories/overview` 기반, Steam 수준의 메인 베이스라인은 아님 |
-| Combined overview API / Mapping / 통합 KPI | 최소 API 구현 / KPI 미구현 | `GET /combined/games/overview`는 canonical identity와 source availability 중심의 최소 읽기 전용 overview로 제공하며, Steam-Chzzk mapping 확장 및 통합 KPI는 향후 과제 |
+| Combined identity / activity | API / scatter 구현 | 기존 identity overview와 별도 `GET /combined/games/activity` 기반 Steam × Chzzk bounded-observed 7d scatter를 제공한다. Mapping 확장 및 통합 KPI/score/ranking/recommendation은 범위 밖이다 |
 | dbt / Dagster / ClickHouse | 검토 중 | 인프라 확장 시 조건부 검토 대상 |
 
 ## 현재 구현 범위
@@ -135,7 +135,10 @@ flowchart LR
 
 ### Combined
 
+Activity endpoint와 scatter는 [Useful Combined v1](docs/metrics-definitions.md#16-useful-combined-v1-7-day-activity-metrics)을 따른다. Steam anchor 기준 7 KST dates에서 두 activity dimensions를 표시하며 Chzzk 미관측은 zero로 만들지 않는다. Checked-in activity view는 별도 승인된 DB application이 필요하다.
+
 * `GET /combined/games/overview`
+* `GET /combined/games/activity`
 
 `GET /combined/games/overview`는 canonical game identity, Steam source availability, nullable Chzzk mapping context를 반환하는 최소 읽기 전용 Combined overview 엔드포인트다.
 
@@ -162,7 +165,7 @@ flowchart LR
 
 * Chzzk 정기 수집 파이프라인 및 Write-path 안정화
 * 카테고리-게임 mapping
-* Combined metric merge 및 KPI/score/recommendation 시스템
+* Useful Combined v1 밖의 metric 확장 및 KPI/score/ranking/recommendation 시스템
 * dbt Core 기반의 도메인별(Bounded) 모델링, 테스트 및 문서화
 * Dagster를 활용한 데이터 오케스트레이션 및 컨트롤 플레인 파일럿 구현
 
