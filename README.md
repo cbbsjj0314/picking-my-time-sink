@@ -135,7 +135,7 @@ flowchart LR
 
 ### Combined
 
-Activity endpoint와 scatter는 [Useful Combined v1](docs/metrics-definitions.md#16-useful-combined-v1-7-day-activity-metrics)을 따른다. Steam anchor 기준 7 KST dates에서 두 activity dimensions를 표시하며 Chzzk 미관측은 zero로 만들지 않는다. Checked-in activity view는 별도 승인된 DB application이 필요하다.
+Activity endpoint와 scatter는 [Useful Combined v1](docs/metrics-definitions.md#16-useful-combined-v1-7-day-activity-metrics)을 따른다. Steam anchor 기준 7 KST dates에서 두 activity dimensions를 표시하며 Chzzk 미관측은 zero로 만들지 않는다. Checked-in `srv_combined_game_activity_7d` definition은 별도 post-merge Human Gate 승인 후 live PostgreSQL에 적용되었고 bounded runtime verification이 완료되었다. [Execution completion evidence](https://github.com/cbbsjj0314/picking-my-time-sink/pull/185#issuecomment-5982966728).
 
 * `GET /combined/games/overview`
 * `GET /combined/games/activity`

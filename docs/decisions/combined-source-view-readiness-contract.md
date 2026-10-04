@@ -124,7 +124,7 @@ Updated by CATEGORY-MAPPING-COMBINED-WEB-SURFACE-001:
 
 Proposal date: 2026-10-03 (KST)
 
-Status: Implemented — Human Gate Approved. Phase 1 contract를 승인된 Phase 2 SQL/API/Web slice로 구현했다. 기존 minimal identity/source-availability contract는 유지한다. Checked-in serving definition은 live DB에 적용하지 않았다.
+Status: Implemented — Human Gate Approved. Phase 1 contract를 승인된 Phase 2 SQL/API/Web slice로 구현했다. 기존 minimal identity/source-availability contract는 유지한다. Checked-in serving definition은 별도 post-merge Human Gate 승인 후 live PostgreSQL에 적용되었고 bounded runtime verification이 완료되었다.
 
 ### Authority / phase boundary
 
@@ -132,7 +132,8 @@ Status: Implemented — Human Gate Approved. Phase 1 contract를 승인된 Phase
 - Approval evidence: [Human-authored approval on PR #185](https://github.com/cbbsjj0314/picking-my-time-sink/pull/185#issuecomment-5968328872). Reviewed Phase 1 HEAD는 `a052d582d93ee1ab511d498491e6c430fcc19d2f`다. 이 human-authored GitHub PR comment와 별도의 explicit implementation handoff가 동일 branch / Draft PR의 bounded Phase 2 구현을 승인했다. Canonical ticket은 필요하지 않다.
 - Phase 2 implementation: Implemented and merged via PR #185 — checked-in SQL serving definition, separate API, minimal web scatter, docs/lineage/regression evidence. PR #185는 squash merge되었다.
 - Independent Review Status: Passed — [Fresh-context independent review evidence](https://github.com/cbbsjj0314/picking-my-time-sink/pull/185#issuecomment-5968984373). Reviewed Phase 2 implementation HEAD는 `12a8dd1b50ed43cebaadea25a6584e8fe5f7d7df`이며 final status는 `Passed — Useful Combined v1 Phase 2`다.
-- Live DB application, live DB/provider diagnostics, collector expansion, DB write/backfill/reingest/bootstrap, scheduler/runtime mutation, trusted mapping mutation, private planning-state/checkpoint sync는 범위 밖이다. PR #185 merge와 Fresh-context review Passed는 production/live PostgreSQL application approval을 의미하지 않으며, live DB application은 계속 별도 authority가 필요하다.
+- Phase 2 implementation 범위에는 live DB application, live DB/provider diagnostics, collector expansion, DB write/backfill/reingest/bootstrap, scheduler/runtime mutation, trusted mapping mutation, private planning-state/checkpoint sync가 포함되지 않았다. PR #185 merge와 Fresh-context review Passed 자체는 production/live PostgreSQL application approval을 의미하지 않았다.
+- Post-merge live application은 별도 Human Gate로 승인되었다: [application approval](https://github.com/cbbsjj0314/picking-my-time-sink/pull/185#issuecomment-5976345163), [runtime `SELECT` privilege approval](https://github.com/cbbsjj0314/picking-my-time-sink/pull/185#issuecomment-5982910688). [Execution completion evidence](https://github.com/cbbsjj0314/picking-my-time-sink/pull/185#issuecomment-5982966728)는 checked-in `sql/postgres/029_srv_combined_game_activity_7d.sql` definition application, application 후 read-only SQL verification, runtime read verification, `GET /combined/games/activity` HTTP 200 smoke, live Combined scatter human visual smoke가 완료되었음을 기록한다. 이 완료는 다른 DB/schema/data mutation, mapping, collector/scheduler, API/Web/product semantics 변경 권한을 부여하지 않는다.
 
 ### Product question / universe
 
@@ -165,11 +166,11 @@ Trusted identity input은 `srv_chzzk_category_game_mapping`이다. Candidate, un
 
 ### Phase 2 evidence / exclusions
 
-`029_srv_combined_game_activity_7d.sql`, Combined activity API, 별도 web client/hook/view-model/scatter와 focused SQL/API/web/docs regressions가 구현 계약을 보호한다. SQL behavioral tests는 synthetic in-memory DuckDB에서 checked-in view definition을 실행한다. Live/production PostgreSQL 실행 증거는 아니며 DDL application은 별도 authority가 필요하다. 기존 overview view/model/endpoint/identity table의 의미는 유지한다.
+`029_srv_combined_game_activity_7d.sql`, Combined activity API, 별도 web client/hook/view-model/scatter와 focused SQL/API/web/docs regressions가 구현 계약을 보호한다. SQL behavioral tests는 synthetic in-memory DuckDB에서 checked-in view definition을 실행한다. 이 synthetic tests 자체는 live/production PostgreSQL execution evidence가 아니며, 당시 Phase 2 implementation/review만으로 DDL application authority가 생기지 않았다. 이후 위 post-merge Human Gate에 따라 checked-in definition의 live application과 bounded runtime verification을 완료했다. 기존 overview view/model/endpoint/identity table의 의미는 유지한다.
 
 Shared anchor가 null이면 window-derived Chzzk 값은 모두 null이다. Anchor가 있고 collection bucket이 없으면 counts는 0, ratio/viewer-hours/peak/latest는 null이다. Persisted observed zero는 미관측과 구분한다. 새 activity lineage는 `docs/data-governance.md`에 overview lineage와 별도로 기록한다.
 
-Collector pagination/page count, provider fetch, scheduler/runtime configuration, DB writes/DDL execution, backfill/reingest/bootstrap, trusted mapping creation/promotion/expansion, score/ranking/recommendation, watchlist/personal-interest model, Twitch/generalized provider abstraction은 범위 밖이다. `bounded_sample`과 public/private evidence boundary는 유지한다.
+Phase 2 implementation 범위에서는 collector pagination/page count, provider fetch, scheduler/runtime configuration, DB writes/DDL execution, backfill/reingest/bootstrap, trusted mapping creation/promotion/expansion, score/ranking/recommendation, watchlist/personal-interest model, Twitch/generalized provider abstraction이 범위 밖이었다. Post-merge 승인된 exact activity-view application과 runtime read privilege 외의 해당 deferred scope는 계속 범위 밖이다. `bounded_sample`과 public/private evidence boundary는 유지한다.
 
 ## Public/Private Boundary
 

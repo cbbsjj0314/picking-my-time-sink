@@ -387,8 +387,12 @@ def test_useful_combined_implementation_records_human_approval_and_review_passed
     assert "fresh-context independent review evidence" in decision
     assert "canonical ticket은 필요하지 않다" in decision
     assert "live db/provider diagnostics" in decision
-    assert "production/live postgresql application" in decision
-    assert "별도 authority" in decision
+    assert "production/live postgresql application approval을 의미하지 않았다" in decision
+    assert "issuecomment-5976345163" in decision
+    assert "issuecomment-5982910688" in decision
+    assert "issuecomment-5982966728" in decision
+    assert "live application과 bounded runtime verification을 완료했다" in decision
+    assert "live db application은 계속 별도 authority가 필요하다" not in decision
     assert "private planning-state/checkpoint sync" in decision
 
 
@@ -524,8 +528,9 @@ def test_useful_combined_activity_has_separate_runtime_and_lineage_boundaries() 
         assert "issuecomment-5968328872" in text
         assert "issuecomment-5968984373" in text
         assert "independent review status: passed" in text
-        assert "live db" in text
-        assert "별도 authority" in text
+        assert "issuecomment-5982966728" in text
+        assert "live postgresql application" in text
+        assert "bounded runtime verification" in text
     lineage = _read_lower(DATA_GOVERNANCE)
     assert "| minimal combined game overview api / ui |" in lineage
     assert "| useful combined v1 activity api / scatter |" in lineage
@@ -534,6 +539,9 @@ def test_useful_combined_activity_has_separate_runtime_and_lineage_boundaries() 
     for upstream in ("srv_game_explore_period_metrics", "srv_chzzk_category_game_mapping",
                      "fact_chzzk_category_30m"):
         assert upstream in activity_row
+    assert "bounded runtime verification 완료" in activity_row
+    assert "checked-in definition only" not in activity_row
+    assert "no live db application" not in activity_row
 
 
 def test_candidate_generation_gate_allows_only_synthetic_dry_run_builder() -> None:
