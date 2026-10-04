@@ -133,7 +133,7 @@ Local monitoring은 더 엄격한 thresholds, exact scheduler windows, host-spec
 
 `srv_combined_game_overview` / `GET /combined/games/overview`의 identity-only lineage는 유지한다. Activity에서는 alphabetical mapping guard를 재사용하지 않고 trusted categories를 game bucket으로 먼저 합친다. Candidate/unresolved/rejected mappings, `categoryType=GAME`, inferred mapping, guessed mapping, hidden fallback mapping은 `Combined` identity로 유효하지 않다.
 
-`Useful Combined v1` activity lineage는 approved persisted inputs만 읽는 별도 read-only boundary다. Metric/null/window contract는 [§1.6](metrics-definitions.md#16-useful-combined-v1-7-day-activity-metrics)을 따른다. Human Decision Status: Approved — [Human Gate evidence](https://github.com/cbbsjj0314/picking-my-time-sink/pull/185#issuecomment-5968328872). Independent Review Status: Pending. Live DB application이나 data collection 확대는 수행하지 않았다.
+`Useful Combined v1` activity lineage는 approved persisted inputs만 읽는 별도 read-only boundary다. Metric/null/window contract는 [§1.6](metrics-definitions.md#16-useful-combined-v1-7-day-activity-metrics)을 따른다. Human Decision Status: Approved — [Human Gate evidence](https://github.com/cbbsjj0314/picking-my-time-sink/pull/185#issuecomment-5968328872). Independent Review Status: Passed — [Fresh-context review evidence](https://github.com/cbbsjj0314/picking-my-time-sink/pull/185#issuecomment-5968984373). Phase 2 implementation은 PR #185로 merge되었다. Live DB application이나 data collection 확대는 수행하지 않았으며 production/live PostgreSQL application은 별도 authority가 필요하다.
 
 Chzzk `fact_chzzk_category_30m` 은 provider-specific DDL/parser candidate에서 local/private `category-result.jsonl` artifact-to-Postgres write path와 read-only category overview API로 승격되었다.
 

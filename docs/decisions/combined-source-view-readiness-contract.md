@@ -130,9 +130,9 @@ Status: Implemented — Human Gate Approved. Phase 1 contract를 승인된 Phase
 
 - Human Gate Required: Yes. Human Decision Status: Approved. Human Gate status: Approved.
 - Approval evidence: [Human-authored approval on PR #185](https://github.com/cbbsjj0314/picking-my-time-sink/pull/185#issuecomment-5968328872). Reviewed Phase 1 HEAD는 `a052d582d93ee1ab511d498491e6c430fcc19d2f`다. 이 human-authored GitHub PR comment와 별도의 explicit implementation handoff가 동일 branch / Draft PR의 bounded Phase 2 구현을 승인했다. Canonical ticket은 필요하지 않다.
-- Phase 2 implementation: Implemented — checked-in SQL serving definition, separate API, minimal web scatter, docs/lineage/regression evidence.
-- Independent Review Status: Pending — Fresh-context review는 아직 수행하지 않았다. Phase 2 구현과 required validation 이후 최종 Human merge decision 전에 별도 read-only conversation에서 검토한다. 이유는 `Combined` semantics, Steam–Chzzk join/cardinality, bounded observation과 null-vs-zero 의미다.
-- Live DB application, live DB/provider diagnostics, collector expansion, DB write/backfill/reingest/bootstrap, scheduler/runtime mutation, trusted mapping mutation, private planning-state/checkpoint sync는 범위 밖이다. Draft PR을 유지하며 Ready 전환과 merge는 Human 결정이다.
+- Phase 2 implementation: Implemented and merged via PR #185 — checked-in SQL serving definition, separate API, minimal web scatter, docs/lineage/regression evidence. PR #185는 squash merge되었다.
+- Independent Review Status: Passed — [Fresh-context independent review evidence](https://github.com/cbbsjj0314/picking-my-time-sink/pull/185#issuecomment-5968984373). Reviewed Phase 2 implementation HEAD는 `12a8dd1b50ed43cebaadea25a6584e8fe5f7d7df`이며 final status는 `Passed — Useful Combined v1 Phase 2`다.
+- Live DB application, live DB/provider diagnostics, collector expansion, DB write/backfill/reingest/bootstrap, scheduler/runtime mutation, trusted mapping mutation, private planning-state/checkpoint sync는 범위 밖이다. PR #185 merge와 Fresh-context review Passed는 production/live PostgreSQL application approval을 의미하지 않으며, live DB application은 계속 별도 authority가 필요하다.
 
 ### Product question / universe
 
