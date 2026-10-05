@@ -125,16 +125,20 @@ Phase 1은 기존 pagination field를 삭제하거나 조용히 재정의하지 
 - deadline이 만료됐는지
 - pagination loop가 감지됐는지
 - provider/request/response failure가 발생했는지
-- termination 전까지 몇 page/request가 완료됐는지
-- 마지막으로 accepted된 page에 usable next cursor가 남아 있었는지
+- termination 전까지 몇 request가 수행됐고 몇 JSON-object page가 local page evidence collection에 보존됐는지
+- failure가 발생했다면 failing page 자체를 제외하고 그 전에 strict live payload validation까지 성공적으로 통과한 page가 몇 개인지
+- 마지막으로 보존된 page evidence에 usable next cursor가 남아 있었는지
 
 Compatibility expectation은 다음과 같다.
 
-- `pages_fetched`는 해당 attempt에서 accepted된 page 수를 계속 의미한다.
+- `pages_fetched`는 해당 attempt에서 request와 JSON-object level 처리를 거쳐 local page evidence collection에 보존된 page 수를 계속 의미한다. 후속 strict live payload validation에서 마지막 page가 `malformed_page`로 판정되더라도 그 JSON object가 이미 local page evidence에 보존됐다면 current compatibility semantics상 `pages_fetched`에 포함될 수 있다. 이를 successful/valid page count로 재정의하지 않는다.
+- `failure.pages_fetched_before_failure`는 failing page 자체를 제외하고 failure 발생 전에 strict live payload validation까지 성공적으로 통과한 page 수를 나타내는 별도 evidence다. `pages_fetched`와 같은 의미로 합치거나 하나를 다른 하나로 재정의하지 않는다.
 - `pages_requested`는 계속 지원한다. 새 exhaustion-oriented mode에서 이를 모든 configured page를 정상적으로 fetch해야 한다는 기대값으로 표현해서는 안 된다. 재사용한다면 해당 invocation의 finite configured request/page ceiling이라는 의미를 문서화해야 한다.
-- `last_page_next_present`는 현재 evidence role을 유지한다.
+- `last_page_next_present`는 current summary가 마지막으로 보존된 page evidence에서 관찰한 usable next cursor presence를 의미하는 compatibility evidence다. 이 field 하나만으로 해당 traversal이 successful pagination-completeness를 달성했다는 뜻은 아니다.
 - hard page ceiling 때문에 traversal이 멈추고 usable next cursor가 남으면 `bounded_page_cutoff`가 true다. deadline, loop, provider/request/response failure 때문에 종료된 경우에는 true로 바꾸지 않는다.
 - `coverage.status`는 temporal bucket coverage evidence로 유지하며 pagination-completeness 의미를 덧씌우지 않는다.
+
+`malformed_page`는 계속 failure다. Malformed JSON-object page가 local page evidence에 보존되어 `pages_fetched`와 `last_page_next_present`에 반영될 수 있다는 사실은 successful collection, pagination exhaustion, load-eligible category/channel result, complete provider population 중 어느 것도 의미하지 않는다. Incomplete traversal의 derived category/channel result는 계속 fail-closed여야 한다.
 
 Phase 1의 새 exhaustion-oriented capability는 기존 bounded/default path의 termination/result/write behavior를 암묵적으로 재정의해서는 안 된다. Shared `fetch_pages(...)` 또는 인접 shared code를 수정하더라도 Phase 2 activation 전까지 현재 active/default bounded path는 current observable behavior와 write eligibility semantics를 유지해야 한다. 이 compatibility는 기존 bounded behavior를 새로운 product-level completeness claim으로 승격하는 근거가 아니며, focused regression test로 보호해야 한다.
 
@@ -169,7 +173,7 @@ page를 순회하는 동안 live row는 나타나거나 사라지고, 순서가 
 따라서 Phase 1의 smallest safe contract는 다음과 같다.
 
 - 새 cross-page dedupe key를 추측하거나 적용하지 않는다.
-- accepted page를 merge할 때 현재 row multiplicity를 유지한다.
+- strict live payload validation을 통과해 derived result merge 대상으로 처리되는 page는 현재 row multiplicity를 유지한다.
 - proven dedupe identity가 없다는 사실을 explicit implementation/review caveat로 남긴다.
 - pagination exhaustion에서 exact de-duplicated population total을 claim하지 않는다.
 
