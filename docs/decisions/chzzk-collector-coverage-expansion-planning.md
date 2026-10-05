@@ -1,6 +1,6 @@
 # Chzzk Collector Coverage Expansion Planning Contract
 
-Status: Canonical planning-contract — Phase 1 repository implementation은 merge되었다. Phase 2 authority-runtime activation은 exact approved scope가 human-authored GitHub evidence로 승인될 때까지 Human Gate controlled 상태이며 아직 authorized되지 않았다.
+Status: Canonical planning-contract — Phase 1 repository implementation은 merge되었다. Phase 2는 [Human Gate approval](https://github.com/cbbsjj0314/picking-my-time-sink/pull/190#issuecomment-5994796194)에 따라 `Approved with conditions`이며 authority-runtime budget은 `max_pages = 120`, `time_budget_seconds = 60`, page `size = 20`이다. Repository implementation은 explicit exhaustion orchestration 연결에 한정하며, validation/CI와 새 Fresh-context review를 통과해 merge된 뒤 수행할 one-off no-write live verification 및 조건부 authority-runtime activation을 실행하거나 완료하지 않는다. 아래 phase contract는 그 승인 조건과 함께 적용한다.
 
 Ticket: `CHZZK-COLLECTOR-COVERAGE-EXPANSION-001`
 
