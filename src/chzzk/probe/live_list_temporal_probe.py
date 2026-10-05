@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import argparse
+import asyncio
 import datetime as dt
 import json
+import math
 import os
+import time
 from collections import Counter, defaultdict
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -414,6 +417,143 @@ def write_probe_run(
         channel_result_rows=channel_result_rows,
         channel_result_written=channel_result_written,
     )
+    write_json(run_dir / "summary.json", summary)
+    return summary
+
+
+async def run_exhaustion_probe(
+    *,
+    client: httpx.AsyncClient,
+    headers: Mapping[str, str],
+    base_url: str,
+    size: int,
+    max_pages: int,
+    time_budget_seconds: float,
+    output_dir: Path,
+    run_id: str,
+    monotonic: Callable[[], float] = time.monotonic,
+    clock: Callable[[], dt.datetime] = utc_now,
+) -> dict[str, Any]:
+    """Collect a cursor chain with explicit budgets; no default/CLI activation.
+
+    Only exhaustion permits derived artifacts. The caller owns the async client
+    (without transport retries) and the encompassing orchestration lock. Cursor
+    exhaustion proves neither a frozen snapshot nor a deduplicated population.
+    """
+
+    if not 1 <= size <= 20:
+        raise ValueError("size must be between 1 and 20")
+    if type(max_pages) is not int or max_pages < 1:
+        raise ValueError("max_pages must be a positive integer")
+    if not math.isfinite(time_budget_seconds) or time_budget_seconds <= 0:
+        raise ValueError("time_budget_seconds must be finite and positive")
+    if not run_id or run_id in {".", ".."} or "/" in run_id or "\\" in run_id:
+        raise ValueError("run_id must be a single directory name")
+
+    # Refuse reuse so a failed attempt cannot inherit stale loadable artifacts.
+    run_dir = output_dir / run_id
+    run_dir.mkdir(parents=True, exist_ok=False)
+    fetched: list[dict[str, Any]] = []
+    seen_cursors: set[str] = set()
+    next_cursor: str | None = None
+    requests_performed = 0
+    validated_pages = 0
+    http_status_code: int | None = None
+    deadline = monotonic() + time_budget_seconds
+    collected_at = clock()
+    if collected_at.tzinfo is None:
+        raise ValueError("collection anchor must include timezone")
+
+    while True:
+        page_index = requests_performed + 1
+        remaining = deadline - monotonic()
+        if remaining <= 0:
+            termination = "deadline_exceeded"
+            break
+        params = {"size": str(size)}
+        if next_cursor is not None:
+            params["next"] = next_cursor
+        requests_performed += 1
+        try:
+            # HTTPX timeouts alone bound individual I/O waits, not a whole body.
+            async with asyncio.timeout(remaining):
+                response = await client.get(
+                    base_url, headers=headers, params=params, follow_redirects=False
+                )
+                response.raise_for_status()
+        except TimeoutError:
+            termination = "deadline_exceeded"
+            break
+        except httpx.HTTPStatusError as exc:
+            http_status_code = exc.response.status_code
+            termination = "quota_http_error" if http_status_code == 429 else "http_error"
+            break
+        except httpx.RequestError:
+            termination = "request_error"
+            break
+        try:
+            payload = response.json()
+        except ValueError:
+            termination = "invalid_json"
+            break
+        if not isinstance(payload, dict):
+            termination = "malformed_page"
+            break
+        fetched.append(payload)
+        try:
+            extract_live_items(payload)
+        except ValueError:
+            termination = "malformed_page"
+            break
+        validated_pages += 1
+        page_index = requests_performed + 1
+        if monotonic() >= deadline:
+            termination = "deadline_exceeded"
+            break
+        next_value = _page_next(payload)
+        if not isinstance(next_value, str) or not next_value:
+            termination = "pagination_exhausted"
+            break
+        if next_value in seen_cursors:
+            termination = "pagination_loop_detected"
+            break
+        if requests_performed >= max_pages:
+            termination = "safety_cutoff"
+            break
+        seen_cursors.add(next_value)
+        next_cursor = next_value
+
+    failure = None
+    if termination != "pagination_exhausted":
+        failure = _fetch_failure(
+            kind=termination,
+            page_index=page_index,
+            pages_fetched_before_failure=validated_pages,
+            message=termination,
+            http_status_code=http_status_code,
+        )
+    summary = write_probe_run(
+        output_dir=output_dir,
+        pages=fetched,
+        collected_at=collected_at,
+        pages_requested=max_pages,
+        size=size,
+        run_id=run_id,
+        failure=failure,
+    )
+    summary["pagination"].update(
+        {
+            "mode": "exhaustion",
+            "termination": termination,
+            "requests_performed": requests_performed,
+            "time_budget_seconds": time_budget_seconds,
+            "bounded_page_cutoff": termination == "safety_cutoff",
+        }
+    )
+    for page in summary["page_summaries"]:
+        if "malformed_reason" in page:
+            # Parser exceptions may interpolate an untrusted provider code.
+            page["malformed_reason"] = "malformed_page"
     write_json(run_dir / "summary.json", summary)
     return summary
 

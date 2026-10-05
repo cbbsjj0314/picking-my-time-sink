@@ -233,6 +233,12 @@ Phase 1은 다음을 해서는 안 된다.
 
 Checked-in capability는 별도 gate가 필요한 live activation에 대해 inert 상태로 남아야 한다.
 
+### Phase 1 repository API / evidence
+
+`live_list_temporal_probe.run_exhaustion_probe(...)`는 별도 async API다. Caller는 retry 없는 `httpx.AsyncClient`, positive integer `max_pages`, finite positive `time_budget_seconds`, 새 `run_id`를 명시해야 한다. 기존 CLI, `fetch_pages(...)`, default orchestration은 이 API를 호출하지 않는다. Future orchestration caller는 전체 attempt를 기존 `NoOverlapLock` 안에 유지해야 한다. 기존 run directory는 stale derived artifact 재사용을 막기 위해 request 전에 거부한다.
+
+`pagination.mode="exhaustion"`에서 `pages_requested`는 configured hard ceiling이다. `pagination.requests_performed`는 실제 발행한 page request 수이며 redirect를 따르지 않는다. `pagination.termination`은 위의 9개 termination을 구분하고 `pagination.time_budget_seconds`는 해당 invocation의 전체 traversal budget이다. Monotonic deadline은 request 전후에 검사하고, 진행 중 async request/body read는 남은 budget으로 취소한다. 응답 실패를 먼저 판정하며 valid page에서는 deadline, exhaustion, loop, ceiling 순서로 종료를 판정한다. 따라서 loop/deadline과 ceiling이 겹쳐도 `bounded_page_cutoff`로 바꾸지 않는다. Guard 종료의 `failure.page_index`는 다음 request 위치이며 in-flight request failure는 해당 request 위치다. `failure.pages_fetched_before_failure`는 strict validation을 통과한 page 수로 유지한다. Local artifact 기록은 traversal 종료 후 수행하며 incomplete attempt에는 category/channel result를 기록하지 않는다. 이 API와 test-local budget은 Phase 2 runtime budget 선택이나 activation 승인이 아니다.
+
 ### Phase 2 — live activation and bounded runtime verification
 
 Phase 2는 required Human Gate가 exact approved scope를 명시한 human-authored GitHub evidence와 함께 Approved된 뒤에만 시작할 수 있다.

@@ -1,14 +1,17 @@
 from __future__ import annotations
 
+import asyncio
 import json
 from pathlib import Path
 from typing import Any
 
+import httpx
 import pytest
 
 from chzzk.ingest import run_chzzk_fetch_load_manual_orchestration as orch
 from chzzk.ingest import run_chzzk_recurring_write_path as recurring
 from chzzk.ingest import run_chzzk_regular_write_path as regular
+from chzzk.probe import live_list_temporal_probe as probe
 
 SENSITIVE_CATEGORY_NAME = "Sensitive Synthetic Category Name"
 SENSITIVE_CATEGORY_ID = "sensitive-category-id"
@@ -731,6 +734,158 @@ def test_prior_selected_artifact_run_id_rejects_path_traversal(tmp_path: Path) -
     assert result["status"] == "hard_failure"
     assert result["failure_class"] == "prior_selected_artifact_run_id_invalid"
     assert result["live_fetch"]["invocation_count"] == 0
+
+
+def synthetic_live_page(next_cursor: str | None) -> dict[str, Any]:
+    return {
+        "code": 200,
+        "content": {
+            "data": [
+                {
+                    "categoryType": "GAME",
+                    "liveCategory": "synthetic",
+                    "liveCategoryValue": "Synthetic",
+                    "concurrentUserCount": 7,
+                    "channelId": "synthetic-channel",
+                    "channelName": "Synthetic Channel",
+                }
+            ],
+            "page": {"next": next_cursor},
+        },
+    }
+
+
+def test_default_bounded_three_pages_remain_write_eligible_and_use_completion_time(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    requests: list[httpx.Request] = []
+    events: list[str] = []
+    anchor = probe.parse_timestamp("2026-10-05T10:29:59+09:00")
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal anchor
+        requests.append(request)
+        anchor = probe.parse_timestamp("2026-10-05T10:30:01+09:00")
+        return httpx.Response(200, json=synthetic_live_page(f"cursor-{len(requests)}"))
+
+    client_class = httpx.Client
+    monkeypatch.setattr(
+        orch.httpx,
+        "Client",
+        lambda **kwargs: client_class(transport=httpx.MockTransport(handler), **kwargs),
+    )
+    monkeypatch.setattr(probe, "utc_now", lambda: anchor)
+    result = run(
+        tmp_path,
+        allow_live_fetch_once=True,
+        write_enabled=True,
+        fetcher=orch._default_fetcher,
+        events=events,
+    )
+
+    assert orch.DEFAULT_FETCH_PAGES == 3
+    assert [request.url.params.get("next") for request in requests] == [
+        None,
+        "cursor-1",
+        "cursor-2",
+    ]
+    assert result["status"] == "success"
+    assert events == ["relation", "recurring:False:orch-run-a", "recurring:True:orch-run-a"]
+    assert result["guarded_write"]["status"] == "success"
+    summary = probe.read_json(tmp_path / "temporal-probe" / "orch-run-a" / "summary.json")
+    assert summary["failure"] is None
+    assert summary["run_status"] == "success"
+    assert summary["result_status"] == "category_results_available"
+    assert summary["pagination"] == {
+        "bounded_page_cutoff": True,
+        "followed": True,
+        "last_page_next_present": True,
+        "last_page_next_type": "str",
+        "pages_fetched": 3,
+        "pages_requested": 3,
+    }
+    assert summary["collected_at"] == "2026-10-05T10:30:01+09:00"
+    assert summary["bucket_time"] == "2026-10-05T10:30:00+09:00"
+    assert summary["category_result_rows"] == 1
+    assert summary["channel_result_rows"] == 3
+    for role in ("category", "channel"):
+        assert Path(summary[f"{role}_result_path"]).is_file()
+
+
+@pytest.mark.parametrize("termination", ["pagination_exhausted", "safety_cutoff", "http_error"])
+def test_injected_exhaustion_keeps_lock_for_all_pages_and_load_boundary(
+    tmp_path: Path,
+    termination: str,
+) -> None:
+    events: list[str] = []
+    request_count = 0
+
+    def assert_contender_blocked() -> None:
+        contender_events: list[str] = []
+        contender = run(
+            tmp_path, allow_live_fetch_once=True, run_id="contender", events=contender_events
+        )
+        assert contender_events == []
+        assert contender["status"] == contender["failure_class"] == "lock_busy"
+        assert orch.exit_code_for_status(contender["status"]) == orch.LOCK_BUSY_EXIT_CODE
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal request_count
+        request_count += 1
+        assert_contender_blocked()
+        if request_count == 2 and termination == "http_error":
+            return httpx.Response(503)
+        cursor = (
+            None
+            if request_count == 2 and termination == "pagination_exhausted"
+            else (f"cursor-{request_count}")
+        )
+        return httpx.Response(200, json=synthetic_live_page(cursor))
+
+    def fetcher(**kwargs: Any) -> dict[str, Any]:
+        async def collect() -> dict[str, Any]:
+            async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+                return await probe.run_exhaustion_probe(
+                    client=client,
+                    headers={},
+                    base_url="https://example.test/lives",
+                    size=20,
+                    max_pages=2,
+                    time_budget_seconds=5,
+                    monotonic=lambda: 0,
+                    output_dir=kwargs["output_dir"],
+                    run_id=kwargs["run_id"],
+                )
+
+        return asyncio.run(collect())
+
+    def runner(**kwargs: Any) -> dict[str, Any]:
+        assert_contender_blocked()
+        return fake_recurring(events)(**kwargs)
+
+    result = run(
+        tmp_path,
+        allow_live_fetch_once=True,
+        write_enabled=True,
+        events=events,
+        fetcher=fetcher,
+        recurring_runner=runner,
+    )
+
+    assert request_count == 2
+    if termination == "pagination_exhausted":
+        assert result["status"] == "success"
+        assert events == ["relation", "recurring:False:orch-run-a", "recurring:True:orch-run-a"]
+    else:
+        assert result["status"] == "hard_failure"
+        assert result["guarded_write"]["status"] == "not_started"
+        assert events == ["relation"]
+    lock = regular.NoOverlapLock(
+        orch.build_paths(base_dir=tmp_path / "orchestration", run_id="after").lock_path
+    )
+    assert lock.acquire(wait_seconds=0.0)
+    lock.release()
 
 
 def test_lock_busy_starts_no_steps(tmp_path: Path) -> None:
