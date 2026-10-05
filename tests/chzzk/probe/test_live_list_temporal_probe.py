@@ -95,6 +95,105 @@ def assert_incomplete(summary: dict[str, Any], tmp_path: Path, kind: str) -> Non
     assert json.loads((tmp_path / "exhaustion" / "summary.json").read_text()) == summary
 
 
+@pytest.fixture
+def summary_write_payloads(monkeypatch: pytest.MonkeyPatch) -> list[dict[str, Any]]:
+    writes: list[dict[str, Any]] = []
+    original_write_text = Path.write_text
+
+    def observe_write(path: Path, data: str, *args: Any, **kwargs: Any) -> int:
+        if path.name == "summary.json":
+            writes.append(json.loads(data))
+        return original_write_text(path, data, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "write_text", observe_write)
+    return writes
+
+
+def test_exhaustion_malformed_summary_is_safe_from_first_write(
+    tmp_path: Path,
+    summary_write_payloads: list[dict[str, Any]],
+) -> None:
+    sentinel = "synthetic-provider-code-sentinel"
+    malformed = {"code": sentinel, "content": {"data": []}}
+    summary = run_exhaustion(tmp_path, lambda request: httpx.Response(200, json=malformed))
+
+    assert all(sentinel not in json.dumps(written) for written in summary_write_payloads)
+    assert summary_write_payloads == [summary]
+    assert sentinel not in json.dumps(summary)
+    assert summary["page_summaries"][0]["malformed_reason"] == "malformed_page"
+    assert_incomplete(summary, tmp_path, "malformed_page")
+    assert json.loads((tmp_path / "exhaustion" / "raw" / "page-001.json").read_text()) == malformed
+
+
+def test_exhaustion_cutoff_summary_excludes_unsupported_category_type(
+    tmp_path: Path,
+    summary_write_payloads: list[dict[str, Any]],
+) -> None:
+    sentinel = "synthetic-unsupported-category-type-sentinel"
+    page = synthetic_page("synthetic-cursor")
+    items = page["content"]["data"]
+    items.extend(
+        [
+            {**items[0], "categoryType": value}
+            for value in (
+                "SPORTS",
+                "ENTERTAINMENT",
+                "ETC",
+                sentinel,
+            )
+        ]
+    )
+    summary = run_exhaustion(
+        tmp_path,
+        lambda request: httpx.Response(200, json=page),
+        max_pages=1,
+    )
+
+    assert sentinel not in json.dumps(summary)
+    assert all(sentinel not in json.dumps(written) for written in summary_write_payloads)
+    assert summary_write_payloads == [summary]
+    assert summary["page_summaries"][0]["category_type_counts"] == {
+        "GAME": 1,
+        "SPORTS": 1,
+        "ENTERTAINMENT": 1,
+        "ETC": 1,
+    }
+    assert summary["total_live_items"] == 5
+    assert_incomplete(summary, tmp_path, "safety_cutoff")
+    assert json.loads((tmp_path / "exhaustion" / "raw" / "page-001.json").read_text()) == page
+
+
+def test_write_probe_run_default_keeps_legacy_summary_write(
+    tmp_path: Path,
+    summary_write_payloads: list[dict[str, Any]],
+) -> None:
+    summary = write_probe_run(
+        output_dir=tmp_path,
+        pages=[synthetic_page("synthetic-cursor")],
+        collected_at=parse_timestamp("2026-10-05T10:29:59+09:00"),
+        pages_requested=1,
+        size=20,
+        run_id="legacy",
+    )
+
+    assert summary_write_payloads == [summary]
+    assert json.loads((tmp_path / "legacy" / "summary.json").read_text()) == summary
+    assert summary["failure"] is None
+    assert summary["run_status"] == "success"
+    assert summary["result_status"] == "category_results_available"
+    assert summary["pagination"] == {
+        "bounded_page_cutoff": True,
+        "followed": False,
+        "last_page_next_present": True,
+        "last_page_next_type": "str",
+        "pages_fetched": 1,
+        "pages_requested": 1,
+    }
+    assert summary["category_type_counts"] == {"GAME": 1}
+    assert summary["page_summaries"][0]["category_type_counts"] == {"GAME": 1}
+    assert summary["category_result_rows"] == summary["channel_result_rows"] == 1
+
+
 @pytest.mark.parametrize("max_pages", [2, 4])
 def test_exhaustion_success_preserves_anchor_and_row_multiplicity(
     tmp_path: Path,

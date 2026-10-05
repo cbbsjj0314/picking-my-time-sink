@@ -18,6 +18,7 @@ from zoneinfo import ZoneInfo
 import httpx
 
 from chzzk.normalize.category_lives import (
+    ALLOWED_CATEGORY_TYPES,
     aggregate_category_lives,
     build_channel_result_rows,
     build_result_row,
@@ -370,8 +371,9 @@ def write_probe_run(
     size: int,
     run_id: str | None = None,
     failure: Mapping[str, Any] | None = None,
+    persist_summary: bool = True,
 ) -> dict[str, Any]:
-    """Write raw pages, category result JSONL, and a sanitized run summary."""
+    """Write probe artifacts, optionally deferring summary persistence to the caller."""
 
     resolved_run_id = run_id or collected_at.astimezone(dt.UTC).strftime("%Y%m%dT%H%M%SZ")
     run_dir = output_dir / resolved_run_id
@@ -417,7 +419,8 @@ def write_probe_run(
         channel_result_rows=channel_result_rows,
         channel_result_written=channel_result_written,
     )
-    write_json(run_dir / "summary.json", summary)
+    if persist_summary:
+        write_json(run_dir / "summary.json", summary)
     return summary
 
 
@@ -540,6 +543,7 @@ async def run_exhaustion_probe(
         size=size,
         run_id=run_id,
         failure=failure,
+        persist_summary=False,
     )
     summary["pagination"].update(
         {
@@ -551,6 +555,12 @@ async def run_exhaustion_probe(
         }
     )
     for page in summary["page_summaries"]:
+        # Only official enum values may become aggregate evidence keys.
+        page["category_type_counts"] = {
+            category_type: count
+            for category_type, count in page["category_type_counts"].items()
+            if category_type in ALLOWED_CATEGORY_TYPES
+        }
         if "malformed_reason" in page:
             # Parser exceptions may interpolate an untrusted provider code.
             page["malformed_reason"] = "malformed_page"
