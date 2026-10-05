@@ -1,10 +1,12 @@
-"""Manual Chzzk bounded fetch-load orchestration boundary."""
+"""Manual Chzzk fetch-load orchestration with explicit pagination selection."""
 
 from __future__ import annotations
 
 import argparse
+import asyncio
 import datetime as dt
 import json
+import math
 import os
 import re
 from collections.abc import Callable, Mapping, Sequence
@@ -28,6 +30,8 @@ LOCK_BASENAME = "chzzk-fetch-load-manual-orchestration.lock"
 LOCK_BUSY_EXIT_CODE = regular.LOCK_BUSY_EXIT_CODE
 DEFAULT_FETCH_PAGES = 3
 DEFAULT_FETCH_SIZE = 20
+MAX_EXHAUSTION_PAGES = 120
+MAX_EXHAUSTION_TIME_BUDGET_SECONDS = 60
 SAFE_RUN_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]*$")
 REQUIRED_CHZZK_ENV = ("CHZZK_CLIENT_ID", "CHZZK_CLIENT_SECRET")
 REQUIRED_DB_ENV = ("POSTGRES_HOST", "POSTGRES_DB", "POSTGRES_USER", "POSTGRES_PASSWORD")
@@ -37,6 +41,9 @@ PROBE_FETCH_FAILURE_CLASSES = {
     "request_error": "probe_request_error",
     "invalid_json": "probe_invalid_json",
     "malformed_page": "probe_malformed_page",
+    "safety_cutoff": "probe_safety_cutoff",
+    "deadline_exceeded": "probe_deadline_exceeded",
+    "pagination_loop_detected": "probe_pagination_loop_detected",
 }
 PROBE_FETCH_FAILURE_RUN_STATUSES = {"failed", "partial_failure"}
 PROBE_FETCH_FAILURE_RESULT_STATUS = "not_generated_due_to_fetch_failure"
@@ -160,6 +167,11 @@ def check_selected_artifact(probe_run_dir: Path) -> dict[str, dict[str, Any]]:
 
 
 def _probe_fetch_failure_class(probe_summary: Mapping[str, Any]) -> str | None:
+    pagination = probe_summary.get("pagination", {})
+    if pagination.get("mode") == "exhaustion":
+        termination = pagination.get("termination")
+        if termination != "pagination_exhausted":
+            return PROBE_FETCH_FAILURE_CLASSES.get(termination, "probe_fetch_failed")
     failure_kind = probe_summary.get("failure_kind")
     if isinstance(failure_kind, str) and failure_kind:
         return PROBE_FETCH_FAILURE_CLASSES.get(failure_kind, "probe_fetch_failed")
@@ -177,6 +189,8 @@ def _artifact_failure_class(
     if not artifact_checks["summary"]["exists"]:
         return "probe_summary_missing"
     probe_failure = _probe_fetch_failure_class(probe_summary)
+    if probe_summary.get("pagination", {}).get("mode") == "exhaustion" and probe_failure:
+        return probe_failure
     if not artifact_checks["category"]["exists"]:
         return probe_failure or "category_artifact_missing"
     if not artifact_checks["channel"]["exists"]:
@@ -199,7 +213,7 @@ def _sanitize_probe_summary(probe_summary: Mapping[str, Any] | None) -> dict[str
         coverage = {}
     failure = probe_summary.get("failure")
     failure_kind = failure.get("kind") if isinstance(failure, Mapping) else None
-    return {
+    sanitized = {
         "bounded_page_cutoff": pagination.get("bounded_page_cutoff"),
         "category_result_rows": probe_summary.get("category_result_rows"),
         "channel_result_rows": probe_summary.get("channel_result_rows"),
@@ -215,6 +229,27 @@ def _sanitize_probe_summary(probe_summary: Mapping[str, Any] | None) -> dict[str
         "run_status": probe_summary.get("run_status"),
         "status": "available",
     }
+    if "mode" in pagination:
+        # Only repository enum values and typed counters cross this evidence boundary.
+        mode = pagination.get("mode")
+        termination = pagination.get("termination")
+        sanitized["pagination"] = {
+            "mode": mode if mode in ("bounded", "exhaustion") else "unknown",
+            "termination": termination
+            if isinstance(termination, str)
+            and termination in {*PROBE_FETCH_FAILURE_CLASSES, "pagination_exhausted"}
+            else "unknown",
+        }
+        for key in ("requests_performed", "pages_requested"):
+            value = pagination.get(key)
+            sanitized["pagination"][key] = value if type(value) is int and value >= 0 else None
+        budget = pagination.get("time_budget_seconds")
+        sanitized["pagination"]["time_budget_seconds"] = (
+            budget
+            if type(budget) in (int, float) and math.isfinite(budget) and budget > 0
+            else None
+        )
+    return sanitized
 
 
 def _sanitize_recurring_result(result: Mapping[str, Any] | None) -> dict[str, Any]:
@@ -444,6 +479,62 @@ def _default_fetcher(
     )
 
 
+def _exhaustion_fetcher(
+    *,
+    output_dir: Path,
+    run_id: str,
+    max_pages: int,
+    time_budget_seconds: float,
+    size: int,
+    base_url: str,
+    timeout: float,
+    environ: Mapping[str, str],
+) -> Mapping[str, Any]:
+    async def collect() -> Mapping[str, Any]:
+        async with httpx.AsyncClient(
+            timeout=timeout, transport=httpx.AsyncHTTPTransport(retries=0)
+        ) as client:
+            return await live_list_temporal_probe.run_exhaustion_probe(
+                client=client,
+                headers={
+                    "Client-Id": environ["CHZZK_CLIENT_ID"],
+                    "Client-Secret": environ["CHZZK_CLIENT_SECRET"],
+                },
+                base_url=base_url,
+                size=size,
+                max_pages=max_pages,
+                time_budget_seconds=time_budget_seconds,
+                output_dir=output_dir,
+                run_id=run_id,
+            )
+
+    return asyncio.run(collect())
+
+
+def _valid_fetch_selection(
+    *,
+    mode: str,
+    pages: int | None,
+    max_pages: int | None,
+    time_budget_seconds: float | None,
+    size: int,
+    live_fetch_enabled: bool,
+) -> bool:
+    if mode == "bounded":
+        return max_pages is None and time_budget_seconds is None
+    if mode != "exhaustion" or not live_fetch_enabled or pages is not None:
+        return False
+    return (
+        type(max_pages) is int
+        and 1 <= max_pages <= MAX_EXHAUSTION_PAGES
+        and type(time_budget_seconds) in (int, float)
+        and math.isfinite(time_budget_seconds)
+        and 0 < time_budget_seconds <= MAX_EXHAUSTION_TIME_BUDGET_SECONDS
+        and type(size) is int
+        and size == DEFAULT_FETCH_SIZE
+    )
+
+
 def _check_db_env(environ: Mapping[str, str]) -> dict[str, Any]:
     presence = _presence(REQUIRED_DB_ENV, environ)
     failure_class = _presence_failure_class("db", presence)
@@ -638,12 +729,15 @@ def run_orchestration(
     lock_wait_seconds: float = 0.0,
     api_smoke_url: str | None = None,
     api_client: Any | None = None,
-    fetch_pages: int = DEFAULT_FETCH_PAGES,
+    fetch_pages: int | None = None,
+    fetch_pagination_mode: str = "bounded",
+    fetch_max_pages: int | None = None,
+    fetch_time_budget_seconds: float | None = None,
     fetch_size: int = DEFAULT_FETCH_SIZE,
     fetch_base_url: str = live_list_temporal_probe.DEFAULT_LIVES_URL,
     fetch_timeout: float = 20.0,
     environ: Mapping[str, str] | None = None,
-    fetcher: Fetcher = _default_fetcher,
+    fetcher: Fetcher | None = None,
     recurring_runner: RecurringRunner = recurring.run_recurring_with_evidence,
     relation_checker: RelationChecker = regular.check_relation_preconditions,
 ) -> dict[str, Any]:
@@ -679,6 +773,23 @@ def run_orchestration(
                 failure_class="orchestration_source_invalid",
                 action_policy=action_policy,
             )
+
+        if not _valid_fetch_selection(
+            mode=fetch_pagination_mode,
+            pages=fetch_pages,
+            max_pages=fetch_max_pages,
+            time_budget_seconds=fetch_time_budget_seconds,
+            size=fetch_size,
+            live_fetch_enabled=live_fetch_mode,
+        ):
+            return _finish(
+                paths=paths,
+                started_at_utc=started_at_utc,
+                status="hard_failure",
+                failure_class="fetch_selection_invalid",
+                action_policy=action_policy,
+            )
+        bounded_pages = DEFAULT_FETCH_PAGES if fetch_pages is None else fetch_pages
 
         if from_orchestration_run_id is not None:
             safe_prior_run_id = _safe_run_id(from_orchestration_run_id)
@@ -768,11 +879,32 @@ def run_orchestration(
 
         live_fetch = {"invocation_count": 0, "status": "not_started"}
         if live_fetch_mode:
+            if fetch_pagination_mode == "exhaustion":
+                selected_fetcher = fetcher or _exhaustion_fetcher
+                fetch_options = {
+                    "max_pages": fetch_max_pages,
+                    "time_budget_seconds": fetch_time_budget_seconds,
+                }
+            else:
+                selected_fetcher = fetcher or _default_fetcher
+                fetch_options = {"pages": bounded_pages}
+            live_fetch = {
+                "invocation_count": 1,
+                "pagination_mode": fetch_pagination_mode,
+                "pages_requested": fetch_max_pages
+                if fetch_pagination_mode == "exhaustion"
+                else bounded_pages,
+                "retry_loop_enabled": False,
+                "size": fetch_size,
+                "status": "started",
+            }
+            if fetch_pagination_mode == "exhaustion":
+                live_fetch["time_budget_seconds"] = fetch_time_budget_seconds
             try:
-                fetcher(
+                selected_fetcher(
                     output_dir=probe_output_dir,
                     run_id=selected_artifact_run_id,
-                    pages=fetch_pages,
+                    **fetch_options,
                     size=fetch_size,
                     base_url=fetch_base_url,
                     timeout=fetch_timeout,
@@ -789,20 +921,20 @@ def run_orchestration(
                     db_env_preconditions=db_env_preconditions,
                     relation_preconditions=relation_preconditions,
                     prior_result_validation=prior_validation,
-                    live_fetch={"invocation_count": 1, "status": "failed"},
+                    live_fetch={**live_fetch, "status": "failed"},
                     selected_artifact_run_id=selected_artifact_run_id,
                 )
-            live_fetch = {
-                "invocation_count": 1,
-                "pages_requested": fetch_pages,
-                "retry_loop_enabled": False,
-                "size": fetch_size,
-                "status": "completed",
-            }
+            live_fetch["status"] = "completed"
 
         artifact_checks = check_selected_artifact(probe_run_dir)
         probe_summary = _sanitize_probe_summary(_read_probe_summary(probe_run_dir))
         artifact_failure = _artifact_failure_class(artifact_checks, probe_summary)
+        if (
+            live_fetch_mode
+            and fetch_pagination_mode == "exhaustion"
+            and probe_summary.get("pagination", {}).get("mode") != "exhaustion"
+        ):
+            artifact_failure = "probe_pagination_mode_invalid"
         if artifact_failure is not None:
             return _finish(
                 paths=paths,
@@ -941,7 +1073,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--write", action="store_true")
     parser.add_argument("--idempotency-rerun", action="store_true")
     parser.add_argument("--api-smoke-url")
-    parser.add_argument("--fetch-pages", type=int, default=DEFAULT_FETCH_PAGES)
+    parser.add_argument("--fetch-pages", type=int, help="Bounded pages (default: 3)")
+    parser.add_argument(
+        "--fetch-pagination-mode", choices=("bounded", "exhaustion"), default="bounded"
+    )
+    parser.add_argument("--fetch-max-pages", type=int)
+    parser.add_argument("--fetch-time-budget-seconds", type=float)
     parser.add_argument("--fetch-size", type=int, default=DEFAULT_FETCH_SIZE)
     parser.add_argument("--fetch-base-url", default=live_list_temporal_probe.DEFAULT_LIVES_URL)
     parser.add_argument("--fetch-timeout", type=float, default=20.0)
@@ -963,6 +1100,9 @@ def main(argv: Sequence[str] | None = None) -> None:
         lock_wait_seconds=args.lock_wait_sec,
         api_smoke_url=args.api_smoke_url,
         fetch_pages=args.fetch_pages,
+        fetch_pagination_mode=args.fetch_pagination_mode,
+        fetch_max_pages=args.fetch_max_pages,
+        fetch_time_budget_seconds=args.fetch_time_budget_seconds,
         fetch_size=args.fetch_size,
         fetch_base_url=args.fetch_base_url,
         fetch_timeout=args.fetch_timeout,

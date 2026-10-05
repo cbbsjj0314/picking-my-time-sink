@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 import json
 from pathlib import Path
 from typing import Any
@@ -780,7 +779,7 @@ def test_default_bounded_three_pages_remain_write_eligible_and_use_completion_ti
         tmp_path,
         allow_live_fetch_once=True,
         write_enabled=True,
-        fetcher=orch._default_fetcher,
+        fetcher=None,
         events=events,
     )
 
@@ -813,9 +812,23 @@ def test_default_bounded_three_pages_remain_write_eligible_and_use_completion_ti
         assert Path(summary[f"{role}_result_path"]).is_file()
 
 
-@pytest.mark.parametrize("termination", ["pagination_exhausted", "safety_cutoff", "http_error"])
-def test_injected_exhaustion_keeps_lock_for_all_pages_and_load_boundary(
+@pytest.mark.parametrize(
+    "termination",
+    [
+        "pagination_exhausted",
+        "safety_cutoff",
+        "deadline_exceeded",
+        "pagination_loop_detected",
+        "quota_http_error",
+        "http_error",
+        "request_error",
+        "invalid_json",
+        "malformed_page",
+    ],
+)
+def test_explicit_exhaustion_keeps_lock_and_fail_closed_load_boundary(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
     termination: str,
 ) -> None:
     events: list[str] = []
@@ -834,31 +847,42 @@ def test_injected_exhaustion_keeps_lock_for_all_pages_and_load_boundary(
         nonlocal request_count
         request_count += 1
         assert_contender_blocked()
-        if request_count == 2 and termination == "http_error":
-            return httpx.Response(503)
+        if request_count == 2:
+            if termination == "quota_http_error":
+                return httpx.Response(429, text=SENSITIVE_API_BODY)
+            if termination == "http_error":
+                return httpx.Response(503, text=SENSITIVE_API_BODY)
+            if termination == "request_error":
+                raise httpx.ReadError(SENSITIVE_API_BODY)
+            if termination == "invalid_json":
+                return httpx.Response(200, text=SENSITIVE_API_BODY)
+            if termination == "malformed_page":
+                return httpx.Response(200, json={"content": SENSITIVE_API_BODY})
         cursor = (
             None
             if request_count == 2 and termination == "pagination_exhausted"
-            else (f"cursor-{request_count}")
+            else (
+                SENSITIVE_CREDENTIAL
+                if termination == "pagination_loop_detected"
+                else f"cursor-{request_count}"
+            )
         )
         return httpx.Response(200, json=synthetic_live_page(cursor))
 
-    def fetcher(**kwargs: Any) -> dict[str, Any]:
-        async def collect() -> dict[str, Any]:
-            async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
-                return await probe.run_exhaustion_probe(
-                    client=client,
-                    headers={},
-                    base_url="https://example.test/lives",
-                    size=20,
-                    max_pages=2,
-                    time_budget_seconds=5,
-                    monotonic=lambda: 0,
-                    output_dir=kwargs["output_dir"],
-                    run_id=kwargs["run_id"],
-                )
+    real_probe = probe.run_exhaustion_probe
 
-        return asyncio.run(collect())
+    async def collect(**kwargs: Any) -> dict[str, Any]:
+        return await real_probe(
+            **kwargs,
+            monotonic=lambda: 5 if termination == "deadline_exceeded" and request_count == 2 else 0,
+        )
+
+    def transport(*, retries: int) -> httpx.MockTransport:
+        assert retries == 0
+        return httpx.MockTransport(handler)
+
+    monkeypatch.setattr(orch.httpx, "AsyncHTTPTransport", transport)
+    monkeypatch.setattr(probe, "run_exhaustion_probe", collect)
 
     def runner(**kwargs: Any) -> dict[str, Any]:
         assert_contender_blocked()
@@ -869,23 +893,291 @@ def test_injected_exhaustion_keeps_lock_for_all_pages_and_load_boundary(
         allow_live_fetch_once=True,
         write_enabled=True,
         events=events,
-        fetcher=fetcher,
+        fetcher=None,
+        fetch_pagination_mode="exhaustion",
+        fetch_max_pages=2,
+        fetch_time_budget_seconds=5,
         recurring_runner=runner,
     )
 
     assert request_count == 2
+    assert result["probe_summary"]["pagination"] == {
+        "mode": "exhaustion",
+        "termination": termination,
+        "requests_performed": 2,
+        "pages_requested": 2,
+        "time_budget_seconds": 5,
+    }
+    assert result["probe_summary"]["bounded_page_cutoff"] == (termination == "safety_cutoff")
+    assert_no_sensitive_leak(result, tmp_path)
     if termination == "pagination_exhausted":
         assert result["status"] == "success"
         assert events == ["relation", "recurring:False:orch-run-a", "recurring:True:orch-run-a"]
     else:
         assert result["status"] == "hard_failure"
         assert result["guarded_write"]["status"] == "not_started"
+        assert result["failure_class"] == f"probe_{termination}"
         assert events == ["relation"]
+        for role in ("category", "channel"):
+            assert not result["artifact_checks"][role]["exists"]
     lock = regular.NoOverlapLock(
         orch.build_paths(base_dir=tmp_path / "orchestration", run_id="after").lock_path
     )
     assert lock.acquire(wait_seconds=0.0)
     lock.release()
+
+
+def test_approved_exhaustion_cli_preserves_anchor_multiplicity_and_evidence(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    requests: list[httpx.Request] = []
+    anchor = probe.parse_timestamp("2026-10-05T10:29:59+09:00")
+    real_probe = probe.run_exhaustion_probe
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal anchor
+        requests.append(request)
+        assert request.url.params["size"] == "20"
+        anchor = probe.parse_timestamp("2026-10-05T10:30:01+09:00")
+        page = synthetic_live_page(SENSITIVE_CREDENTIAL if len(requests) == 1 else None)
+        page["content"]["data"][0].update(
+            channelName=SENSITIVE_CHANNEL_NAME,
+            liveTitle=SENSITIVE_LIVE_TITLE,
+            liveCategoryValue=SENSITIVE_CATEGORY_NAME,
+        )
+        return httpx.Response(200, json=page)
+
+    async def collect(**kwargs: Any) -> dict[str, Any]:
+        assert isinstance(kwargs["client"], httpx.AsyncClient)
+        assert kwargs["max_pages"] == 120
+        assert kwargs["time_budget_seconds"] == 60
+        assert kwargs["size"] == 20
+        return await real_probe(**kwargs, clock=lambda: anchor, monotonic=lambda: 0)
+
+    def transport(*, retries: int) -> httpx.MockTransport:
+        assert retries == 0
+        return httpx.MockTransport(handler)
+
+    real_orchestration = orch.run_orchestration
+
+    def orchestration(**kwargs: Any) -> dict[str, Any]:
+        return real_orchestration(
+            **kwargs,
+            environ=env(),
+            relation_checker=relation_exists,
+            recurring_runner=fake_recurring([]),
+        )
+
+    monkeypatch.setattr(orch.httpx, "AsyncHTTPTransport", transport)
+    monkeypatch.setattr(probe, "run_exhaustion_probe", collect)
+    monkeypatch.setattr(orch, "run_orchestration", orchestration)
+    with pytest.raises(SystemExit) as exc:
+        orch.main(
+            [
+                "--allow-live-fetch-once",
+                "--fetch-pagination-mode",
+                "exhaustion",
+                "--fetch-max-pages",
+                "120",
+                "--fetch-time-budget-seconds",
+                "60",
+                "--fetch-size",
+                "20",
+                "--base-dir",
+                str(tmp_path / "orchestration"),
+                "--probe-output-dir",
+                str(tmp_path / "probe"),
+                "--run-id",
+                "approved-config",
+            ]
+        )
+    assert exc.value.code == 0
+    result = json.loads(capsys.readouterr().out)
+    assert len(requests) == 2
+    assert result["status"] == "success"
+    assert result["recurring_no_write_dry_run"]["success"] is True
+    assert result["guarded_write"]["status"] == "not_requested"
+    assert result["live_fetch"]["pagination_mode"] == "exhaustion"
+    assert result["live_fetch"]["pages_requested"] == 120
+    assert result["probe_summary"]["pagination"] == {
+        "mode": "exhaustion",
+        "termination": "pagination_exhausted",
+        "requests_performed": 2,
+        "pages_requested": 120,
+        "time_budget_seconds": 60,
+    }
+    assert result["probe_summary"]["last_page_next_present"] is False
+    assert result["probe_summary"]["bounded_page_cutoff"] is False
+    assert_no_sensitive_leak(result, tmp_path)
+    run_dir = tmp_path / "probe" / "approved-config"
+    categories = [
+        json.loads(line) for line in (run_dir / "category-result.jsonl").read_text().splitlines()
+    ]
+    channels = [
+        json.loads(line) for line in (run_dir / "channel-result.jsonl").read_text().splitlines()
+    ]
+    assert len(categories) == 1
+    assert categories[0]["live_count"] == 2
+    assert len(channels) == 2
+    for row in categories + channels:
+        assert row["collected_at"] == "2026-10-05T10:29:59+09:00"
+        assert row["bucket_time"] == "2026-10-05T10:00:00+09:00"
+
+
+@pytest.mark.parametrize(
+    "options",
+    [
+        {"fetch_pagination_mode": "unknown"},
+        {"fetch_max_pages": 120},
+        {"fetch_time_budget_seconds": 60},
+        {"fetch_pagination_mode": "exhaustion"},
+        {"fetch_pagination_mode": "exhaustion", "fetch_max_pages": 120},
+        {"fetch_pagination_mode": "exhaustion", "fetch_time_budget_seconds": 60},
+        *[
+            {
+                "fetch_pagination_mode": "exhaustion",
+                "fetch_max_pages": value,
+                "fetch_time_budget_seconds": 60,
+            }
+            for value in (0, -1, 121, True, 1.5, "120")
+        ],
+        *[
+            {
+                "fetch_pagination_mode": "exhaustion",
+                "fetch_max_pages": 120,
+                "fetch_time_budget_seconds": value,
+            }
+            for value in (0, -1, 61, True, float("inf"), float("nan"), "60")
+        ],
+        *[
+            {
+                "fetch_pagination_mode": "exhaustion",
+                "fetch_max_pages": 120,
+                "fetch_time_budget_seconds": 60,
+                **extra,
+            }
+            for extra in (
+                {"fetch_pages": 3},
+                {"fetch_pages": 120},
+                {"fetch_size": 21},
+                {"fetch_size": 1},
+                {"allow_live_fetch_once": False, "from_orchestration_run_id": "prior"},
+            )
+        ],
+    ],
+)
+def test_invalid_fetch_selection_fails_before_fetch_or_load(
+    tmp_path: Path, options: dict[str, Any]
+) -> None:
+    events: list[str] = []
+    result = run(
+        tmp_path,
+        events=events,
+        write_enabled=True,
+        **{"allow_live_fetch_once": True, **options},
+    )
+    assert result["status"] == "hard_failure"
+    assert result["failure_class"] == "fetch_selection_invalid"
+    assert result["live_fetch"]["invocation_count"] == 0
+    assert result["guarded_write"]["status"] == "not_started"
+    assert events == []
+
+
+@pytest.mark.parametrize(
+    "termination",
+    [None, "safety_cutoff", "deadline_exceeded", "pagination_loop_detected", SENSITIVE_API_BODY],
+)
+def test_exhaustion_cannot_load_existing_artifacts_without_exhausted_termination(
+    tmp_path: Path, termination: str | None
+) -> None:
+    def fetcher(**kwargs: Any) -> dict[str, Any]:
+        write_probe_artifacts(kwargs["output_dir"], kwargs["run_id"])
+        path = kwargs["output_dir"] / kwargs["run_id"] / "summary.json"
+        summary = json.loads(path.read_text())
+        summary["pagination"].update(mode="exhaustion", termination=termination)
+        path.write_text(json.dumps(summary))
+        return summary
+
+    events: list[str] = []
+    result = run(
+        tmp_path,
+        events=events,
+        allow_live_fetch_once=True,
+        write_enabled=True,
+        fetcher=fetcher,
+        fetch_pagination_mode="exhaustion",
+        fetch_max_pages=120,
+        fetch_time_budget_seconds=60,
+    )
+    assert result["status"] == "hard_failure"
+    assert result["failure_class"] == orch.PROBE_FETCH_FAILURE_CLASSES.get(
+        termination, "probe_fetch_failed"
+    )
+    assert result["guarded_write"]["status"] == "not_started"
+    assert events == ["relation"]
+    assert_no_sensitive_leak(result, tmp_path)
+
+
+def test_explicit_exhaustion_rejects_bounded_artifacts(tmp_path: Path) -> None:
+    def fetcher(**kwargs: Any) -> dict[str, Any]:
+        write_probe_artifacts(kwargs["output_dir"], kwargs["run_id"])
+        return {}
+
+    events: list[str] = []
+    result = run(
+        tmp_path,
+        events=events,
+        allow_live_fetch_once=True,
+        write_enabled=True,
+        fetcher=fetcher,
+        fetch_pagination_mode="exhaustion",
+        fetch_max_pages=120,
+        fetch_time_budget_seconds=60,
+    )
+    assert result["failure_class"] == "probe_pagination_mode_invalid"
+    assert result["guarded_write"]["status"] == "not_started"
+    assert events == ["relation"]
+
+
+def test_exhaustion_pagination_evidence_excludes_untrusted_values(tmp_path: Path) -> None:
+    result = orch._sanitize_probe_summary(
+        {
+            "pagination": {
+                "mode": SENSITIVE_PRIVATE_PATH,
+                "termination": SENSITIVE_API_BODY,
+                "requests_performed": SENSITIVE_CREDENTIAL,
+                "time_budget_seconds": SENSITIVE_DB_VALUE,
+                "next": SENSITIVE_CREDENTIAL,
+            }
+        }
+    )
+    assert result["pagination"] == {
+        "mode": "unknown",
+        "termination": "unknown",
+        "requests_performed": None,
+        "pages_requested": None,
+        "time_budget_seconds": None,
+    }
+    assert_no_sensitive_leak(result, tmp_path)
+
+
+def test_prior_exhaustion_artifact_cannot_bypass_termination_gate(tmp_path: Path) -> None:
+    prior = run(tmp_path, allow_live_fetch_once=True)
+    path = tmp_path / "temporal-probe" / prior["selected_artifact_run_id"] / "summary.json"
+    summary = json.loads(path.read_text())
+    summary["pagination"].update(mode="exhaustion", termination="deadline_exceeded")
+    path.write_text(json.dumps(summary))
+    events: list[str] = []
+    result = run(
+        tmp_path,
+        run_id="reuse",
+        from_orchestration_run_id=prior["run_id"],
+        write_enabled=True,
+        events=events,
+    )
+    assert result["failure_class"] == "prior_probe_deadline_exceeded"
+    assert result["guarded_write"]["status"] == "not_started"
+    assert events == []
 
 
 def test_lock_busy_starts_no_steps(tmp_path: Path) -> None:
