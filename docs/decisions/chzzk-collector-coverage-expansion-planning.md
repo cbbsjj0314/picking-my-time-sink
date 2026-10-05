@@ -1,6 +1,6 @@
 # Chzzk Collector Coverage Expansion Planning Contract
 
-Status: Proposed canonical planning-contract — Human이 선택한 방향을 기록한다. repository workflow를 통해 이 문서가 merge되기 전에는 implementation 또는 live activation authority가 아니다.
+Status: Canonical planning-contract — Phase 1 repository implementation은 merge되었다. Phase 2 authority-runtime activation은 exact approved scope가 human-authored GitHub evidence로 승인될 때까지 Human Gate controlled 상태이며 아직 authorized되지 않았다.
 
 Ticket: `CHZZK-COLLECTOR-COVERAGE-EXPANSION-001`
 
