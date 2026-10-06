@@ -690,7 +690,7 @@ def test_current_trusted_coverage_smoke_contract_pins_read_only_partition_and_ou
     assert "already_trusted" in trusted_context
     assert "not_currently_trusted" in trusted_context
     assert "persisted mapping status가 아니다" in trusted_context
-    assert "proposal matching 대상에서 제외" in trusted_context
+    assert "trusted category는 exact-match proposal builder에 다시 넣지 않는다" in trusted_context
     assert "get /chzzk/category-game-mappings" in trusted_context
 
     assert "strip" in matching_context
