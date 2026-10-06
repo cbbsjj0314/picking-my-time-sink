@@ -1,10 +1,20 @@
 # Chzzk Collector Coverage Expansion Planning Contract
 
-Status: Canonical planning-contract — Phase 1 repository implementation은 merge되었다. Phase 2는 [Human Gate approval](https://github.com/cbbsjj0314/picking-my-time-sink/pull/190#issuecomment-5994796194)에 따라 `Approved with conditions`이며 authority-runtime budget은 `max_pages = 120`, `time_budget_seconds = 60`, page `size = 20`이다. Repository implementation은 explicit exhaustion orchestration 연결에 한정하며, validation/CI와 새 Fresh-context review를 통과해 merge된 뒤 수행할 one-off no-write live verification 및 조건부 authority-runtime activation을 실행하거나 완료하지 않는다. 아래 phase contract는 그 승인 조건과 함께 적용한다.
+Status: Canonical planning-contract — Phase 1 및 explicit exhaustion orchestration repository implementation은 merge되었다. Phase 2는 [updated Human Gate approval](https://github.com/cbbsjj0314/picking-my-time-sink/pull/192#issuecomment-6021570680)에 따라 `Approved with conditions`이며 승인된 authority-runtime budget은 `max_pages = 500`, `time_budget_seconds = 60`, page `size = 20`이다. 이전 `120 / 60 / 20` one-off는 `safety_cutoff`로 종료되어 recurring exhaustion activation은 수행되지 않았다. 새 `500 / 60 / 20` 공식 one-off no-write live verification은 아직 수행하지 않았다. 이번 repository implementation은 hard page ceiling, focused regression test, 이 contract의 reconciliation에 한정하며 runtime rollout을 실행하거나 완료하지 않는다.
 
 Ticket: `CHZZK-COLLECTOR-COVERAGE-EXPANSION-001`
 
-Date: 2026-10-05 (KST)
+Date: 2026-10-07 (KST)
+
+## Current Human Gate and Runtime Evidence
+
+- [이전 Human Gate approval](https://github.com/cbbsjj0314/picking-my-time-sink/pull/190#issuecomment-5994796194)의 `120 / 60 / 20` budget으로 [공식 one-off no-write verification](https://github.com/cbbsjj0314/picking-my-time-sink/pull/192#issuecomment-5998735755)을 수행했다. `requests_performed = 120`, `pagination.termination = "safety_cutoff"`, `bounded_page_cutoff = true`, `last_page_next_present = true`였고 orchestration은 `hard_failure`로 종료되었다. Load-eligible category/channel derived artifacts는 생성되지 않았으며 downstream no-write dry-run과 guarded write는 시작되지 않았다.
+- 해당 one-off는 recurring activation promotion criteria를 충족하지 못했다. 공개된 verification evidence는 기존 recurring authority invocation이 bounded/default path를 유지했음을 확인한다. 이번 repository task는 live runtime 상태를 재검증하거나 변경하지 않는다.
+- [갱신된 승인](https://github.com/cbbsjj0314/picking-my-time-sink/pull/192#issuecomment-6021570680)은 `500 / 60 / 20`을 지정한다. Existing bounded/default path와 `DEFAULT_FETCH_PAGES = 3`을 rollback path로 보존하며 retry/backoff를 추가하지 않고 no-overlap boundary, scheduler cadence를 유지한다. Additional recurring job은 추가하지 않는다.
+- 새 implementation은 repository-required validation/CI와 required Fresh-context review를 통과하고 Human이 merge한 뒤에만 별도 공식 `500 / 60 / 20` one-off no-write live verification 1회에 사용할 수 있다. 그 verification은 아직 수행하지 않았으며 이 repository implementation task의 범위 밖이다.
+- Recurring activation은 해당 one-off에서 `pagination.termination == "pagination_exhausted"`, `requests_performed < 500`, no fetch failure, load-eligible derived artifacts available, orchestration success, no-write dry-run success를 모두 확인한 경우에만 허용된다. `safety_cutoff`, `deadline_exceeded`, `pagination_loop_detected`, provider/request/response failure, downstream dry-run failure 또는 promotion criteria 미충족이면 activation을 중단하고 ceiling/deadline을 자동 상향하지 않는다.
+- One-off PASS 뒤에는 current Chzzk guarded-write authority invocation만 승인된 exhaustion mode와 budget으로 전환할 수 있다. 첫 natural scheduled run에서 pagination termination, orchestration/no-write/guarded-write status, no-overlap behavior를 확인하며 실패 또는 `partial_success`이면 prior bounded invocation으로 rollback한다. 이 조건부 rollout도 별도 post-merge runtime 단계다.
+- 별도 exploratory pagination-depth 측정은 budget 선택을 위한 planning input일 뿐 production authority evidence가 아니다. Private/raw exploratory detail은 이 public contract에 포함하지 않는다.
 
 ## Type
 
@@ -314,13 +324,13 @@ Pre-Gate Merge Allowed:
 Yes
 ```
 
-Human Gate는 human-authored GitHub PR comment 또는 review가 exact Phase 2 scope를 명시적으로 승인할 때까지 Pending이다. Planning-contract PR, implementation PR, PR merge, agent report, ChatGPT conversation은 approval evidence가 아니다.
+Human Decision Status는 위의 [updated Human Gate approval](https://github.com/cbbsjj0314/picking-my-time-sink/pull/192#issuecomment-6021570680)에 따라 `Approved with conditions`이다. 위 `Current Human Gate and Runtime Evidence`의 prerequisite와 promotion/rollback 조건을 적용한다. Planning-contract PR, implementation PR, PR merge, agent report, ChatGPT conversation 자체는 approval evidence가 아니다.
 
 ## Public Repo Safety
 
 Public evidence에는 durable contract text와 sanitized aggregate/termination evidence만 포함할 수 있다. Credentials, application identifiers, raw provider payloads, category/channel/title values, private paths, host-specific runtime detail, scheduler XML/stdout, raw terminal output, raw API bodies, row-level UGC를 publish하지 않는다.
 
-위의 Human-provided 30-page 및 60-page diagnostic이 이 public planning record에 허용된 live diagnostic detail의 최대 범위다.
+위의 Human-provided 30-page 및 60-page diagnostic과 링크된 공식 one-off의 sanitized termination/status evidence만 이 public planning record에 유지한다. 별도 exploratory diagnostic의 private/raw detail은 추가하지 않는다.
 
 ## Suggested Branch Name
 
