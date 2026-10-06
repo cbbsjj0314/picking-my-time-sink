@@ -9,6 +9,9 @@ CANDIDATE_GENERATION_GATE = Path(
 REAL_DATA_PROPOSAL_SMOKE_GATE = Path(
     "docs/decisions/category-to-game-real-data-proposal-smoke-gate.md"
 )
+CURRENT_TRUSTED_COVERAGE_PROPOSAL_SMOKE = Path(
+    "docs/decisions/category-to-game-current-trusted-coverage-proposal-smoke-planning.md"
+)
 NON_EXACT_MATCHING_GATE = Path(
     "docs/decisions/category-to-game-non-exact-matching-gate.md"
 )
@@ -656,6 +659,72 @@ def test_real_data_proposal_smoke_gate_is_read_only_sanitized_and_non_serving() 
     assert "`unresolved`: zero matches or two or more matches" in text
     assert "`rejected`: not generated automatically" in text
     assert "`category_type=game`은 provider category type evidence only" in text
+
+
+def test_current_trusted_coverage_smoke_contract_pins_read_only_partition_and_output() -> None:
+    text = _read_lower(CURRENT_TRUSTED_COVERAGE_PROPOSAL_SMOKE)
+
+    source_context = _near(text, "## exact future command boundary", span=4200)
+    trusted_context = _near(text, "## existing trusted mapping boundary", span=3000)
+    matching_context = _near(text, "## matching and proposal semantics", span=3400)
+    output_context = _near(text, "## public aggregate output contract", span=3200)
+    gate_context = _near(text, "### future real-data smoke execution", span=2400)
+
+    assert "category-mapping-candidate-real-data-proposal-smoke-001" in text
+    assert "category-mapping-real-data-proposal-smoke-gate-001" in text
+    assert "python -m chzzk.mapping.category_game_real_data_proposal_smoke" in source_context
+    assert "repeatable-read" in source_context
+    assert "read-only" in source_context
+    assert "fact_chzzk_category_30m" in source_context
+    assert "dim_game" in source_context
+    assert "srv_chzzk_category_game_mapping" in source_context
+    assert "select" in source_context
+
+    assert "/chzzk/categories/overview" in text
+    assert "limit=200" in text
+    assert "whole-population audit" in text
+    assert "game_external_id" in text
+    assert "tracked_universe" in text
+    assert "app catalog" in text
+
+    assert "already_trusted" in trusted_context
+    assert "not_currently_trusted" in trusted_context
+    assert "persisted mapping status가 아니다" in trusted_context
+    assert "trusted category는 exact-match proposal builder에 다시 넣지 않는다" in trusted_context
+    assert "get /chzzk/category-game-mappings" in trusted_context
+
+    assert "strip" in matching_context
+    assert "casefold" in matching_context
+    assert "whitespace collapse" in matching_context
+    assert "alias_hints=none" in matching_context
+    assert "fuzzy matching" in matching_context
+    assert "manual hint matching" in matching_context
+    assert "unresolved_no_match" in matching_context
+    assert "unresolved_ambiguous" in matching_context
+    assert "새 persisted status가 아니다" in matching_context
+    assert "category_type=game" in matching_context
+
+    assert "already_trusted_category_count" in text
+    assert "candidate_count" in text
+    assert "unresolved_no_match_count" in text
+    assert "unresolved_ambiguous_count" in text
+    assert "= observed_input_category_count" in text
+    assert "= not_currently_trusted_category_count" in text
+
+    assert "real category name/id/type row" in output_context
+    assert "category-to-game proposed pair" in output_context
+    assert "raw api response" in output_context
+    assert "raw sql output" in output_context
+    assert "credentials" in output_context
+    assert "db write performed: `false`" in output_context
+    assert "trusted mapping mutation performed: `false`" in output_context
+
+    assert "risk level: medium" in gate_context
+    assert "review level: fresh-context" in gate_context
+    assert "human gate required: yes" in gate_context
+    assert "human-authored github pr comment 또는 github review" in text
+    assert "trusted insert" in text
+    assert "`combined` behavior/identity/activity change" in text
 
 
 def test_non_exact_gate_allows_only_future_synthetic_alias_hint_contract() -> None:

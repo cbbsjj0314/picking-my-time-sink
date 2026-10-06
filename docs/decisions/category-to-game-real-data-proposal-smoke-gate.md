@@ -271,6 +271,12 @@ Recommended next ticket, only if this gate is accepted:
 - no public raw values
 - explicit read-only command/path or listener boundary required
 
+## Current Follow-Up Planning Contract
+
+2026-10-07 Human-selected Trusted mapping coverage expansion의 첫 slice는 [Category-To-Game Current Trusted Coverage / Proposal Smoke Planning Contract](category-to-game-current-trusted-coverage-proposal-smoke-planning.md)에서 `CATEGORY-MAPPING-CANDIDATE-REAL-DATA-PROPOSAL-SMOKE-001`의 current exact read-only source, trusted-membership partition, aggregate output, validation, review, Human Gate boundary를 고정한다.
+
+이 follow-up contract는 이 gate의 no-write, no-promotion, non-serving, no-`Combined`, public aggregate-only 제한을 변경하지 않는다.
+
 ## Deferred Items
 
 - smoke execution
