@@ -722,7 +722,7 @@ def test_current_trusted_coverage_smoke_contract_pins_read_only_partition_and_ou
     assert "risk level: medium" in gate_context
     assert "review level: fresh-context" in gate_context
     assert "human gate required: yes" in gate_context
-    assert "human-authored github pr comment or github review" in text
+    assert "human-authored github pr comment 또는 github review" in text
     assert "trusted insert" in text
     assert "`combined` behavior/identity/activity change" in text
 
