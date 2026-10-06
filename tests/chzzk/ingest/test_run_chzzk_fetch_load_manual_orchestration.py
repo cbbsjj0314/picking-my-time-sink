@@ -949,7 +949,7 @@ def test_approved_exhaustion_cli_preserves_anchor_multiplicity_and_evidence(
 
     async def collect(**kwargs: Any) -> dict[str, Any]:
         assert isinstance(kwargs["client"], httpx.AsyncClient)
-        assert kwargs["max_pages"] == 120
+        assert kwargs["max_pages"] == 500
         assert kwargs["time_budget_seconds"] == 60
         assert kwargs["size"] == 20
         return await real_probe(**kwargs, clock=lambda: anchor, monotonic=lambda: 0)
@@ -978,7 +978,7 @@ def test_approved_exhaustion_cli_preserves_anchor_multiplicity_and_evidence(
                 "--fetch-pagination-mode",
                 "exhaustion",
                 "--fetch-max-pages",
-                "120",
+                "500",
                 "--fetch-time-budget-seconds",
                 "60",
                 "--fetch-size",
@@ -998,12 +998,12 @@ def test_approved_exhaustion_cli_preserves_anchor_multiplicity_and_evidence(
     assert result["recurring_no_write_dry_run"]["success"] is True
     assert result["guarded_write"]["status"] == "not_requested"
     assert result["live_fetch"]["pagination_mode"] == "exhaustion"
-    assert result["live_fetch"]["pages_requested"] == 120
+    assert result["live_fetch"]["pages_requested"] == 500
     assert result["probe_summary"]["pagination"] == {
         "mode": "exhaustion",
         "termination": "pagination_exhausted",
         "requests_performed": 2,
-        "pages_requested": 120,
+        "pages_requested": 500,
         "time_budget_seconds": 60,
     }
     assert result["probe_summary"]["last_page_next_present"] is False
@@ -1039,12 +1039,12 @@ def test_approved_exhaustion_cli_preserves_anchor_multiplicity_and_evidence(
                 "fetch_max_pages": value,
                 "fetch_time_budget_seconds": 60,
             }
-            for value in (0, -1, 121, True, 1.5, "120")
+            for value in (0, -1, 501, True, 1.5, "500")
         ],
         *[
             {
                 "fetch_pagination_mode": "exhaustion",
-                "fetch_max_pages": 120,
+                "fetch_max_pages": 500,
                 "fetch_time_budget_seconds": value,
             }
             for value in (0, -1, 61, True, float("inf"), float("nan"), "60")
@@ -1052,7 +1052,7 @@ def test_approved_exhaustion_cli_preserves_anchor_multiplicity_and_evidence(
         *[
             {
                 "fetch_pagination_mode": "exhaustion",
-                "fetch_max_pages": 120,
+                "fetch_max_pages": 500,
                 "fetch_time_budget_seconds": 60,
                 **extra,
             }
