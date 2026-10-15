@@ -647,6 +647,7 @@ host, port, Docker Compose, local artifact path, credentials, smoke commands는 
     - latest result의 `duration_ms / 1000`.
 - `steam_scheduler_latest_run_partial_success{cadence}`:
     - latest result의 `partial_success` boolean을 `1` 또는 `0`으로 변환한다.
+    - `price-1h` 는 재시도와 re-collect 뒤에도 앱별 Steam 응답을 얻지 못한 fetch 최종 실패가 1개 이상일 때 `partial_success` 다. `success:false`, fallback `is_free=false`, `price_overview` 없음은 fetch 실패가 아니다.
 
 ### 8.2 Partial-success triage metrics
 
@@ -656,6 +657,7 @@ host, port, Docker Compose, local artifact path, credentials, smoke commands는 
 - `steam_scheduler_latest_daily_reviews_skipped_records{cadence="daily"}`:
     - latest `daily` result triage의 `reviews_skipped_records`.
     - skipped review evidence는 hard job failure가 아니며, partial-success triage 신호다.
+- `price-1h` 는 별도 triage count metric이 없다. Latest price 실패 여부는 위 `steam_scheduler_latest_run_status{cadence="price-1h"}` 와 `steam_scheduler_latest_run_partial_success{cadence="price-1h"}` 로 드러난다. 실패 수와 reason은 `result.json` triage의 `fetch_failed_records`, `fetch_failure_reasons` 에서 확인한다.
 
 ### 8.3 DB freshness metrics
 

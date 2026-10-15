@@ -94,6 +94,50 @@ def test_price_job_runs_fixed_hourly_boundary_with_scoped_paths(
     ]
 
 
+@pytest.mark.parametrize("fetch_failed", [False, True])
+def test_price_job_marks_fetch_failures_as_partial_success(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    fetch_failed: bool,
+) -> None:
+    bronze_rows: list[dict[str, object]] = [
+        {"steam_appid": 730, "fetch_failure": None},
+        {"steam_appid": 570, "fetch_failure": None},
+    ]
+    if fetch_failed:
+        bronze_rows += [
+            {"steam_appid": 10, "fetch_failure": {"reason": "rate_limited", "stage": "primary"}},
+            {"steam_appid": 20, "fetch_failure": {"reason": "rate_limited", "stage": "fallback"}},
+            {
+                "steam_appid": 30,
+                "fetch_failure": {"reason": "time_budget_exceeded", "stage": "primary"},
+            },
+        ]
+
+    monkeypatch.setattr(run_steam_cadence_job.fetch_price_1h, "run", lambda **kwargs: bronze_rows)
+    monkeypatch.setattr(run_steam_cadence_job.bronze_to_silver_price, "run", lambda **kwargs: [{}])
+    monkeypatch.setattr(run_steam_cadence_job.silver_to_gold_price, "run", lambda **kwargs: [{}])
+
+    result = run_steam_cadence_job.run_job_with_evidence(
+        run_steam_cadence_job.JOB_PRICE_1H,
+        base_dir=tmp_path / "jobs",
+        run_id="price-run",
+    )
+
+    expected_status = "partial_success" if fetch_failed else "success"
+    assert result["status"] == expected_status
+    assert result["partial_success"] is fetch_failed
+    assert run_steam_cadence_job.exit_code_for_status(result["status"]) == 0
+    assert result["triage"]["fetch_failed_records"] == (3 if fetch_failed else 0)
+    assert result["triage"]["fetch_failure_reasons"] == (
+        {"rate_limited": 2, "time_budget_exceeded": 1} if fetch_failed else {}
+    )
+    assert result["triage"]["partial_reason"] == ("price_fetch_failed" if fetch_failed else None)
+    assert result["steps"][0]["fetch_failed_records"] == (3 if fetch_failed else 0)
+    job_meta_path = tmp_path / "jobs" / "price-1h" / "price-run" / "meta" / "job.meta.json"
+    assert json.loads(job_meta_path.read_text(encoding="utf-8"))["status"] == expected_status
+
+
 @pytest.mark.parametrize("missing_evidence", [False, True])
 def test_ccu_job_keeps_compact_rollup_evidence_and_missing_evidence_status(
     monkeypatch: pytest.MonkeyPatch,

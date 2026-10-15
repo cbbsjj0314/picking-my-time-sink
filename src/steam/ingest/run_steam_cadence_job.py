@@ -9,6 +9,7 @@ import json
 import logging
 import os
 import time
+from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -238,11 +239,19 @@ def run_price_job(paths: JobPaths) -> tuple[list[dict[str, Any]], dict[str, Any]
         meta_path=gold_meta_path,
     )
 
+    fetch_failure_reasons = Counter(
+        str(row["fetch_failure"].get("reason"))
+        for row in bronze_rows
+        if isinstance(row.get("fetch_failure"), dict)
+    )
+    fetch_failed_count = sum(fetch_failure_reasons.values())
+
     steps = [
         _step_result(
             name="fetch_price_1h",
             rows=bronze_rows,
             paths={"output": bronze_path, "meta": fetch_meta_path},
+            extra={"fetch_failed_records": fetch_failed_count},
         ),
         _step_result(
             name="bronze_to_silver_price",
@@ -257,7 +266,10 @@ def run_price_job(paths: JobPaths) -> tuple[list[dict[str, Any]], dict[str, Any]
     ]
     triage = {
         "bronze_records": len(bronze_rows),
+        "fetch_failed_records": fetch_failed_count,
+        "fetch_failure_reasons": dict(sorted(fetch_failure_reasons.items())),
         "gold_records": len(gold_rows),
+        "partial_reason": "price_fetch_failed" if fetch_failed_count > 0 else None,
         "silver_records": len(silver_rows),
     }
     return steps, triage
@@ -495,6 +507,8 @@ def run_app_catalog_job(
 
 def _status_from_triage(job_name: str, triage: dict[str, Any]) -> str:
     if job_name == JOB_CCU_30M and triage.get("missing_evidence_records", 0) > 0:
+        return "partial_success"
+    if job_name == JOB_PRICE_1H and triage.get("fetch_failed_records", 0) > 0:
         return "partial_success"
     if job_name == JOB_DAILY and triage.get("reviews_skipped_records", 0) > 0:
         return "partial_success"
