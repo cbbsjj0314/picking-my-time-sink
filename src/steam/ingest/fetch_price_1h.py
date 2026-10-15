@@ -359,6 +359,10 @@ class PriceRequestSession:
             return False
         if start_at > now:
             self.clock.sleep(start_at - now)
+            # Sleep can return late (scheduling delay, stopped process); recheck before sending.
+            if self.clock.monotonic() > self.deadline:
+                self.time_budget_exceeded = True
+                return False
         return True
 
     def _retry_delay_seconds(self, result: RequestResult, *, attempt: int) -> float:
@@ -408,11 +412,17 @@ class PriceRequestSession:
             }
             attempts.append(attempt_log)
 
-            if not is_retryable_result(result) or attempt >= self.max_attempts:
+            if not is_retryable_result(result):
+                break
+            is_last_attempt = attempt >= self.max_attempts
+            if is_last_attempt and result.status_code != 429:
                 break
 
             retry_at = finished_at + self._retry_delay_seconds(result, attempt=attempt)
             self.next_request_at = max(self.next_request_at, retry_at)
+            if is_last_attempt:
+                # A final 429 still owes its cooldown to the next request in this session.
+                break
             attempt_log["sleep_seconds"] = round(self.next_request_at - finished_at, 3)
 
         if result is None:

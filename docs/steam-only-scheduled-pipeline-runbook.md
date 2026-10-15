@@ -46,8 +46,8 @@
    - fallback full payload의 `data.is_free is true` 만 grounded free title evidence로 적재하며, numeric price fields는 null로 보존한다.
    - 1차 pass 뒤에도 fetch 최종 실패인 앱은 마지막에 한 번 더 수집한다(re-collect pass).
    - Price job의 모든 Steam request는 직전 request 종료 뒤 최소 간격(기본 1.5초, `--min-request-interval-sec`)을 지킨다. 재시도도 같은 간격을 따른다.
-   - HTTP 429에 delta-seconds `Retry-After` 가 있으면 그 시간(상한 기본 60초, `--max-retry-after-sec`)만큼 기다린다. 헤더가 없거나 해석할 수 없으면 기존 지수 backoff를 쓴다.
-   - Fetch 시작부터 시간 상한(기본 1500초, `--time-budget-sec`)이 지나면 새 request를 보내지 않는다. 남은 앱은 `time_budget_exceeded` 로 기록하고 job은 정상 종료한다. 상한을 넘기는 대기는 하지 않으므로 초과분은 마지막 request 하나의 timeout 이내다.
+   - HTTP 429에 delta-seconds `Retry-After` 가 있으면 그 시간(상한 기본 60초, `--max-retry-after-sec`)만큼 기다린다. 헤더가 없거나 해석할 수 없으면 기존 지수 backoff를 쓴다. 이 429 cooldown은 그 request가 attempt를 모두 쓴 경우에도 다음 request에 적용된다.
+   - Fetch 시작부터 시간 상한(기본 1500초, `--time-budget-sec`)이 지나면 새 request를 보내지 않는다. 남은 앱은 `time_budget_exceeded` 로 기록하고 job은 정상 종료한다. 시간 상한은 대기 뒤에 다시 확인한다. 상한을 넘기는 대기는 하지 않으므로 초과분은 마지막 request 하나의 timeout 이내다.
    - 이 pacing은 price job 안에서만 적용한다. 공유 `request_with_retry` 의 기본 retry 동작과 다른 job은 바뀌지 않는다.
    - Scheduler는 추가 인자 없이 `price-1h` 를 호출하므로 위 기본값이 운영 동작이다.
 5. Reviews branch

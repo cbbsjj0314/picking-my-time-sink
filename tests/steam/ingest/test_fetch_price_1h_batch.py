@@ -525,6 +525,111 @@ def test_retry_wait_never_extends_past_the_time_budget(monkeypatch: pytest.Monke
     assert records[0]["primary"]["attempts"][-1]["sleep_seconds"] == 0.0
 
 
+class OversleepClock(FakeClock):
+    """Return from sleep later than asked, like a delayed or stopped process."""
+
+    def __init__(self, oversleep_seconds: float) -> None:
+        super().__init__()
+        self.oversleep_seconds = oversleep_seconds
+
+    def sleep(self, seconds: float) -> None:
+        self.sleeps.append(seconds)
+        self.now += seconds + self.oversleep_seconds
+
+
+def test_final_attempt_429_retry_after_delays_the_next_request(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    clock = FakeClock()
+
+    def appid_730_always_429(params: dict[str, Any], _: int) -> RequestResult | None:
+        return http_error(429, headers={"Retry-After": "30"}) if params["appids"] == 730 else None
+
+    steam = FakeSteam(clock, filtered={570: paid(200)}, latency=0.0, override=appid_730_always_429)
+    monkeypatch.setattr(fetch_price_1h, "request_with_retry", steam)
+    session = make_session(clock)
+
+    session.get({"appids": 730, **fetch_price_1h.REQUEST_PARAMS_BASE})
+    session.get({"appids": 570, **fetch_price_1h.REQUEST_PARAMS_BASE})
+
+    assert [c["started_at"] for c in steam.calls[:4]] == pytest.approx([0.0, 30.0, 60.0, 90.0])
+    assert steam.calls[4]["started_at"] >= 120.0 - 1e-9
+
+
+@pytest.mark.parametrize(
+    ("final_error", "expected_gap"),
+    [
+        # Attempt 4 backoff: 0.5 * 2**3 with no jitter, under the 8.0 cap.
+        pytest.param(lambda: http_error(429), 4.0, id="429-without-retry-after-uses-backoff"),
+        pytest.param(lambda: http_error(500), 1.5, id="500-keeps-minimum-interval"),
+    ],
+)
+def test_final_attempt_cooldown_depends_on_failure_type(
+    monkeypatch: pytest.MonkeyPatch,
+    final_error: Callable[[], RequestResult],
+    expected_gap: float,
+) -> None:
+    clock = FakeClock()
+
+    def appid_730_always_fails(params: dict[str, Any], _: int) -> RequestResult | None:
+        return final_error() if params["appids"] == 730 else None
+
+    steam = FakeSteam(clock, filtered={570: paid(200)}, override=appid_730_always_fails)
+    monkeypatch.setattr(fetch_price_1h, "request_with_retry", steam)
+    session = make_session(clock)
+
+    session.get({"appids": 730, **fetch_price_1h.REQUEST_PARAMS_BASE})
+    session.get({"appids": 570, **fetch_price_1h.REQUEST_PARAMS_BASE})
+
+    assert len(steam.calls) == 5
+    gap = steam.calls[4]["started_at"] - steam.calls[3]["finished_at"]
+    assert gap == pytest.approx(expected_gap)
+
+
+def test_final_429_cooldown_past_deadline_skips_the_next_request(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    clock = FakeClock()
+
+    def appid_730_always_429(params: dict[str, Any], _: int) -> RequestResult | None:
+        is_730 = str(params["appids"]) == "730"
+        return http_error(429, headers={"Retry-After": "30"}) if is_730 else None
+
+    steam = FakeSteam(clock, filtered={570: paid(200)}, latency=0.0, override=appid_730_always_429)
+    session = make_session(clock, time_budget_seconds=100.0)
+
+    records, _ = fetch_records(monkeypatch, steam, [730, 570], batch_size=1, session=session)
+
+    assert [c["params"]["appids"] for c in steam.calls] == ["730"] * 4
+    assert session.time_budget_exceeded is True
+    assert by_appid(records)[730]["fetch_failure"] == {"reason": "rate_limited", "stage": "primary"}
+    assert by_appid(records)[570]["fetch_failure"] == {
+        "reason": "time_budget_exceeded",
+        "stage": "primary",
+    }
+
+
+def test_oversleep_past_deadline_does_not_send_the_request(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    clock = OversleepClock(oversleep_seconds=0.2)
+    steam = FakeSteam(clock, filtered={730: paid(100), 570: paid(200)})
+    session = make_session(clock)
+    # First request at 1498.2 finishes at 1498.4; the 1.5s interval wakes at 1500.1, not 1499.9.
+    clock.now = 1498.2
+
+    records, _ = fetch_records(monkeypatch, steam, [730, 570], batch_size=1, session=session)
+
+    assert len(steam.calls) == 1
+    assert all(call["started_at"] <= 1500.0 for call in steam.calls)
+    assert session.time_budget_exceeded is True
+    assert by_appid(records)[730]["fetch_failure"] is None
+    assert by_appid(records)[570]["fetch_failure"] == {
+        "reason": "time_budget_exceeded",
+        "stage": "primary",
+    }
+
+
 def load_representative_price_payload() -> dict[str, Any]:
     snapshot = json.loads(REPRESENTATIVE_PRICE_PROBE.read_text(encoding="utf-8"))
     return snapshot["response"]["payload_excerpt_or_json"]
