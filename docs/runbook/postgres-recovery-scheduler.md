@@ -80,7 +80,7 @@ manual follow-up이 다음 invocation을 소유한다.
 
 ## Scheduler semantics and RPO
 
-현재 nominal target은 UTC 기준 하루 네 번의 opportunity다.
+A5 시점의 nominal planning candidate는 UTC 기준 하루 네 번의 opportunity였다.
 
 ```text
 00:00 UTC
@@ -89,9 +89,13 @@ manual follow-up이 다음 invocation을 소유한다.
 18:00 UTC
 ```
 
+실제 production activation은 이 candidate 대신 하루 5회 fixed slot(maximum nominal slot gap 5시간)을 승인해 운영한다. Cloud host A6와 임시 authority host 재확립 모두 같은 cadence 수준이다.
+
 이 cadence는 runner business logic에 들어 있지 않다. Host/timer downtime으로 하나
 이상의 opportunity를 놓치면 scheduler는 필요할 때 최대 한 번 catch-up하고 과거 slot을
 모두 replay하지 않아야 한다.
+
+임시 authority host에서는 host restart 뒤 놓친 slot의 catch-up 실행이 관찰되지 않았다. 따라서 off-host copy가 다음 slot까지 지연될 수 있으며, 이 지연 risk의 수용 여부는 결정되지 않았다. Host binding 차이는 [activation 문서의 `Current status`](./postgres-recovery-scheduler-activation.md#current-status)를 따른다.
 
 ```text
 6-hour timer configured != RPO <= 6h proven
@@ -100,6 +104,8 @@ manual follow-up이 다음 invocation을 소유한다.
 RPO evidence는 remote-verified generation의 실제 age/cadence와 `pg_dump`부터 independent
 verification까지 걸린 시간을 기준으로 판단한다. A6에서 첫 recurring evidence를 측정하고
 필요하면 production cadence를 6시간보다 짧게 조정한다.
+
+Cloud host A6와 임시 authority host 재확립은 각각 연속 recurring run에서 initial RPO evidence를 측정했고 accepted `RPO = 6시간` 안이었다. 이 evidence는 bounded initial evidence이며 future run이나 모든 failure mode에서 RPO를 보장하지 않는다.
 
 ## Credential and A6 deployment boundary
 
@@ -121,6 +127,8 @@ A6는 production host에서 다음 prerequisite와 exact deployment를 결정하
 A5는 filesystem type을 probe하지 않고 systemd unit template을 제공하지 않는다. Production
 unit install, daemon reload, enable/start, service identity/permission/config mutation, recurring
 execution은 모두 A6 범위다. A5 merge는 이러한 mutation을 승인하지 않는다.
+
+위 systemd 기준 deployment boundary는 Cloud host A6 binding이다. 임시 authority host는 다른 scheduler와 identity boundary로 재확립했으며, 차이는 [activation 문서의 `Current status`](./postgres-recovery-scheduler-activation.md#current-status)를 따른다.
 
 ## Rotation advisory foundation
 

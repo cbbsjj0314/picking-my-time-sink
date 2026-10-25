@@ -47,6 +47,20 @@ Operational data retention/archive와 PostgreSQL recovery의 current contract는
 이 relationship update 자체는 backup, archive, retention 또는 pruning
 implementation을 승인하지 않는다.
 
+### Temporary operational authority exception
+
+Relationship updated: 2026-10-26 (KST)
+
+2026-10-14 (KST)에 Cloud VM 만료(2026-10-21) 대응으로 operational writer authority를 Cloud Linux host에서 임시 workstation-hosted WSL2 runtime으로 옮겼다. Cloud writer를 먼저 중지하고 최종 backup을 restore했으며, dual-writer 구간 없이 single-writer를 유지했다. Cloud VM은 이후 만료되었다.
+
+- 이 배치는 다음 cloud host를 확보할 때까지의 임시 예외다. 다음 host 선택은 별도 decision이다.
+- 이 임시 예외는 위에서 유지한다고 적은 "personal workstation과 operational authority를 분리하는 방향"과 충돌한다. 이 방향은 long-term target으로 유지하지만, 임시 예외 기간에는 workstation 가용성이 다시 operational authority의 가용성이 된다.
+- 수집은 실제 관측을 가능한 한 연속적으로 수집하는 best-effort 목표이며 24시간 가동 의무는 없다. Host가 꺼져 있는 동안의 공백은 영구 missing evidence로 남고, backfill이나 synthetic value로 DB에 채우지 않는다. 이는 [`data-governance.md`](../data-governance.md)의 missing evidence 규칙과 같다.
+- PostgreSQL recurring recovery는 2026-10-18 (KST)에 임시 host에서 재확립했다. Evidence와 Cloud host binding과의 차이는 [`postgres-recovery-scheduler-activation.md`](../runbook/postgres-recovery-scheduler-activation.md#current-status)를 따른다.
+- 이 문서의 2026-08-12 accepted direction과 2026-08-30 relationship update는 historical decision으로 유지하며, 이 예외는 그 본문을 다시 쓰지 않는다.
+
+이 relationship update는 scheduler, recovery, retention, archive 변경이나 다음 host 선택을 승인하지 않는다.
+
 ## Context
 
 PMTS recurring collection currently depends on a personal Windows workstation,
