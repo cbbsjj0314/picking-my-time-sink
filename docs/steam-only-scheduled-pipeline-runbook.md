@@ -39,8 +39,17 @@
    - active Steam target의 KR 가격 snapshot을 1시간 bucket fact로 적재한다.
    - current public API region contract는 `KR` casing이다.
    - primary request는 `filters=price_overview` 를 유지한다.
-   - primary `appdetails` 가 성공했지만 `price_overview` 가 없을 때만 같은 `cc=kr`, `l=koreana` context의 no-filter full `appdetails` fallback을 호출한다.
+   - primary request는 active appid를 batch로 묶어 `appids=<a>,<b>,...` 로 보낸다. 기본 batch 크기는 100이며 `fetch_price_1h --batch-size` 로 바꿀 수 있다.
+   - batch 응답은 앱별로 나눠 bronze row마다 기존과 같은 `{"<appid>": {...}}` 형태의 `payload` 로 둔다. `primary.request` 에는 실제로 보낸 batch의 `appids` 와 `batch_size` 를 남긴다.
+   - batch request가 최종 실패하거나 응답에 앱 key가 없으면, 그 앱은 같은 filter의 단건 request로 보완한다.
+   - primary `appdetails` 가 성공했지만 `price_overview` 가 없을 때만 같은 `cc=kr`, `l=koreana` context의 no-filter full `appdetails` fallback을 앱별 단건으로 호출한다.
    - fallback full payload의 `data.is_free is true` 만 grounded free title evidence로 적재하며, numeric price fields는 null로 보존한다.
+   - 1차 pass 뒤에도 fetch 최종 실패인 앱은 마지막에 한 번 더 수집한다(re-collect pass).
+   - Price job의 모든 Steam request는 직전 request 종료 뒤 최소 간격(기본 1.5초, `--min-request-interval-sec`)을 지킨다. 재시도도 같은 간격을 따른다.
+   - HTTP 429에 delta-seconds `Retry-After` 가 있으면 그 시간(상한 기본 60초, `--max-retry-after-sec`)만큼 기다린다. 헤더가 없거나 해석할 수 없으면 기존 지수 backoff를 쓴다. 이 429 cooldown은 그 request가 attempt를 모두 쓴 경우에도 다음 request에 적용된다.
+   - Fetch 시작부터 시간 상한(기본 1500초, `--time-budget-sec`)이 지나면 새 request를 보내지 않는다. 남은 앱은 `time_budget_exceeded` 로 기록하고 job은 정상 종료한다. 시간 상한은 대기 뒤에 다시 확인한다. 상한을 넘기는 대기는 하지 않으므로 초과분은 마지막 request 하나의 timeout 이내다.
+   - 이 pacing은 price job 안에서만 적용한다. 공유 `request_with_retry` 의 기본 retry 동작과 다른 job은 바뀌지 않는다.
+   - Scheduler는 추가 인자 없이 `price-1h` 를 호출하므로 위 기본값이 운영 동작이다.
 5. Reviews branch
    - active Steam target의 all-language / all-purchase cumulative review snapshot을 daily fact로 적재한다.
 6. CCU branch
@@ -73,6 +82,11 @@
   - Paid rows require `price_overview.currency`, `initial`, `final`, and `discount_percent`.
   - Grounded free rows require fallback full `appdetails` `data.is_free is true`; `currency_code`, `initial_price_minor`, `final_price_minor`, and `discount_percent` stay null.
   - Missing `price_overview`, fallback `is_free=false`, invalid JSON, HTTP failure, and unsuccessful payloads are not converted into free/unavailable/region-blocked/delisted meaning.
+  - Bronze row의 `fetch_failure` 는 재시도와 re-collect 뒤에도 Steam의 앱별 응답을 얻지 못한 "fetch 최종 실패"만 `{"stage": "primary" | "fallback", "reason": ...}` 로 기록한다. 실패가 아니면 `null` 이다.
+    - `reason`: `rate_limited`(429), `server_error`(5xx), `http_error`(그 밖의 HTTP 실패), `timeout`, `network_error`, `invalid_json`, `missing_key`, `time_budget_exceeded`
+    - 무료 후보의 fallback request가 위 이유로 실패하면 `stage: "fallback"` 이다.
+  - `success:false`, fallback `is_free=false`, `price_overview` 없음은 Steam의 정상 응답이다. Fetch 실패가 아니며, 지금처럼 silver에서 제외될 뿐이다.
+  - Bronze row의 `fetch_trail` 은 앱별로 보낸 batch / single / fallback request의 pass와 결과를 순서대로 남기는 triage용 보조 field다. Silver/gold 변환은 이 field를 읽지 않는다.
 - Reviews facts
   - Current reviews series uses `json=1`, `filter=all`, `language=all`, `purchase_type=all`, and bounded page size.
   - Gold facts preserve cumulative totals; broader review history and alternate filter series need a separate schema/ingest slice.
@@ -114,12 +128,17 @@ native Windows Python/Poetry scheduler path. Host-specific task names, schedules
 repo paths, and scheduler-triggered evidence remain local/private operations
 details.
 
+`price-1h` 는 fetch 최종 실패 앱이 1개 이상이면 `partial_success` 다. Triage에는 `fetch_failed_records`, reason별 `fetch_failure_reasons`, `partial_reason: "price_fetch_failed"` 를 남긴다. 실패가 0이면 `success` 이고 `partial_reason` 은 `null` 이다. `success:false` 나 `is_free=false` 만 있는 run은 `success` 다. Fetch step execution meta에는 실제 HTTP request 수(`request_count`), request 단위로 센 `rate_limit_count` / `retry_count`, `fetch_failed_records`, `time_budget_exceeded` 를 남긴다. Exit code 규칙은 바뀌지 않는다(`partial_success` → 0).
+
+Active 앱 약 280개 기준으로 평소 price fetch는 batch 3회와 무료 후보 fallback 수십 회, 합계 약 60회 request로 2분 안팎이다. 429나 timeout이 계속되는 최악의 경우에도 시간 상한(1500초)과 request 하나의 timeout 안에서 끝난다.
+
 CCU per-app missing evidence is not the same as a hard job failure. A CCU fetch can produce useful bronze/gold rows while recording missing app-level evidence such as 404/empty/invalid payloads. Operators should distinguish full success, partial success, lock-busy skip, and hard failure from job-level result/meta evidence.
 
 Prometheus-facing scheduler metrics should preserve that same distinction:
 `success`, `partial_success`, `lock_busy`, and `hard_failure` are separate
-status values. Per-app CCU missing evidence and daily reviews skipped evidence
-are partial-success triage signals, not automatic hard-failure semantics.
+status values. Per-app CCU missing evidence, daily reviews skipped evidence, and
+price fetch final failures are partial-success triage signals, not automatic
+hard-failure semantics.
 Current chronic partial-success rows are therefore operator-trust signals inside
 the tracked evidence eligibility boundary, not automatic serving blockers or
 lifecycle-state changes.
