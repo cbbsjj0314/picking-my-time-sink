@@ -108,7 +108,7 @@ flowchart LR
 * **Postgres serving / metadata DB**: 팩트 테이블, 집계 테이블, 최신 Serving View 및 API의 읽기 모델(Read Model)을 관리하는 메인 저장소다.
 * **API layer**: FastAPI 라우터를 통해 Steam 및 Chzzk의 읽기 전용 엔드포인트를 제공한다.
 * **Web source views**: React와 Vite 기반의 대시보드다. Steam의 `Explore` 및 `Top Selling` 화면을 제공하며, Chzzk 데이터는 제한적인 카테고리 전용 브라우저 형태로 노출한다.
-* **Runtime**: 정기 수집 프로세스는 로컬 환경에서 경량 스케줄러(Lightweight Scheduler) 기반으로 실행되며, 수집 경로의 유효성을 검증하는 용도로 쓴다.
+* **Runtime**: 정기 수집 프로세스는 경량 스케줄러(Lightweight Scheduler) 기반으로 실행된다. 현재 operational authority는 다음 cloud host를 확보할 때까지 임시 workstation-hosted WSL2 runtime에 있다. 24시간 가동 의무가 없는 best-effort 수집이며, host가 꺼진 동안의 공백은 backfill이나 synthetic value로 채우지 않는 영구 결측으로 남는다. 자세한 경계는 [runtime authority decision](docs/decisions/cloud-runtime-authority-and-off-host-recovery-boundary.md#temporary-operational-authority-exception)을 따른다.
 * **Artifact handoff**: 오브젝트 스토리지(Object Storage) 기반의 데이터 핸드오프는 원격 작업 및 최신 스냅샷 검토를 돕기 위한 보조 경로일 뿐, 공식 런타임 저장소는 아니다.
 * **Local observability**: 로컬 스케줄러의 상태와 데이터 최신화 여부를 모니터링하기 위해 Prometheus와 Grafana를 활용한다.
 * **DuckDB**: 프로덕션 서빙용 DB가 아니며, 로컬이나 프라이빗 환경에 저장된 아티팩트를 재계산하거나 이슈를 추적(Triage)할 때 쓰는 제한적인 읽기 전용 헬퍼(Helper) 도구다.

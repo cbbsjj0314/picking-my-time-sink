@@ -18,6 +18,27 @@ Gate A production execution performed: No
 
 Gate B가 `Pending`이므로 전체 Human Gate 작업과 A6는 아직 완료되지 않았다.
 
+## Current status
+
+Status updated: 2026-10-26 (KST)
+
+위 status block과 아래 본문은 Cloud host의 A6 activation contract를 정의하던 시점 기준이다. 이 Cloud systemd host binding은 historical record로 유지하며 소급해서 다시 쓰지 않는다.
+
+- Cloud host에서 A6는 Gate A one-time execution, Gate B recurring activation, 연속 recurring observation과 initial RPO evidence를 거쳐 2026-09-16 (KST)에 `PASS / CLOSED`되었다([final operational closure evidence](https://github.com/cbbsjj0314/picking-my-time-sink/pull/173#issuecomment-5694667166)). 이 evidence는 Cloud host binding에 대한 historical evidence이며 다른 host로 승계되지 않는다.
+- 2026-10-14 (KST)에 operational authority가 임시 workstation-hosted WSL2 runtime으로 이동했다([relationship note](../decisions/cloud-runtime-authority-and-off-host-recovery-boundary.md#temporary-operational-authority-exception)). Cloud recovery timer는 disabled되었고 Cloud VM은 이후 만료되었다([operator evidence](https://github.com/cbbsjj0314/picking-my-time-sink/pull/198#issuecomment-6405189159)).
+- 임시 host에서 recurring PostgreSQL recovery(verified dump → checksum/manifest → R2 publish → independent read-back)를 2026-10-18 (KST)에 재확립했다.
+  - Read-only materialization 뒤 isolated database restore verification: PASS
+  - 연속 recurring runs: PASS
+  - Initial RPO evidence: accepted `RPO = 6시간` 안. Bounded initial evidence이며 future run이나 모든 failure mode에서 RPO를 보장하지 않는다.
+  - Human Gate와 evidence는 PR #173 comments [6180559329](https://github.com/cbbsjj0314/picking-my-time-sink/pull/173#issuecomment-6180559329), [6180562861](https://github.com/cbbsjj0314/picking-my-time-sink/pull/173#issuecomment-6180562861), [6208967205](https://github.com/cbbsjj0314/picking-my-time-sink/pull/173#issuecomment-6208967205), [6220912043](https://github.com/cbbsjj0314/picking-my-time-sink/pull/173#issuecomment-6220912043), [6233213267](https://github.com/cbbsjj0314/picking-my-time-sink/pull/173#issuecomment-6233213267), [6244771732](https://github.com/cbbsjj0314/picking-my-time-sink/pull/173#issuecomment-6244771732)다. 첫 comment는 사전 GitHub approval 없이 수행된 setup의 사후 기록이며 사전 Human Gate approval을 대체하지 않는다.
+- 임시 host binding은 이 문서의 Cloud systemd contract와 다음 점에서 다르다.
+  - systemd sandboxing과 credential injection 대신 dedicated OS account와 file permission이 boundary다.
+  - Scheduler가 interactive logon에 의존한다([operator evidence](https://github.com/cbbsjj0314/picking-my-time-sink/pull/198#issuecomment-6405189159)).
+  - Host restart 뒤 놓친 slot의 catch-up 실행이 관찰되지 않았다([operator evidence](https://github.com/cbbsjj0314/picking-my-time-sink/pull/198#issuecomment-6405189159)). 따라서 off-host copy가 다음 slot까지 지연될 수 있다. 이 지연 risk의 수용 여부는 결정되지 않았다.
+  - Failure alerting이 없다([operator evidence](https://github.com/cbbsjj0314/picking-my-time-sink/pull/198#issuecomment-6405189159)).
+
+이 status note는 recovery rotation/delete, restore, credential 변경 또는 다른 mutation을 승인하지 않는다.
+
 ## Phase 1 readiness
 
 Read-only production inspection에서 다음 readiness를 확인했다.
