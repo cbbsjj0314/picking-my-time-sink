@@ -20,7 +20,7 @@ Relationship updated: 2026-10-26 (KST)
 이 문서의 storage responsibility는 Cloud Linux authority를 전제로 한 accepted target direction으로 유지한다. 2026-10-14 (KST)부터 operational authority는 다음 cloud host를 확보할 때까지 임시 workstation-hosted WSL2 runtime에 있다([`cloud-runtime-authority-and-off-host-recovery-boundary.md`](./cloud-runtime-authority-and-off-host-recovery-boundary.md#temporary-operational-authority-exception)). 현재 상태는 이 target direction과 다음 점에서 다르다.
 
 - 아래 `Cloud local filesystem`이 담당하는 active/hot runtime state와 recent evidence는 현재 임시 host에 있다.
-- 임시 host의 runtime artifact와 long-term archive가 현재 하나의 physical disk를 공유한다. 따라서 hot runtime tier와 `Desktop HDD` archive tier 사이의 physical 분리는 현재 없다.
+- 임시 host의 runtime artifact와 long-term archive가 현재 하나의 physical disk를 공유한다. 따라서 hot runtime tier와 `Desktop HDD` archive tier 사이의 physical 분리는 현재 없다([operator evidence](https://github.com/cbbsjj0314/picking-my-time-sink/pull/198#issuecomment-6405189159)).
 - R2 off-host copy는 PostgreSQL recovery만 다루며 raw source evidence를 복구하지 않는다. DB recovery와 source archive의 복구 범위는 서로 다르다.
 - Recurring archive와 prune은 활성화되어 있지 않다. 이 문서의 `30일` recent window는 retention target이며 현재 구현된 automatic deletion이 아니다.
 

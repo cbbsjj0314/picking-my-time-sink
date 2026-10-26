@@ -51,7 +51,7 @@ implementation을 승인하지 않는다.
 
 Relationship updated: 2026-10-26 (KST)
 
-2026-10-14 (KST)에 Cloud VM 만료(2026-10-21) 대응으로 operational writer authority를 Cloud Linux host에서 임시 workstation-hosted WSL2 runtime으로 옮겼다. Cloud writer를 먼저 중지하고 최종 backup을 restore했으며, dual-writer 구간 없이 single-writer를 유지했다. Cloud VM은 이후 만료되었다.
+2026-10-14 (KST)에 Cloud VM 만료(2026-10-21) 대응으로 operational writer authority를 Cloud Linux host에서 임시 workstation-hosted WSL2 runtime으로 옮겼다. Cloud writer를 먼저 중지하고 최종 backup을 restore했으며, dual-writer 구간 없이 single-writer를 유지했다. Cloud VM은 이후 만료되었다([operator evidence](https://github.com/cbbsjj0314/picking-my-time-sink/pull/198#issuecomment-6405189159)).
 
 - 이 배치는 다음 cloud host를 확보할 때까지의 임시 예외다. 다음 host 선택은 별도 decision이다.
 - 이 임시 예외는 위에서 유지한다고 적은 "personal workstation과 operational authority를 분리하는 방향"과 충돌한다. 이 방향은 long-term target으로 유지하지만, 임시 예외 기간에는 workstation 가용성이 다시 operational authority의 가용성이 된다.

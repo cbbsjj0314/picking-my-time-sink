@@ -95,7 +95,7 @@ A5 시점의 nominal planning candidate는 UTC 기준 하루 네 번의 opportun
 이상의 opportunity를 놓치면 scheduler는 필요할 때 최대 한 번 catch-up하고 과거 slot을
 모두 replay하지 않아야 한다.
 
-임시 authority host에서는 host restart 뒤 놓친 slot의 catch-up 실행이 관찰되지 않았다. 따라서 off-host copy가 다음 slot까지 지연될 수 있으며, 이 지연 risk의 수용 여부는 결정되지 않았다. Host binding 차이는 [activation 문서의 `Current status`](./postgres-recovery-scheduler-activation.md#current-status)를 따른다.
+임시 authority host에서는 host restart 뒤 놓친 slot의 catch-up 실행이 관찰되지 않았다([operator evidence](https://github.com/cbbsjj0314/picking-my-time-sink/pull/198#issuecomment-6405189159)). 따라서 off-host copy가 다음 slot까지 지연될 수 있으며, 이 지연 risk의 수용 여부는 결정되지 않았다. Host binding 차이는 [activation 문서의 `Current status`](./postgres-recovery-scheduler-activation.md#current-status)를 따른다.
 
 ```text
 6-hour timer configured != RPO <= 6h proven
