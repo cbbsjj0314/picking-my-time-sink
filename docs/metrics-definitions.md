@@ -206,7 +206,13 @@ Sanitized contract example: synthetic game에 trusted categories A/B가 있고 �
 ### 2.4 Explore 리뷰 기간 파생 지표
 
 - 이 섹션은 target/proposed `Explore` table metric semantics다. 현재 latest reviews API에는 노출되지 않고, `/games/explore/overview` 에서 최소 경로 필드로 노출된다.
-- 현재 canonical review source series는 Steam `appreviews` query summary 기준 `filter=all`, `language=all`, `purchase_type=all`, `num_per_page=20` 이다.
+- 현재 canonical review source series는 Steam `IUserReviewsService/GetAppReviews/v1` 첫 page의 `response.query_summary` totals이다.
+    - Request는 단일 `input_json` query 값 `{"appid":<int>,"cursor":"*","day_range":0,"filter":0,"languages":["all"],"num_per_page":20,"purchase_type":1,"review_type":0}` 이다. `key` 는 보내지 않는다.
+    - `filter=0`(Helpful), `review_type=0`(All), `purchase_type=1`(All), `languages=["all"]` 은 legacy `appreviews` 의 `filter=all`, `purchase_type=all`, `language=all` 을 잇는다. `day_range=0` 은 명시적 no-limit 선택이다.
+- Series boundary:
+    - Legacy `appreviews` series(`filter=all`, `language=all`, `purchase_type=all`, `num_per_page=20`)의 마지막 snapshot은 2026-10-23 KST다.
+    - Series는 첫 `GetAppReviews` snapshot에서 이어진다. 2026-10-24 KST부터 첫 새 snapshot 전까지는 missing으로 두며 재구성하지 않는다.
+    - Continuity evidence: 2026-10-27 keyless probe(5개 app)에서 위 request의 totals는 app별 legacy 추세 연장값과 +0.000%~+0.025% 안에서 일치했고 `positive_ratio` 차이는 ±0.013pp 이내였다. 모든 응답에서 `total_positive + total_negative == total_reviews` 였다. `purchase_type=0`(Steam)은 legacy series를 잇지 않는다.
 - cumulative metrics(`total_reviews`, `total_positive`, `total_negative`, `positive_ratio`)는 period-derived metrics와 별도 필드로 유지한다.
 - `reviews_added_7d`, `reviews_added_30d`:
     - `reviews_added_Nd = total_reviews(anchor) - total_reviews(anchor - N)`

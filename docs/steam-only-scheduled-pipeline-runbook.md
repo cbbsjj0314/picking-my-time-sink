@@ -88,7 +88,8 @@
   - `success:false`, fallback `is_free=false`, `price_overview` 없음은 Steam의 정상 응답이다. Fetch 실패가 아니며, 지금처럼 silver에서 제외될 뿐이다.
   - Bronze row의 `fetch_trail` 은 앱별로 보낸 batch / single / fallback request의 pass와 결과를 순서대로 남기는 triage용 보조 field다. Silver/gold 변환은 이 field를 읽지 않는다.
 - Reviews facts
-  - Current reviews series uses `json=1`, `filter=all`, `language=all`, `purchase_type=all`, and bounded page size.
+  - Current reviews series uses `IUserReviewsService/GetAppReviews/v1` first-page `response.query_summary` with `input_json` `filter=0`, `review_type=0`, `purchase_type=1`, `languages=["all"]`, `day_range=0`, `num_per_page=20`, and no `key`. Series boundary and continuity evidence follow `docs/metrics-definitions.md` §2.4.
+  - HTTP 200 without valid `response.query_summary` totals is a fetch failure (`missing_review_summary`), not success. Bronze totals stay null and silver keeps `skipped_reason: "missing_review_counts"`.
   - Gold facts preserve cumulative totals; broader review history and alternate filter series need a separate schema/ingest slice.
 - CCU facts
   - 30분 buckets are interpreted in KST.
@@ -131,6 +132,10 @@ details.
 `price-1h` 는 fetch 최종 실패 앱이 1개 이상이면 `partial_success` 다. Triage에는 `fetch_failed_records`, reason별 `fetch_failure_reasons`, `partial_reason: "price_fetch_failed"` 를 남긴다. 실패가 0이면 `success` 이고 `partial_reason` 은 `null` 이다. `success:false` 나 `is_free=false` 만 있는 run은 `success` 다. Fetch step execution meta에는 실제 HTTP request 수(`request_count`), request 단위로 센 `rate_limit_count` / `retry_count`, `fetch_failed_records`, `time_budget_exceeded` 를 남긴다. Exit code 규칙은 바뀌지 않는다(`partial_success` → 0).
 
 Active 앱 약 280개 기준으로 평소 price fetch는 batch 3회와 무료 후보 fallback 수십 회, 합계 약 60회 request로 2분 안팎이다. 429나 timeout이 계속되는 최악의 경우에도 시간 상한(1500초)과 request 하나의 timeout 안에서 끝난다.
+
+`daily` 의 reviews fetch(`fetch_reviews_daily`)는 앱마다 `GetAppReviews` request를 보내며 price와 같은 구조의 pacing을 쓴다. 모든 request(재시도 포함)는 직전 request 종료 뒤 최소 2.0초(`--min-request-interval-sec`)를 지킨다. HTTP 429의 delta-seconds `Retry-After` 는 상한 60초(`--max-retry-after-sec`)까지 따르고, 헤더가 없으면 backoff(base 2.0초, max 30초)를 쓴다. 마지막 attempt의 429 cooldown은 다음 앱 request에 적용된다. Fetch 시간 상한은 2700초(`--time-budget-sec`)이며, 상한 전에 시작하지 못한 앱은 request 없이 `time_budget_exceeded` 로 기록한다. 모든 target은 bronze row를 하나씩 남긴다. Scheduler는 추가 인자 없이 `daily` 를 호출하므로 이 기본값이 운영 동작이다. Active 앱 약 285개 기준으로 reviews step은 기존 약 1.5분에서 평소 약 15분으로 늘고, 최악의 경우 약 45분 근처에서 멈춘다.
+
+Reviews bronze row의 `fetch_failure` 는 성공이면 null, 실패면 `{"reason": ...}` 이다. `reason` 은 `rate_limited`, `server_error`, `http_error`, `timeout`, `network_error`, `invalid_json`, `time_budget_exceeded`, `missing_review_summary`(HTTP 200이지만 `response.query_summary` totals가 없거나 유효하지 않음)다. Fetch step execution meta에는 `request_count`, request 단위 `rate_limit_count` / `retry_count`, `fetch_failed_records`, `time_budget_exceeded` 를 남긴다. `daily` triage에는 `reviews_fetch_failed_records`, reason별 `reviews_fetch_failure_reasons`, `reviews_loaded_records`(skip되지 않은 gold row 수), `reviews_all_failed` 를 더한다. `reviews_all_failed` 는 reviews target이 1개 이상인데 적재된 gold row가 0개일 때만 true이며, 이때 target 수와 reason별 count를 담은 WARNING log를 한 줄 남긴다. Status 판정, `partial_reason: "reviews_skipped_evidence"`, exit code 규칙은 바뀌지 않는다. 따라서 reviews 전체 실패도 여전히 `partial_success`(exit code 0)이며, 평소의 일부 skip과 구분하려면 `reviews_all_failed` 를 본다.
 
 CCU per-app missing evidence is not the same as a hard job failure. A CCU fetch can produce useful bronze/gold rows while recording missing app-level evidence such as 404/empty/invalid payloads. Operators should distinguish full success, partial success, lock-busy skip, and hard failure from job-level result/meta evidence.
 

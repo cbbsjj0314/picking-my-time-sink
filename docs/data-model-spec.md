@@ -307,8 +307,9 @@
 - 테이블: fact_steam_reviews_daily
 - 그레인/PK: (canonical_game_id, snapshot_date)
 - 현재 source contract:
-    - Steam `appreviews` query summary cumulative snapshot
-    - request params: `filter=all`, `language=all`, `purchase_type=all`, `num_per_page=20`
+    - Steam `IUserReviewsService/GetAppReviews/v1` 첫 page `response.query_summary` cumulative snapshot
+    - request `input_json`: `filter=0`, `review_type=0`, `purchase_type=1`, `languages=["all"]`, `day_range=0`, `num_per_page=20`, `cursor="*"`
+    - legacy `appreviews`(`filter=all`, `language=all`, `purchase_type=all`) series boundary는 `docs/metrics-definitions.md` §2.4를 따른다.
 - 컬럼(초안):
     - canonical_game_id
     - snapshot_date

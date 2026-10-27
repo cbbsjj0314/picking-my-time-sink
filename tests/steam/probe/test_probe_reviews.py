@@ -6,8 +6,9 @@ from steam.probe.probe_reviews import summarize_reviews_payload
 
 
 def test_summarize_reviews_payload_redacts_third_party_review_content() -> None:
-    payload = {
+    response = {
         "cursor": "CURSOR-SECRET",
+        "day_range_used": 0,
         "query_summary": {
             "num_reviews": 20,
             "review_score": 8,
@@ -43,16 +44,26 @@ def test_summarize_reviews_payload_redacts_third_party_review_content() -> None:
                 "written_during_early_access": False,
             }
         ],
-        "success": 1,
+        "total_matching": 100,
     }
+    payload = {"response": response}
 
     summary = summarize_reviews_payload(payload, excerpt_count=1)
     excerpt = summary["reviews_excerpt"][0]
     serialized = json.dumps(summary, sort_keys=True)
 
-    assert summary["success"] == 1
+    assert summary["top_level_keys"] == ["response"]
+    assert summary["response_keys"] == [
+        "cursor",
+        "day_range_used",
+        "query_summary",
+        "reviews",
+        "total_matching",
+    ]
+    assert summary["day_range_used"] == 0
+    assert summary["total_matching"] == 100
     assert summary["cursor_present"] is True
-    assert summary["query_summary"] == payload["query_summary"]
+    assert summary["query_summary"] == response["query_summary"]
     assert summary["reviews_count"] == 1
     assert "cursor" not in summary
     assert excerpt["author_summary_redacted"] is True
@@ -74,3 +85,17 @@ def test_summarize_reviews_payload_redacts_third_party_review_content() -> None:
     assert "user-secret" not in serialized
     assert "STEAMID-SECRET" not in serialized
     assert "community.example.invalid" not in serialized
+
+
+def test_probe_uses_ingest_request_contract() -> None:
+    from steam.ingest import fetch_reviews_daily
+    from steam.probe import probe_reviews
+
+    assert probe_reviews.REQUEST_URL == fetch_reviews_daily.REQUEST_URL
+    assert probe_reviews.build_request_params is fetch_reviews_daily.build_request_params
+
+
+def test_summarize_reviews_payload_without_response_envelope_stays_bounded() -> None:
+    summary = summarize_reviews_payload({"reviews": [{"review": "REVIEW-TEXT-SECRET"}]})
+
+    assert summary == {"top_level_keys": ["reviews"]}

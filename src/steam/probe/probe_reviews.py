@@ -1,4 +1,4 @@
-"""Probe Steam reviews endpoint and store a reproducible snapshot."""
+"""Probe Steam GetAppReviews endpoint and store a reproducible snapshot."""
 
 from __future__ import annotations
 
@@ -6,6 +6,7 @@ import argparse
 import logging
 from typing import Any
 
+from steam.ingest.fetch_reviews_daily import REQUEST_URL, build_request_params
 from steam.probe.common import (
     RequestResult,
     add_common_probe_arguments,
@@ -22,7 +23,6 @@ from steam.probe.common import (
 
 LOGGER = logging.getLogger(__name__)
 PROBE_NAME = "reviews"
-REQUEST_URL_TEMPLATE = "https://store.steampowered.com/appreviews/{app_id}"
 REVIEW_EXCERPT_COUNT = 3
 REVIEW_EXCERPT_FIELDS = (
     "app_release_date",
@@ -43,7 +43,7 @@ REVIEW_EXCERPT_FIELDS = (
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Steam probe: appreviews")
+    parser = argparse.ArgumentParser(description="Steam probe: GetAppReviews")
     add_common_probe_arguments(parser)
     parser.add_argument("--app-id", type=int, default=None)
     return parser
@@ -86,7 +86,7 @@ def summarize_reviews_payload(
     *,
     excerpt_count: int = REVIEW_EXCERPT_COUNT,
 ) -> Any:
-    """Return a bounded public-safe summary for appreviews payloads."""
+    """Return a bounded public-safe summary for a GetAppReviews `response` envelope."""
 
     if not isinstance(payload, dict):
         return payload
@@ -95,18 +95,26 @@ def summarize_reviews_payload(
         "top_level_keys": sorted(payload.keys()),
     }
 
-    if "success" in payload:
-        summary["success"] = payload["success"]
+    response = payload.get("response")
+    if not isinstance(response, dict):
+        return summary
 
-    query_summary = payload.get("query_summary")
+    summary["response_keys"] = sorted(response.keys())
+
+    query_summary = response.get("query_summary")
     if isinstance(query_summary, dict):
         summary["query_summary"] = query_summary
 
-    cursor = payload.get("cursor")
+    for key in ("day_range_used", "total_matching"):
+        value = response.get(key)
+        if isinstance(value, int) and not isinstance(value, bool):
+            summary[key] = value
+
+    cursor = response.get("cursor")
     if isinstance(cursor, str):
         summary["cursor_present"] = bool(cursor)
 
-    reviews = payload.get("reviews")
+    reviews = response.get("reviews")
     if isinstance(reviews, list):
         summary["reviews_count"] = len(reviews)
         summary["review_fields_present"] = sorted(
@@ -142,7 +150,7 @@ def build_probe_snapshot(
     result: RequestResult,
     timeout_seconds: float,
     request_url: str,
-    request_params: dict[str, str | int],
+    request_params: dict[str, str],
 ) -> dict[str, Any]:
     """Build the persisted probe snapshot with a public-safe payload summary."""
 
@@ -169,17 +177,10 @@ def main() -> None:
     runtime = runtime_config_from_args(args)
 
     app_id = resolve_app_id(args.app_id)
-    request_url = REQUEST_URL_TEMPLATE.format(app_id=app_id)
-    params: dict[str, str | int] = {
-        "json": 1,
-        "filter": "all",
-        "language": "all",
-        "purchase_type": "all",
-        "num_per_page": 20,
-    }
+    params = build_request_params(app_id)
 
     result = request_with_retry(
-        url=request_url,
+        url=REQUEST_URL,
         params=params,
         timeout_seconds=runtime.timeout_seconds,
         max_attempts=runtime.max_attempts,
@@ -192,7 +193,7 @@ def main() -> None:
     snapshot = build_probe_snapshot(
         result=result,
         timeout_seconds=runtime.timeout_seconds,
-        request_url=request_url,
+        request_url=REQUEST_URL,
         request_params=params,
     )
     output_path = save_snapshot(out_dir=runtime.out_dir, probe_name=PROBE_NAME, snapshot=snapshot)

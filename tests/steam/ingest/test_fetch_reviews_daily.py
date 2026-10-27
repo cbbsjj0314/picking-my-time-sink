@@ -1,9 +1,21 @@
 from __future__ import annotations
 
 import json
+import urllib.parse
+from pathlib import Path
+from typing import Any
+
+import pytest
 
 from steam.ingest import fetch_reviews_daily
+from steam.normalize import bronze_to_silver_reviews
 from steam.probe.common import RequestResult
+
+COLLECTED_AT = "2026-10-27T00:30:00Z"
+EXPECTED_INPUT_JSON_730 = (
+    '{"appid":730,"cursor":"*","day_range":0,"filter":0,"languages":["all"],'
+    '"num_per_page":20,"purchase_type":1,"review_type":0}'
+)
 
 
 def make_result(
@@ -20,6 +32,145 @@ def make_result(
         attempts=[{"attempt": 1, "error": None, "sleep_seconds": 0.0, "status_code": status_code}],
         error=error,
     )
+
+
+def raw_result(body: bytes) -> RequestResult:
+    return RequestResult(
+        final_url="https://example.com",
+        status_code=200,
+        headers={"content-type": "text/html"},
+        body=body,
+        attempts=[{"attempt": 1, "error": None, "sleep_seconds": 0.0, "status_code": 200}],
+        error=None,
+    )
+
+
+def http_error(status_code: int, *, headers: dict[str, str] | None = None) -> RequestResult:
+    return RequestResult(
+        final_url="https://example.com",
+        status_code=status_code,
+        headers=headers or {},
+        body=b"",
+        attempts=[
+            {
+                "attempt": 1,
+                "error": f"HTTP {status_code}",
+                "sleep_seconds": 0.0,
+                "status_code": status_code,
+            }
+        ],
+        error={"type": "http_error", "message": f"HTTP {status_code}"},
+    )
+
+
+def envelope(total_reviews: int, total_positive: int, total_negative: int) -> dict[str, Any]:
+    """Sanitized shape of the verified GetAppReviews first-page envelope."""
+
+    return {
+        "response": {
+            "cursor": "SYNTHETIC-CURSOR",
+            "day_range_used": 0,
+            "query_summary": {
+                "total_negative": total_negative,
+                "total_positive": total_positive,
+                "total_reviews": total_reviews,
+            },
+            "reviews": [{"review": "SYNTHETIC-REVIEW-TEXT", "voted_up": True}],
+            "total_matching": total_reviews,
+        }
+    }
+
+
+class FakeClock:
+    def __init__(self) -> None:
+        self.now = 0.0
+        self.sleeps: list[float] = []
+
+    def monotonic(self) -> float:
+        return self.now
+
+    def sleep(self, seconds: float) -> None:
+        self.sleeps.append(seconds)
+        self.now += seconds
+
+    def request_clock(self) -> fetch_reviews_daily.RequestClock:
+        return fetch_reviews_daily.RequestClock(monotonic=self.monotonic, sleep=self.sleep)
+
+
+class FakeSteam:
+    """Serve GetAppReviews per appid, optionally overriding the n-th call."""
+
+    def __init__(
+        self,
+        clock: FakeClock,
+        *,
+        responses: dict[int, RequestResult] | None = None,
+        latency: float = 1.0,
+        override: Any = None,
+    ) -> None:
+        self.clock = clock
+        self.responses = responses or {}
+        self.latency = latency
+        self.override = override
+        self.calls: list[dict[str, Any]] = []
+
+    def __call__(self, **kwargs: Any) -> RequestResult:
+        params = dict(kwargs["params"])
+        appid = json.loads(params["input_json"])["appid"]
+        call = {
+            "appid": appid,
+            "kwargs": kwargs,
+            "max_attempts": kwargs["max_attempts"],
+            "started_at": self.clock.now,
+        }
+        self.calls.append(call)
+        self.clock.now += self.latency
+        call["finished_at"] = self.clock.now
+
+        if self.override is not None:
+            overridden = self.override(appid, len(self.calls) - 1)
+            if overridden is not None:
+                return overridden
+        return self.responses.get(appid, make_result(envelope(100, 80, 20)))
+
+
+def make_session(clock: FakeClock, **overrides: Any) -> fetch_reviews_daily.ReviewsRequestSession:
+    kwargs: dict[str, Any] = {
+        "timeout_seconds": 10.0,
+        "max_attempts": 4,
+        "backoff_base_seconds": 2.0,
+        "jitter_max_seconds": 0.0,
+        "max_backoff_seconds": 30.0,
+        "min_request_interval_seconds": 2.0,
+        "max_retry_after_seconds": 60.0,
+        "time_budget_seconds": 2700.0,
+        "clock": clock.request_clock(),
+    }
+    kwargs.update(overrides)
+    return fetch_reviews_daily.ReviewsRequestSession(**kwargs)
+
+
+def targets_for(appids: list[int]) -> list[dict[str, int]]:
+    return [
+        {"canonical_game_id": index + 1, "steam_appid": appid} for index, appid in enumerate(appids)
+    ]
+
+
+def fetch_records(
+    monkeypatch: pytest.MonkeyPatch,
+    steam: FakeSteam,
+    appids: list[int],
+    *,
+    session: fetch_reviews_daily.ReviewsRequestSession | None = None,
+) -> tuple[list[dict[str, Any]], fetch_reviews_daily.ReviewsRequestSession]:
+    monkeypatch.setattr(fetch_reviews_daily, "request_with_retry", steam)
+    resolved_session = session or make_session(steam.clock)
+    records = fetch_reviews_daily.fetch_reviews_records(
+        targets_for(appids),
+        session=resolved_session,
+        now_iso=lambda: COLLECTED_AT,
+    )
+    return records, resolved_session
 
 
 class FakeCursor:
@@ -48,43 +199,354 @@ class FakeConn:
         return self.cursor_instance
 
 
-def test_fetch_reviews_for_app_uses_repo_grounded_params_and_shared_retry_defaults(
-    monkeypatch,
+def test_request_uses_getappreviews_url_and_single_fixed_input_json(
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    captured: dict[str, object] = {}
+    steam = FakeSteam(FakeClock())
 
-    def fake_request_with_retry(**kwargs) -> RequestResult:
-        captured.update(kwargs)
-        return make_result(
-            {
-                "query_summary": {
-                    "total_reviews": 100,
-                    "total_positive": 80,
-                    "total_negative": 20,
-                }
-            }
-        )
+    records, _ = fetch_records(monkeypatch, steam, [730])
 
-    monkeypatch.setattr(fetch_reviews_daily, "request_with_retry", fake_request_with_retry)
+    kwargs = steam.calls[0]["kwargs"]
+    assert kwargs["url"] == "https://api.steampowered.com/IUserReviewsService/GetAppReviews/v1/"
+    assert kwargs["params"] == {"input_json": EXPECTED_INPUT_JSON_730}
+    assert fetch_reviews_daily.build_request_params(730) == {"input_json": EXPECTED_INPUT_JSON_730}
+    assert kwargs["max_attempts"] == 1
+    assert "retryable_status_codes" not in kwargs
+    assert "response_retry_reason" not in kwargs
 
-    result = fetch_reviews_daily.fetch_reviews_for_app(
-        steam_appid=730,
-        timeout_seconds=1.0,
-        max_attempts=2,
-        backoff_base_seconds=0.5,
-        jitter_max_seconds=0.1,
-        max_backoff_seconds=2.0,
-    )
+    request = json.loads(kwargs["params"]["input_json"])
+    for legacy_or_secret in ("key", "json", "language", "filter_offtopic_activity"):
+        assert legacy_or_secret not in request
+    for enum_key in ("filter", "purchase_type", "review_type", "day_range"):
+        assert isinstance(request[enum_key], int)
+    assert request["languages"] == ["all"]
 
-    assert captured["url"] == "https://store.steampowered.com/appreviews/730"
-    assert captured["params"] == fetch_reviews_daily.REQUEST_PARAMS
-    assert "retryable_status_codes" not in captured
-    assert "response_retry_reason" not in captured
-    assert result["summary"] == {
+    query = urllib.parse.urlencode(kwargs["params"])
+    assert "key=" not in query
+    assert records[0]["total_reviews"] == 100
+    assert records[0]["fetch_failure"] is None
+
+
+def test_extract_query_summary_reads_only_the_response_envelope() -> None:
+    assert fetch_reviews_daily.extract_query_summary(envelope(100, 80, 20)) == {
         "total_reviews": 100,
         "total_positive": 80,
         "total_negative": 20,
     }
+
+
+def _missing_totals() -> dict[str, Any]:
+    payload = envelope(100, 80, 20)
+    del payload["response"]["query_summary"]["total_negative"]
+    return payload
+
+
+def _non_integer_total() -> dict[str, Any]:
+    payload = envelope(100, 80, 20)
+    payload["response"]["query_summary"]["total_reviews"] = "many"
+    return payload
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        pytest.param(
+            {"query_summary": {"total_reviews": 100, "total_positive": 80, "total_negative": 20}},
+            id="top-level-query-summary-without-response",
+        ),
+        pytest.param({"response": {}}, id="empty-response"),
+        pytest.param(_missing_totals(), id="missing-total"),
+        pytest.param(_non_integer_total(), id="non-integer-total"),
+        pytest.param(envelope(100, 80, -1), id="negative-total"),
+    ],
+)
+def test_http_200_without_valid_totals_is_missing_review_summary(
+    monkeypatch: pytest.MonkeyPatch,
+    body: dict[str, Any],
+) -> None:
+    steam = FakeSteam(FakeClock(), responses={730: make_result(body)})
+
+    records, _ = fetch_records(monkeypatch, steam, [730])
+
+    assert records[0]["fetch_failure"] == {"reason": "missing_review_summary"}
+    assert records[0]["http_status"] == 200
+    assert records[0]["total_reviews"] is None
+    assert records[0]["total_positive"] is None
+    assert records[0]["total_negative"] is None
+
+
+def test_non_json_body_is_invalid_json(monkeypatch: pytest.MonkeyPatch) -> None:
+    steam = FakeSteam(FakeClock(), responses={730: raw_result(b"<html>not json</html>")})
+
+    records, _ = fetch_records(monkeypatch, steam, [730])
+
+    assert records[0]["fetch_failure"] == {"reason": "invalid_json"}
+    assert records[0]["total_reviews"] is None
+
+
+def test_missing_review_summary_flows_to_silver_missing_review_counts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    steam = FakeSteam(FakeClock(), responses={730: make_result({"response": {}})})
+
+    records, _ = fetch_records(monkeypatch, steam, [730])
+    silver = bronze_to_silver_reviews.normalize_bronze_record(records[0])
+
+    assert records[0]["fetch_failure"]["reason"] == "missing_review_summary"
+    assert silver["skipped_reason"] == "missing_review_counts"
+
+
+def test_bronze_record_keeps_no_review_text_or_cursor(monkeypatch: pytest.MonkeyPatch) -> None:
+    steam = FakeSteam(FakeClock())
+
+    records, _ = fetch_records(monkeypatch, steam, [730])
+    serialized = json.dumps(records[0], sort_keys=True)
+
+    assert set(records[0]) == {
+        "attempts",
+        "canonical_game_id",
+        "collected_at",
+        "error",
+        "fetch_failure",
+        "http_status",
+        "steam_appid",
+        "total_negative",
+        "total_positive",
+        "total_reviews",
+    }
+    assert "SYNTHETIC-REVIEW-TEXT" not in serialized
+    assert "SYNTHETIC-CURSOR" not in serialized
+
+
+@pytest.mark.parametrize(
+    ("headers", "expected_wait"),
+    [
+        pytest.param({"Retry-After": "5"}, 5.0, id="retry-after"),
+        pytest.param({"Retry-After": "600"}, 60.0, id="retry-after-capped"),
+        pytest.param({}, 2.0, id="missing-header-backoff"),
+    ],
+)
+def test_rate_limited_attempt_waits_for_retry_after_or_backoff(
+    monkeypatch: pytest.MonkeyPatch,
+    headers: dict[str, str],
+    expected_wait: float,
+) -> None:
+    clock = FakeClock()
+
+    def first_call_429(_: int, index: int) -> RequestResult | None:
+        return http_error(429, headers=headers) if index == 0 else None
+
+    steam = FakeSteam(clock, override=first_call_429)
+    session = make_session(clock, min_request_interval_seconds=0.0)
+
+    records, _ = fetch_records(monkeypatch, steam, [730], session=session)
+
+    gap = steam.calls[1]["started_at"] - steam.calls[0]["finished_at"]
+    assert gap == pytest.approx(expected_wait)
+    assert records[0]["attempts"][0]["sleep_seconds"] == pytest.approx(expected_wait)
+    assert records[0]["fetch_failure"] is None
+    assert sum(stats["rate_limit_count"] for stats in session.attempt_stats) == 1
+
+
+def test_final_429_is_rate_limited_and_delays_the_next_app(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    clock = FakeClock()
+
+    def always_429_for_first_app(appid: int, _: int) -> RequestResult | None:
+        return http_error(429, headers={"Retry-After": "45"}) if appid == 1 else None
+
+    steam = FakeSteam(clock, override=always_429_for_first_app)
+
+    records, session = fetch_records(monkeypatch, steam, [1, 2])
+
+    first_app_calls = [call for call in steam.calls if call["appid"] == 1]
+    second_app_call = next(call for call in steam.calls if call["appid"] == 2)
+    assert len(first_app_calls) == 4
+    assert records[0]["fetch_failure"] == {"reason": "rate_limited"}
+    assert records[0]["http_status"] == 429
+    assert second_app_call["started_at"] - first_app_calls[-1]["finished_at"] == pytest.approx(45.0)
+    assert records[1]["fetch_failure"] is None
+    assert session.request_count == 5
+
+
+@pytest.mark.parametrize(
+    ("result", "reason"),
+    [
+        pytest.param(http_error(503), "server_error", id="5xx"),
+        pytest.param(http_error(404), "http_error", id="4xx"),
+        pytest.param(
+            RequestResult(
+                final_url="https://example.com",
+                status_code=None,
+                headers={},
+                body=b"",
+                attempts=[{"attempt": 1, "error": "timed out", "status_code": None}],
+                error={"type": "timeout", "message": "timed out"},
+            ),
+            "timeout",
+            id="timeout",
+        ),
+        pytest.param(
+            RequestResult(
+                final_url="https://example.com",
+                status_code=None,
+                headers={},
+                body=b"",
+                attempts=[{"attempt": 1, "error": "refused", "status_code": None}],
+                error={"type": "url_error", "message": "refused"},
+            ),
+            "network_error",
+            id="network",
+        ),
+    ],
+)
+def test_final_request_failures_are_classified(
+    monkeypatch: pytest.MonkeyPatch,
+    result: RequestResult,
+    reason: str,
+) -> None:
+    steam = FakeSteam(FakeClock(), responses={730: result})
+
+    records, _ = fetch_records(monkeypatch, steam, [730])
+
+    assert records[0]["fetch_failure"] == {"reason": reason}
+    assert records[0]["total_reviews"] is None
+
+
+def test_minimum_interval_applies_between_apps_and_between_retries(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    clock = FakeClock()
+
+    def flaky(_: int, index: int) -> RequestResult | None:
+        # Retry-After 0 would otherwise allow an immediate retry.
+        if index == 0:
+            return http_error(429, headers={"Retry-After": "0"})
+        return http_error(503) if index == 2 else None
+
+    steam = FakeSteam(clock, override=flaky)
+    session = make_session(clock, backoff_base_seconds=0.0)
+
+    fetch_records(monkeypatch, steam, [1, 2, 3], session=session)
+
+    assert len(steam.calls) == 5
+    for previous, current in zip(steam.calls, steam.calls[1:], strict=False):
+        assert current["started_at"] - previous["finished_at"] >= 2.0 - 1e-9
+
+
+def test_time_budget_skips_remaining_apps_without_requests(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    clock = FakeClock()
+    steam = FakeSteam(clock, latency=1.0)
+    # Requests start at 0 and 3; the third app would start at 6 > budget 5.
+    session = make_session(clock, time_budget_seconds=5.0)
+
+    records, _ = fetch_records(monkeypatch, steam, [1, 2, 3, 4], session=session)
+
+    assert [call["appid"] for call in steam.calls] == [1, 2]
+    assert len(records) == 4
+    assert [record["steam_appid"] for record in records] == [1, 2, 3, 4]
+    assert [record["fetch_failure"] for record in records] == [
+        None,
+        None,
+        {"reason": "time_budget_exceeded"},
+        {"reason": "time_budget_exceeded"},
+    ]
+    assert records[2]["attempts"] == []
+    assert records[2]["http_status"] is None
+    assert records[2]["total_reviews"] is None
+    assert session.time_budget_exceeded is True
+    assert session.request_count == 2
+
+
+def test_scheduled_path_defaults_match_pacing_policy() -> None:
+    from steam.ingest import run_steam_cadence_job
+
+    kwargs = run_steam_cadence_job._fetch_run_kwargs(
+        fetch_reviews_daily,
+        output_path=Path("out.jsonl"),
+        meta_path=Path("meta.json"),
+    )
+    defaults = fetch_reviews_daily.run.__kwdefaults__
+
+    assert kwargs["timeout_seconds"] == 10.0
+    assert kwargs["max_attempts"] == 4
+    assert kwargs["backoff_base_seconds"] == 2.0
+    assert kwargs["max_backoff_seconds"] == 30.0
+    assert kwargs["jitter_max_seconds"] == 0.3
+    assert "min_request_interval_seconds" not in kwargs
+    assert defaults["min_request_interval_seconds"] == 2.0
+    assert defaults["max_retry_after_seconds"] == 60.0
+    assert defaults["time_budget_seconds"] == 2700.0
+
+    args = fetch_reviews_daily.build_parser().parse_args(["--output-path", "out.jsonl"])
+    assert args.min_request_interval_sec == defaults["min_request_interval_seconds"]
+    assert args.max_retry_after_sec == defaults["max_retry_after_seconds"]
+    assert args.time_budget_sec == defaults["time_budget_seconds"]
+
+
+class FakePsycopg:
+    def __init__(self, rows: list[tuple[object, object]]) -> None:
+        self.rows = rows
+
+    def connect(self, *, conninfo: str) -> Any:
+        rows = self.rows
+
+        class _Conn(FakeConn):
+            def __enter__(self) -> _Conn:
+                return self
+
+            def __exit__(self, exc_type, exc, exc_tb) -> bool:
+                return False
+
+        return _Conn(rows)
+
+
+def test_run_writes_one_row_per_target_and_records_fetch_meta(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    clock = FakeClock()
+
+    def flaky(appid: int, index: int) -> RequestResult | None:
+        if index == 0:
+            return http_error(429, headers={"Retry-After": "3"})
+        return make_result({"response": {}}) if appid == 3 else None
+
+    steam = FakeSteam(clock, override=flaky)
+    monkeypatch.setattr(fetch_reviews_daily, "request_with_retry", steam)
+    monkeypatch.setattr(
+        fetch_reviews_daily,
+        "require_psycopg",
+        lambda: FakePsycopg([(1, "1"), (2, "2"), (3, "3")]),
+    )
+    monkeypatch.setattr(fetch_reviews_daily, "build_pg_conninfo_from_env", lambda: "fake")
+
+    output_path = tmp_path / "reviews.bronze.jsonl"
+    meta_path = tmp_path / "fetch.meta.json"
+    rows = fetch_reviews_daily.run(
+        output_path=output_path,
+        timeout_seconds=10.0,
+        max_attempts=4,
+        backoff_base_seconds=2.0,
+        jitter_max_seconds=0.0,
+        max_backoff_seconds=30.0,
+        meta_path=meta_path,
+        clock=clock.request_clock(),
+    )
+
+    assert len(rows) == 3
+    assert len(output_path.read_text(encoding="utf-8").splitlines()) == 3
+    meta = json.loads(meta_path.read_text(encoding="utf-8"))
+    assert meta["request_count"] == 4
+    assert meta["rate_limit_count"] == 1
+    assert meta["retry_count"] == 1
+    assert meta["fetch_failed_records"] == 1
+    assert meta["time_budget_exceeded"] is False
+    assert meta["records_out"] == 3
+    assert rows[2]["fetch_failure"] == {"reason": "missing_review_summary"}
 
 
 def test_load_tracked_steam_games_matches_existing_query_shape_and_skips_invalid_ids() -> None:

@@ -93,18 +93,17 @@
 ### 1.3 Reviews (리뷰 스냅샷)
 
 - 목적: “살 만한가” 지표(1일 스냅샷)
-- 엔드포인트: Steam Store Reviews (appreviews)
-- 인증: 보통 Key 불필요
+- 엔드포인트: Steam Web API `IUserReviewsService/GetAppReviews/v1` (`https://api.steampowered.com/IUserReviewsService/GetAppReviews/v1/`)
+    - Legacy Store `appreviews` endpoint는 deprecated이며 더 이상 호출하지 않는다.
+- 인증: Key 없이 호출한다. `key` 는 보내지 않는다. Anonymous 호출은 낮은 공유 rate limit(HTTP 429 가능)과 최대 10분 응답 cache를 가질 수 있다.
 - 주기: daily
 - 입력 키: steam_appid
-- 현재 repo 기준 request params:
-    - `json=1`
-    - `filter=all`
-    - `language=all`
-    - `purchase_type=all`
-    - `num_per_page=20`
-- 주요 필드(예상):
-    - query_summary: total_reviews, total_positive, total_negative 등
+- 현재 repo 기준 request:
+    - 단일 query parameter `input_json` = `{"appid":<int>,"cursor":"*","day_range":0,"filter":0,"languages":["all"],"num_per_page":20,"purchase_type":1,"review_type":0}`
+    - Enum 의미와 legacy series 연속성은 `docs/metrics-definitions.md` §2.4를 따른다.
+- 주요 필드:
+    - `response.query_summary`: `total_reviews`, `total_positive`, `total_negative` (첫 page, `review_type=0` 일 때만 반환)
+- Probe evidence: `docs/probe/steam/reviews/representative.json` 은 legacy `appreviews` endpoint probe evidence다. `GetAppReviews` envelope 기준이 아니다.
     - (선택) 리뷰 텍스트/태그 분류는 MVP 이후 단계로 둔다(비용/용량 이슈)
 - 현재 metric contract:
     - `query_summary` cumulative totals를 all languages / all purchases / all reviews canonical daily snapshot으로 적재한다.
