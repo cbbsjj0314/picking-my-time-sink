@@ -2,7 +2,33 @@ from __future__ import annotations
 
 import json
 
-from steam.probe.probe_reviews import summarize_reviews_payload
+import pytest
+
+from steam.probe.common import RequestResult
+from steam.probe.probe_reviews import build_probe_snapshot, summarize_reviews_payload
+
+MARKER = "PRIVATE-TEXT-MARKER"
+
+
+def make_result(body: bytes) -> RequestResult:
+    return RequestResult(
+        final_url="https://example.com",
+        status_code=200,
+        headers={"Content-Type": "application/json"},
+        body=body,
+        attempts=[{"attempt": 1, "error": None, "sleep_seconds": 0.0, "status_code": 200}],
+        error=None,
+    )
+
+
+def persisted_snapshot(body: bytes) -> tuple[dict[str, object], str]:
+    snapshot = build_probe_snapshot(
+        result=make_result(body),
+        timeout_seconds=10.0,
+        request_url="https://example.com",
+        request_params={"input_json": "{}"},
+    )
+    return snapshot, json.dumps(snapshot, ensure_ascii=False, indent=2, sort_keys=True)
 
 
 def test_summarize_reviews_payload_redacts_third_party_review_content() -> None:
@@ -63,7 +89,14 @@ def test_summarize_reviews_payload_redacts_third_party_review_content() -> None:
     assert summary["day_range_used"] == 0
     assert summary["total_matching"] == 100
     assert summary["cursor_present"] is True
-    assert summary["query_summary"] == response["query_summary"]
+    assert summary["query_summary"] == {
+        "num_reviews": 20,
+        "review_score": 8,
+        "total_negative": 10,
+        "total_positive": 90,
+        "total_reviews": 100,
+    }
+    assert "review_score_desc" not in summary["query_summary"]
     assert summary["reviews_count"] == 1
     assert "cursor" not in summary
     assert excerpt["author_summary_redacted"] is True
@@ -76,6 +109,9 @@ def test_summarize_reviews_payload_redacts_third_party_review_content() -> None:
         "profile_url",
         "steamid",
     ]
+    assert excerpt["weighted_vote_score"] == "0.960129141807556152"
+    assert excerpt["language"] == "english"
+    assert "excerpt_fields_dropped" not in excerpt
     assert "author" not in excerpt
     assert "review" not in excerpt
     assert "recommendationid" not in excerpt
@@ -99,3 +135,144 @@ def test_summarize_reviews_payload_without_response_envelope_stays_bounded() -> 
     summary = summarize_reviews_payload({"reviews": [{"review": "REVIEW-TEXT-SECRET"}]})
 
     assert summary == {"top_level_keys": ["reviews"]}
+
+
+def test_malformed_json_stores_only_a_non_json_marker() -> None:
+    snapshot, serialized = persisted_snapshot(b'{"response": "' + MARKER.encode() + b' broken')
+
+    assert snapshot["response"]["payload_excerpt_or_json"] == {"non_json": True}
+    assert snapshot["response"]["body_size"] > 0
+    assert MARKER not in serialized
+
+
+@pytest.mark.parametrize(
+    ("payload", "expected_type"),
+    [
+        pytest.param([MARKER], "array", id="array"),
+        pytest.param(MARKER, "string", id="string"),
+        pytest.param(42, "number", id="number"),
+    ],
+)
+def test_non_dict_payload_keeps_only_its_type(payload: object, expected_type: str) -> None:
+    snapshot, serialized = persisted_snapshot(json.dumps(payload).encode("utf-8"))
+
+    assert snapshot["response"]["payload_excerpt_or_json"] == {"payload_type": expected_type}
+    assert MARKER not in serialized
+
+
+def test_non_dict_review_entries_keep_only_their_type() -> None:
+    body = {"response": {"reviews": [MARKER, [MARKER], None]}}
+
+    snapshot, serialized = persisted_snapshot(json.dumps(body).encode("utf-8"))
+
+    assert snapshot["response"]["payload_excerpt_or_json"]["reviews_excerpt"] == [
+        {"entry_type": "string"},
+        {"entry_type": "array"},
+        {"entry_type": "null"},
+    ]
+    assert MARKER not in serialized
+
+
+def test_query_summary_keeps_only_allowlisted_integer_counts() -> None:
+    body = {
+        "response": {
+            "query_summary": {
+                "num_reviews": 20,
+                "review_score": MARKER,
+                "review_score_desc": MARKER,
+                "total_negative": 20,
+                "total_positive": True,
+                "total_reviews": 100.0,
+                "unexpected": MARKER,
+            }
+        }
+    }
+
+    snapshot, serialized = persisted_snapshot(json.dumps(body).encode("utf-8"))
+
+    assert snapshot["response"]["payload_excerpt_or_json"]["query_summary"] == {
+        "num_reviews": 20,
+        "total_negative": 20,
+    }
+    assert MARKER not in serialized
+
+
+def test_unexpected_value_types_in_allowed_review_fields_are_dropped() -> None:
+    review = {
+        "comment_count": MARKER,
+        "language": MARKER + " with spaces",
+        "steam_purchase": MARKER,
+        "timestamp_created": 1770258718,
+        "voted_up": 1,
+        "votes_up": {"nested": MARKER},
+        "weighted_vote_score": MARKER,
+        "written_during_early_access": False,
+        MARKER + " key": "value",
+    }
+    body = {"response": {"reviews": [review]}}
+
+    snapshot, serialized = persisted_snapshot(json.dumps(body).encode("utf-8"))
+    summary = snapshot["response"]["payload_excerpt_or_json"]
+    excerpt = summary["reviews_excerpt"][0]
+
+    assert excerpt == {
+        "excerpt_fields_dropped": [
+            "comment_count",
+            "language",
+            "steam_purchase",
+            "voted_up",
+            "votes_up",
+            "weighted_vote_score",
+        ],
+        "timestamp_created": 1770258718,
+        "written_during_early_access": False,
+    }
+    assert MARKER not in serialized
+
+
+def test_valid_sanitized_envelope_keeps_bounded_structure() -> None:
+    body = {
+        "response": {
+            "cursor": MARKER,
+            "day_range_used": 0,
+            "query_summary": {
+                "review_score_desc": MARKER,
+                "total_negative": 20,
+                "total_positive": 80,
+                "total_reviews": 100,
+            },
+            "reviews": [
+                {
+                    "author": {"personaname": MARKER, "steamid": MARKER},
+                    "language": "schinese",
+                    "recommendationid": MARKER,
+                    "review": MARKER,
+                    "voted_up": True,
+                    "weighted_vote_score": 0.5,
+                }
+            ],
+            "total_matching": 100,
+        }
+    }
+
+    snapshot, serialized = persisted_snapshot(json.dumps(body).encode("utf-8"))
+    summary = snapshot["response"]["payload_excerpt_or_json"]
+
+    assert summary["query_summary"] == {
+        "total_negative": 20,
+        "total_positive": 80,
+        "total_reviews": 100,
+    }
+    assert summary["cursor_present"] is True
+    assert summary["author_fields_present"] == ["personaname", "steamid"]
+    assert summary["reviews_excerpt"][0] == {
+        "author_fields_present": ["personaname", "steamid"],
+        "author_summary_redacted": True,
+        "language": "schinese",
+        "recommendationid_redacted": True,
+        "review_text_length": len(MARKER),
+        "review_text_redacted": True,
+        "voted_up": True,
+        "weighted_vote_score": 0.5,
+    }
+    assert MARKER not in serialized
