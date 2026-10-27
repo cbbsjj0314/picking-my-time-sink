@@ -176,13 +176,15 @@ def extract_query_summary(payload: Any) -> dict[str, int] | None:
     parsed: dict[str, int] = {}
     for key in REVIEW_TOTAL_KEYS:
         value = query_summary.get(key)
-        try:
-            parsed_value = int(value)
-        except (TypeError, ValueError):
+        # Provider counts are not coerced: bools, floats (including NaN/Infinity and
+        # integral floats), and numeric strings are invalid.
+        if type(value) is not int or value < 0:
             return None
-        if parsed_value < 0:
-            return None
-        parsed[key] = parsed_value
+        parsed[key] = value
+
+    # Every legacy row and probe response held this invariant; fail closed when it breaks.
+    if parsed["total_positive"] + parsed["total_negative"] != parsed["total_reviews"]:
+        return None
 
     return parsed
 

@@ -8,7 +8,7 @@ from typing import Any
 import pytest
 
 from steam.ingest import fetch_reviews_daily
-from steam.normalize import bronze_to_silver_reviews
+from steam.normalize import bronze_to_silver_reviews, silver_to_gold_reviews
 from steam.probe.common import RequestResult
 
 COLLECTED_AT = "2026-10-27T00:30:00Z"
@@ -241,30 +241,50 @@ def _missing_totals() -> dict[str, Any]:
     return payload
 
 
-def _non_integer_total() -> dict[str, Any]:
+def _with_total(key: str, value: object) -> dict[str, Any]:
     payload = envelope(100, 80, 20)
-    payload["response"]["query_summary"]["total_reviews"] = "many"
+    payload["response"]["query_summary"][key] = value
     return payload
 
 
-@pytest.mark.parametrize(
-    "body",
-    [
-        pytest.param(
-            {"query_summary": {"total_reviews": 100, "total_positive": 80, "total_negative": 20}},
-            id="top-level-query-summary-without-response",
+def _raw_envelope(total_reviews_literal: str) -> bytes:
+    # Python's json module decodes the non-standard NaN / Infinity literals to floats.
+    return (
+        '{"response":{"query_summary":{"total_negative":20,"total_positive":80,'
+        '"total_reviews":' + total_reviews_literal + "}}}"
+    ).encode("utf-8")
+
+
+INVALID_SUMMARY_RESULTS = [
+    pytest.param(
+        make_result(
+            {"query_summary": {"total_reviews": 100, "total_positive": 80, "total_negative": 20}}
         ),
-        pytest.param({"response": {}}, id="empty-response"),
-        pytest.param(_missing_totals(), id="missing-total"),
-        pytest.param(_non_integer_total(), id="non-integer-total"),
-        pytest.param(envelope(100, 80, -1), id="negative-total"),
-    ],
-)
+        id="top-level-query-summary-without-response",
+    ),
+    pytest.param(make_result({"response": {}}), id="empty-response"),
+    pytest.param(make_result(_missing_totals()), id="missing-total"),
+    pytest.param(make_result(_with_total("total_reviews", "many")), id="non-numeric-string"),
+    pytest.param(make_result(_with_total("total_reviews", "100")), id="numeric-string"),
+    pytest.param(make_result(_with_total("total_reviews", 100.0)), id="integral-float"),
+    pytest.param(make_result(_with_total("total_reviews", 100.5)), id="fractional-float"),
+    pytest.param(make_result(_with_total("total_negative", True)), id="boolean-count"),
+    pytest.param(make_result(_with_total("total_reviews", None)), id="null-count"),
+    pytest.param(raw_result(_raw_envelope("NaN")), id="nan"),
+    pytest.param(raw_result(_raw_envelope("Infinity")), id="infinity"),
+    pytest.param(raw_result(_raw_envelope("1e400")), id="overflow-to-infinity"),
+    pytest.param(make_result(envelope(100, 80, -1)), id="negative-total"),
+    pytest.param(make_result(envelope(100, 80, 80)), id="inconsistent-sum-over"),
+    pytest.param(make_result(envelope(100, 70, 20)), id="inconsistent-sum-under"),
+]
+
+
+@pytest.mark.parametrize("result", INVALID_SUMMARY_RESULTS)
 def test_http_200_without_valid_totals_is_missing_review_summary(
     monkeypatch: pytest.MonkeyPatch,
-    body: dict[str, Any],
+    result: RequestResult,
 ) -> None:
-    steam = FakeSteam(FakeClock(), responses={730: make_result(body)})
+    steam = FakeSteam(FakeClock(), responses={730: result})
 
     records, _ = fetch_records(monkeypatch, steam, [730])
 
@@ -273,6 +293,73 @@ def test_http_200_without_valid_totals_is_missing_review_summary(
     assert records[0]["total_reviews"] is None
     assert records[0]["total_positive"] is None
     assert records[0]["total_negative"] is None
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        pytest.param(_with_total("total_negative", False), id="boolean-zero"),
+        pytest.param(_with_total("total_reviews", float("nan")), id="nan"),
+        pytest.param(_with_total("total_reviews", float("inf")), id="infinity"),
+        pytest.param(_with_total("total_reviews", 10**400), id="huge-int-inconsistent"),
+    ],
+)
+def test_extract_query_summary_rejects_without_raising(body: dict[str, Any]) -> None:
+    assert fetch_reviews_daily.extract_query_summary(body) is None
+
+
+@pytest.mark.parametrize(
+    ("totals", "expected_silver_skip"),
+    [
+        pytest.param((100, 80, 20), None, id="valid"),
+        pytest.param((20, 0, 20), None, id="zero-positive"),
+        pytest.param((0, 0, 0), "non_positive_total_reviews", id="zero-reviews"),
+    ],
+)
+def test_valid_integer_totals_are_kept_including_zero_counts(
+    monkeypatch: pytest.MonkeyPatch,
+    totals: tuple[int, int, int],
+    expected_silver_skip: str | None,
+) -> None:
+    steam = FakeSteam(FakeClock(), responses={730: make_result(envelope(*totals))})
+
+    records, _ = fetch_records(monkeypatch, steam, [730])
+    silver = bronze_to_silver_reviews.normalize_bronze_record(records[0])
+
+    assert records[0]["fetch_failure"] is None
+    assert (
+        records[0]["total_reviews"],
+        records[0]["total_positive"],
+        records[0]["total_negative"],
+    ) == totals
+    assert silver["skipped_reason"] == expected_silver_skip
+
+
+def test_invalid_totals_never_reach_the_gold_upsert(monkeypatch: pytest.MonkeyPatch) -> None:
+    invalid_results = [param.values[0] for param in INVALID_SUMMARY_RESULTS]
+    valid_appid = 9999
+    responses = {index + 1: result for index, result in enumerate(invalid_results)}
+    responses[valid_appid] = make_result(envelope(100, 80, 20))
+    steam = FakeSteam(FakeClock(), responses=responses, latency=0.0)
+    session = make_session(steam.clock, min_request_interval_seconds=0.0)
+
+    records, _ = fetch_records(monkeypatch, steam, list(responses), session=session)
+    silver_rows = [bronze_to_silver_reviews.normalize_bronze_record(row) for row in records]
+    upserted: list[tuple[object, ...]] = []
+    gold_rows = silver_to_gold_reviews.process_silver_rows(
+        silver_rows,
+        upsert_row=lambda *args: upserted.append(args),
+    )
+
+    valid_game_id = next(
+        row["canonical_game_id"] for row in records if row["steam_appid"] == valid_appid
+    )
+    assert [args[0] for args in upserted] == [valid_game_id]
+    assert upserted[0][2:5] == (100, 80, 20)
+    invalid_silver = [row for row in silver_rows if row["canonical_game_id"] != valid_game_id]
+    assert len(invalid_silver) == len(invalid_results)
+    assert {row["skipped_reason"] for row in invalid_silver} == {"missing_review_counts"}
+    assert sum(1 for row in gold_rows if row["skipped"] is False) == 1
 
 
 def test_non_json_body_is_invalid_json(monkeypatch: pytest.MonkeyPatch) -> None:
