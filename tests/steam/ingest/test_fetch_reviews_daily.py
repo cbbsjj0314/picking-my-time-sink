@@ -255,6 +255,12 @@ def _raw_envelope(total_reviews_literal: str) -> bytes:
     ).encode("utf-8")
 
 
+INT_MAX = fetch_reviews_daily.POSTGRES_INTEGER_MAX
+
+
+def test_review_total_limit_matches_postgres_integer_max() -> None:
+    assert INT_MAX == 2**31 - 1 == 2_147_483_647
+
 INVALID_SUMMARY_RESULTS = [
     pytest.param(
         make_result(
@@ -275,6 +281,11 @@ INVALID_SUMMARY_RESULTS = [
     pytest.param(raw_result(_raw_envelope("1e400")), id="overflow-to-infinity"),
     pytest.param(make_result(envelope(100, 80, -1)), id="negative-total"),
     pytest.param(make_result(envelope(100, 80, 80)), id="inconsistent-sum-over"),
+    pytest.param(
+        make_result(envelope(INT_MAX + 1, INT_MAX + 1, 0)),
+        id="postgres-integer-max-plus-one",
+    ),
+    pytest.param(make_result(envelope(10**30, 10**30, 0)), id="huge-int-consistent"),
     pytest.param(make_result(envelope(100, 70, 20)), id="inconsistent-sum-under"),
 ]
 
@@ -302,6 +313,8 @@ def test_http_200_without_valid_totals_is_missing_review_summary(
         pytest.param(_with_total("total_reviews", float("nan")), id="nan"),
         pytest.param(_with_total("total_reviews", float("inf")), id="infinity"),
         pytest.param(_with_total("total_reviews", 10**400), id="huge-int-inconsistent"),
+        pytest.param(envelope(INT_MAX + 1, INT_MAX, 1), id="postgres-integer-max-plus-one"),
+        pytest.param(envelope(10**30, 10**30 - 1, 1), id="huge-int-consistent"),
     ],
 )
 def test_extract_query_summary_rejects_without_raising(body: dict[str, Any]) -> None:
@@ -314,6 +327,8 @@ def test_extract_query_summary_rejects_without_raising(body: dict[str, Any]) -> 
         pytest.param((100, 80, 20), None, id="valid"),
         pytest.param((20, 0, 20), None, id="zero-positive"),
         pytest.param((0, 0, 0), "non_positive_total_reviews", id="zero-reviews"),
+        pytest.param((INT_MAX, INT_MAX, 0), None, id="postgres-integer-max"),
+        pytest.param((INT_MAX, 0, INT_MAX), None, id="postgres-integer-max-negative"),
     ],
 )
 def test_valid_integer_totals_are_kept_including_zero_counts(

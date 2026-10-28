@@ -57,6 +57,9 @@ DEFAULT_TIME_BUDGET_SECONDS = 2700.0
 
 FAILURE_MISSING_REVIEW_SUMMARY = "missing_review_summary"
 REVIEW_TOTAL_KEYS = ("total_reviews", "total_positive", "total_negative")
+# Totals are PostgreSQL INTEGER columns (sql/postgres/011_fact_steam_reviews_daily.sql); a
+# larger value would fail the gold upsert and roll back the whole batch transaction.
+POSTGRES_INTEGER_MAX = 2_147_483_647
 
 
 def configure_logging() -> None:
@@ -178,7 +181,7 @@ def extract_query_summary(payload: Any) -> dict[str, int] | None:
         value = query_summary.get(key)
         # Provider counts are not coerced: bools, floats (including NaN/Infinity and
         # integral floats), and numeric strings are invalid.
-        if type(value) is not int or value < 0:
+        if type(value) is not int or not 0 <= value <= POSTGRES_INTEGER_MAX:
             return None
         parsed[key] = value
 
