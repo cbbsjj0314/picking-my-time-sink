@@ -1,11 +1,15 @@
-"""Probe Steam reviews endpoint and store a reproducible snapshot."""
+"""Probe Steam GetAppReviews endpoint and store a reproducible snapshot."""
 
 from __future__ import annotations
 
 import argparse
 import logging
+import math
+import re
+from collections.abc import Iterable
 from typing import Any
 
+from steam.ingest.fetch_reviews_daily import REQUEST_URL, build_request_params
 from steam.probe.common import (
     RequestResult,
     add_common_probe_arguments,
@@ -16,54 +20,167 @@ from steam.probe.common import (
     resolve_app_id,
     runtime_config_from_args,
     save_snapshot,
-    text_excerpt,
     utc_now_iso,
 )
 
 LOGGER = logging.getLogger(__name__)
 PROBE_NAME = "reviews"
-REQUEST_URL_TEMPLATE = "https://store.steampowered.com/appreviews/{app_id}"
 REVIEW_EXCERPT_COUNT = 3
-REVIEW_EXCERPT_FIELDS = (
+# Persisted probe summaries keep only allowlisted fields whose values pass a type check,
+# so provider-controlled text cannot reach a snapshot through an unexpected value type.
+REVIEW_EXCERPT_INT_FIELDS = (
     "app_release_date",
     "comment_count",
-    "language",
+    "timestamp_created",
+    "timestamp_updated",
+    "votes_funny",
+    "votes_up",
+)
+REVIEW_EXCERPT_BOOL_FIELDS = (
     "primarily_steam_deck",
     "received_for_free",
     "refunded",
     "steam_purchase",
-    "timestamp_created",
-    "timestamp_updated",
     "voted_up",
-    "votes_funny",
-    "votes_up",
-    "weighted_vote_score",
     "written_during_early_access",
+)
+REVIEW_EXCERPT_FIELDS = (
+    *REVIEW_EXCERPT_INT_FIELDS,
+    *REVIEW_EXCERPT_BOOL_FIELDS,
+    "weighted_vote_score",
+)
+QUERY_SUMMARY_FIELDS = (
+    "num_reviews",
+    "review_score",
+    "total_negative",
+    "total_positive",
+    "total_reviews",
+)
+DECIMAL_PATTERN = re.compile(r"[0-9]{1,8}(\.[0-9]{1,24})?")
+# Key names are provider-controlled, so only known structural names are persisted; any
+# other name is reported as a count. Sources: the verified GetAppReviews envelope shape
+# (tests/steam/ingest/test_fetch_reviews_daily.py) and the legacy appreviews review/author
+# fields in docs/probe/steam/reviews/representative.json.
+# Legacy envelope keys stay known at the top level so a legacy-shaped body is diagnosable.
+TOP_LEVEL_KEYS = frozenset({"cursor", "query_summary", "response", "reviews", "success"})
+RESPONSE_KEYS = frozenset(
+    {"cursor", "day_range_used", "query_summary", "reviews", "total_matching"}
+)
+REVIEW_KEYS = frozenset(
+    {
+        *REVIEW_EXCERPT_FIELDS,
+        "author",
+        "language",
+        "reactions",
+        "recommendationid",
+        "review",
+    }
+)
+AUTHOR_KEYS = frozenset(
+    {
+        "avatar",
+        "last_played",
+        "num_games_owned",
+        "num_reviews",
+        "persona_status",
+        "personaname",
+        "playtime_at_review",
+        "playtime_forever",
+        "playtime_last_two_weeks",
+        "profile_url",
+        "steamid",
+    }
 )
 
 
+def json_type_name(value: Any) -> str:
+    """Return the JSON type of a value without echoing the value itself."""
+
+    if value is None:
+        return "null"
+    if isinstance(value, bool):
+        return "boolean"
+    if isinstance(value, int | float):
+        return "number"
+    if isinstance(value, str):
+        return "string"
+    if isinstance(value, list):
+        return "array"
+    if isinstance(value, dict):
+        return "object"
+    return "unknown"
+
+
+def known_key_names(keys: Iterable[Any], allowed: frozenset[str]) -> tuple[list[str], int]:
+    """Return allowlisted key names and the count of distinct other names, never echoed."""
+
+    known: set[str] = set()
+    unknown: set[Any] = set()
+    for key in keys:
+        if isinstance(key, str) and key in allowed:
+            known.add(key)
+        else:
+            unknown.add(key)
+    return sorted(known), len(unknown)
+
+
+def is_safe_excerpt_value(field: str, value: Any) -> bool:
+    if field in REVIEW_EXCERPT_INT_FIELDS:
+        return type(value) is int
+    if field in REVIEW_EXCERPT_BOOL_FIELDS:
+        return type(value) is bool
+    if field == "weighted_vote_score":
+        if type(value) in (int, float):
+            return math.isfinite(value)
+        return isinstance(value, str) and DECIMAL_PATTERN.fullmatch(value) is not None
+    return False
+
+
+def summarize_query_summary(query_summary: dict[str, Any]) -> dict[str, int]:
+    """Keep allowlisted integer counts; drop `review_score_desc` and anything unrecognized."""
+
+    return {
+        field: query_summary[field]
+        for field in QUERY_SUMMARY_FIELDS
+        if type(query_summary.get(field)) is int
+    }
+
+
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Steam probe: appreviews")
+    parser = argparse.ArgumentParser(description="Steam probe: GetAppReviews")
     add_common_probe_arguments(parser)
     parser.add_argument("--app-id", type=int, default=None)
     return parser
 
 
-def summarize_review_entry(review: Any) -> Any:
+def summarize_review_entry(review: Any) -> dict[str, Any]:
     """Return a public-safe structural summary for one review row."""
 
     if not isinstance(review, dict):
-        return review
+        return {"entry_type": json_type_name(review)}
 
-    summary = {
-        field: review[field]
-        for field in REVIEW_EXCERPT_FIELDS
-        if field in review
-    }
+    summary: dict[str, Any] = {}
+    dropped_fields: list[str] = []
+    for field in REVIEW_EXCERPT_FIELDS:
+        if field not in review:
+            continue
+        if is_safe_excerpt_value(field, review[field]):
+            summary[field] = review[field]
+        else:
+            dropped_fields.append(field)
+    # The raw language value is provider-controlled text; keep only its presence.
+    if isinstance(review.get("language"), str):
+        summary["language_redacted"] = True
+    elif "language" in review:
+        dropped_fields.append("language")
+    if dropped_fields:
+        summary["excerpt_fields_dropped"] = sorted(dropped_fields)
 
     author = review.get("author")
     if isinstance(author, dict):
-        summary["author_fields_present"] = sorted(author.keys())
+        author_fields, author_unknown = known_key_names(author.keys(), AUTHOR_KEYS)
+        summary["author_fields_present"] = author_fields
+        summary["author_unknown_key_count"] = author_unknown
         summary["author_summary_redacted"] = True
 
     reactions = review.get("reactions")
@@ -86,49 +203,54 @@ def summarize_reviews_payload(
     *,
     excerpt_count: int = REVIEW_EXCERPT_COUNT,
 ) -> Any:
-    """Return a bounded public-safe summary for appreviews payloads."""
+    """Return a bounded public-safe summary for a GetAppReviews `response` envelope."""
 
     if not isinstance(payload, dict):
-        return payload
+        return {"payload_type": json_type_name(payload)}
 
+    top_level_keys, top_level_unknown = known_key_names(payload.keys(), TOP_LEVEL_KEYS)
     summary: dict[str, Any] = {
-        "top_level_keys": sorted(payload.keys()),
+        "top_level_keys": top_level_keys,
+        "top_level_unknown_key_count": top_level_unknown,
     }
 
-    if "success" in payload:
-        summary["success"] = payload["success"]
+    response = payload.get("response")
+    if not isinstance(response, dict):
+        return summary
 
-    query_summary = payload.get("query_summary")
+    summary["response_keys"], summary["response_unknown_key_count"] = known_key_names(
+        response.keys(), RESPONSE_KEYS
+    )
+
+    query_summary = response.get("query_summary")
     if isinstance(query_summary, dict):
-        summary["query_summary"] = query_summary
+        summary["query_summary"] = summarize_query_summary(query_summary)
 
-    cursor = payload.get("cursor")
+    for key in ("day_range_used", "total_matching"):
+        value = response.get(key)
+        if isinstance(value, int) and not isinstance(value, bool):
+            summary[key] = value
+
+    cursor = response.get("cursor")
     if isinstance(cursor, str):
         summary["cursor_present"] = bool(cursor)
 
-    reviews = payload.get("reviews")
+    reviews = response.get("reviews")
     if isinstance(reviews, list):
         summary["reviews_count"] = len(reviews)
-        summary["review_fields_present"] = sorted(
-            {
-                key
-                for review in reviews
-                if isinstance(review, dict)
-                for key in review.keys()
-            }
+        summary["review_fields_present"], summary["review_unknown_key_count"] = known_key_names(
+            (key for review in reviews if isinstance(review, dict) for key in review.keys()),
+            REVIEW_KEYS,
         )
-        author_fields = sorted(
-            {
-                key
-                for review in reviews
-                if isinstance(review, dict)
-                for author in [review.get("author")]
-                if isinstance(author, dict)
-                for key in author.keys()
-            }
-        )
-        if author_fields:
-            summary["author_fields_present"] = author_fields
+        authors = [
+            review["author"]
+            for review in reviews
+            if isinstance(review, dict) and isinstance(review.get("author"), dict)
+        ]
+        if authors:
+            summary["author_fields_present"], summary["author_unknown_key_count"] = (
+                known_key_names((key for author in authors for key in author.keys()), AUTHOR_KEYS)
+            )
         summary["reviews_excerpt"] = [
             summarize_review_entry(review)
             for review in reviews[:excerpt_count]
@@ -142,13 +264,14 @@ def build_probe_snapshot(
     result: RequestResult,
     timeout_seconds: float,
     request_url: str,
-    request_params: dict[str, str | int],
+    request_params: dict[str, str],
 ) -> dict[str, Any]:
     """Build the persisted probe snapshot with a public-safe payload summary."""
 
     payload = decode_json_payload(result.body)
     if payload is None:
-        payload_excerpt_or_json: Any = text_excerpt(result.body)
+        # Never persist a raw body excerpt; body_size and body_sha256 stay in the snapshot.
+        payload_excerpt_or_json: Any = {"non_json": True} if result.body else None
     else:
         payload_excerpt_or_json = summarize_reviews_payload(payload)
 
@@ -169,17 +292,10 @@ def main() -> None:
     runtime = runtime_config_from_args(args)
 
     app_id = resolve_app_id(args.app_id)
-    request_url = REQUEST_URL_TEMPLATE.format(app_id=app_id)
-    params: dict[str, str | int] = {
-        "json": 1,
-        "filter": "all",
-        "language": "all",
-        "purchase_type": "all",
-        "num_per_page": 20,
-    }
+    params = build_request_params(app_id)
 
     result = request_with_retry(
-        url=request_url,
+        url=REQUEST_URL,
         params=params,
         timeout_seconds=runtime.timeout_seconds,
         max_attempts=runtime.max_attempts,
@@ -192,7 +308,7 @@ def main() -> None:
     snapshot = build_probe_snapshot(
         result=result,
         timeout_seconds=runtime.timeout_seconds,
-        request_url=request_url,
+        request_url=REQUEST_URL,
         request_params=params,
     )
     output_path = save_snapshot(out_dir=runtime.out_dir, probe_name=PROBE_NAME, snapshot=snapshot)

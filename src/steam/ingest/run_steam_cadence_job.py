@@ -411,6 +411,23 @@ def run_daily_job(
     reviews_skipped_count = sum(
         1 for row in reviews_gold_rows if row.get("skipped") is True
     )
+    reviews_loaded_count = sum(
+        1 for row in reviews_gold_rows if row.get("skipped") is not True
+    )
+    reviews_fetch_failure_reasons = Counter(
+        str(row["fetch_failure"].get("reason"))
+        for row in reviews_bronze_rows
+        if isinstance(row.get("fetch_failure"), dict)
+    )
+    reviews_fetch_failed_count = sum(reviews_fetch_failure_reasons.values())
+    # Bronze keeps one row per target, so an empty bronze output means no targets.
+    reviews_all_failed = len(reviews_bronze_rows) > 0 and reviews_loaded_count == 0
+    if reviews_all_failed:
+        LOGGER.warning(
+            "Daily reviews loaded no rows: targets=%s fetch_failure_reasons=%s",
+            len(reviews_bronze_rows),
+            dict(sorted(reviews_fetch_failure_reasons.items())),
+        )
     steps = [
         _step_result(
             name="run_tracked_universe_scheduled",
@@ -453,7 +470,11 @@ def run_daily_job(
     ]
     triage = {
         "ranking_gold_records": len(ranking_rows),
+        "reviews_all_failed": reviews_all_failed,
+        "reviews_fetch_failed_records": reviews_fetch_failed_count,
+        "reviews_fetch_failure_reasons": dict(sorted(reviews_fetch_failure_reasons.items())),
         "reviews_gold_records": len(reviews_gold_rows),
+        "reviews_loaded_records": reviews_loaded_count,
         "reviews_skipped_records": reviews_skipped_count,
         "tracked_universe_records": len(tracked_rows),
     }

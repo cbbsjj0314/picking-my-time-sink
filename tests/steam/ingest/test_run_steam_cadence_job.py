@@ -389,6 +389,139 @@ def test_daily_job_marks_skipped_review_evidence_as_partial_success(
     assert run_steam_cadence_job.exit_code_for_status(str(result["status"])) == 0
 
 
+def _patch_daily_reviews(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    bronze_rows: list[dict[str, object]],
+    gold_rows: list[dict[str, object]],
+) -> None:
+    monkeypatch.setattr(
+        run_steam_cadence_job.run_tracked_universe_scheduled,
+        "run",
+        lambda **kwargs: [{"canonical_game_id": 1, "is_active": True}],
+    )
+    monkeypatch.setattr(
+        run_steam_cadence_job.payload_to_gold_rankings,
+        "run",
+        lambda **kwargs: [{"rank_position": 1}],
+    )
+    monkeypatch.setattr(
+        run_steam_cadence_job.fetch_reviews_daily,
+        "run",
+        lambda **kwargs: bronze_rows,
+    )
+    monkeypatch.setattr(
+        run_steam_cadence_job.bronze_to_silver_reviews,
+        "run",
+        lambda **kwargs: [{} for _ in bronze_rows],
+    )
+    monkeypatch.setattr(
+        run_steam_cadence_job.silver_to_gold_reviews,
+        "run",
+        lambda **kwargs: gold_rows,
+    )
+
+
+def test_daily_job_flags_all_failed_reviews_without_changing_status_contract(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    _patch_daily_reviews(
+        monkeypatch,
+        bronze_rows=[
+            {"steam_appid": 1, "fetch_failure": {"reason": "missing_review_summary"}},
+            {"steam_appid": 2, "fetch_failure": {"reason": "rate_limited"}},
+            {"steam_appid": 3, "fetch_failure": {"reason": "missing_review_summary"}},
+        ],
+        gold_rows=[{"skipped": True}, {"skipped": True}, {"skipped": True}],
+    )
+
+    with caplog.at_level("WARNING", logger=run_steam_cadence_job.LOGGER.name):
+        result = run_steam_cadence_job.run_job_with_evidence(
+            run_steam_cadence_job.JOB_DAILY,
+            base_dir=tmp_path / "jobs",
+            run_id="daily-all-failed",
+        )
+
+    triage = result["triage"]
+    assert result["status"] == "partial_success"
+    assert triage["partial_reason"] == "reviews_skipped_evidence"
+    assert triage["reviews_all_failed"] is True
+    assert triage["reviews_loaded_records"] == 0
+    assert triage["reviews_fetch_failed_records"] == 3
+    assert triage["reviews_fetch_failure_reasons"] == {
+        "missing_review_summary": 2,
+        "rate_limited": 1,
+    }
+    assert list(triage["reviews_fetch_failure_reasons"]) == sorted(
+        triage["reviews_fetch_failure_reasons"]
+    )
+    assert run_steam_cadence_job.exit_code_for_status(str(result["status"])) == 0
+    warnings = [
+        record.getMessage()
+        for record in caplog.records
+        if record.levelname == "WARNING" and "loaded no rows" in record.getMessage()
+    ]
+    assert len(warnings) == 1
+    assert "targets=3" in warnings[0]
+    assert "missing_review_summary" in warnings[0]
+
+
+def test_daily_job_mixed_reviews_failures_are_not_all_failed(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    _patch_daily_reviews(
+        monkeypatch,
+        bronze_rows=[
+            {"steam_appid": 1, "fetch_failure": None},
+            {"steam_appid": 2, "fetch_failure": {"reason": "time_budget_exceeded"}},
+        ],
+        gold_rows=[{"skipped": False}, {"skipped": True}],
+    )
+
+    result = run_steam_cadence_job.run_job_with_evidence(
+        run_steam_cadence_job.JOB_DAILY,
+        base_dir=tmp_path / "jobs",
+        run_id="daily-mixed",
+    )
+
+    triage = result["triage"]
+    assert result["status"] == "partial_success"
+    assert triage["partial_reason"] == "reviews_skipped_evidence"
+    assert triage["reviews_all_failed"] is False
+    assert triage["reviews_loaded_records"] == 1
+    assert triage["reviews_fetch_failed_records"] == 1
+    assert triage["reviews_fetch_failure_reasons"] == {"time_budget_exceeded": 1}
+
+
+def test_daily_job_all_reviews_loaded_is_success_without_partial_reason(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    _patch_daily_reviews(
+        monkeypatch,
+        bronze_rows=[{"steam_appid": 1, "fetch_failure": None}],
+        gold_rows=[{"skipped": False}],
+    )
+
+    result = run_steam_cadence_job.run_job_with_evidence(
+        run_steam_cadence_job.JOB_DAILY,
+        base_dir=tmp_path / "jobs",
+        run_id="daily-ok",
+    )
+
+    triage = result["triage"]
+    assert result["status"] == "success"
+    assert "partial_reason" not in triage
+    assert triage["reviews_all_failed"] is False
+    assert triage["reviews_loaded_records"] == 1
+    assert triage["reviews_fetch_failed_records"] == 0
+    assert triage["reviews_fetch_failure_reasons"] == {}
+    assert run_steam_cadence_job.exit_code_for_status(str(result["status"])) == 0
+
+
 def test_job_lock_busy_writes_evidence_and_does_not_run_steps(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
