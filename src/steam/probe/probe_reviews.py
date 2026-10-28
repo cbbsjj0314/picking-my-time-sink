@@ -47,7 +47,6 @@ REVIEW_EXCERPT_BOOL_FIELDS = (
 REVIEW_EXCERPT_FIELDS = (
     *REVIEW_EXCERPT_INT_FIELDS,
     *REVIEW_EXCERPT_BOOL_FIELDS,
-    "language",
     "weighted_vote_score",
 )
 QUERY_SUMMARY_FIELDS = (
@@ -57,9 +56,41 @@ QUERY_SUMMARY_FIELDS = (
     "total_positive",
     "total_reviews",
 )
-LANGUAGE_PATTERN = re.compile(r"[a-z][a-z_-]{0,31}")
 DECIMAL_PATTERN = re.compile(r"[0-9]{1,8}(\.[0-9]{1,24})?")
-KEY_NAME_PATTERN = re.compile(r"[A-Za-z_][A-Za-z0-9_]{0,63}")
+# Key names are provider-controlled, so only known structural names are persisted; any
+# other name is reported as a count. Sources: the verified GetAppReviews envelope shape
+# (tests/steam/ingest/test_fetch_reviews_daily.py) and the legacy appreviews review/author
+# fields in docs/probe/steam/reviews/representative.json.
+# Legacy envelope keys stay known at the top level so a legacy-shaped body is diagnosable.
+TOP_LEVEL_KEYS = frozenset({"cursor", "query_summary", "response", "reviews", "success"})
+RESPONSE_KEYS = frozenset(
+    {"cursor", "day_range_used", "query_summary", "reviews", "total_matching"}
+)
+REVIEW_KEYS = frozenset(
+    {
+        *REVIEW_EXCERPT_FIELDS,
+        "author",
+        "language",
+        "reactions",
+        "recommendationid",
+        "review",
+    }
+)
+AUTHOR_KEYS = frozenset(
+    {
+        "avatar",
+        "last_played",
+        "num_games_owned",
+        "num_reviews",
+        "persona_status",
+        "personaname",
+        "playtime_at_review",
+        "playtime_forever",
+        "playtime_last_two_weeks",
+        "profile_url",
+        "steamid",
+    }
+)
 
 
 def json_type_name(value: Any) -> str:
@@ -80,12 +111,17 @@ def json_type_name(value: Any) -> str:
     return "unknown"
 
 
-def safe_key_names(keys: Iterable[Any]) -> list[str]:
-    """Keep identifier-like key names only, so odd provider keys cannot carry free text."""
+def known_key_names(keys: Iterable[Any], allowed: frozenset[str]) -> tuple[list[str], int]:
+    """Return allowlisted key names and the count of distinct other names, never echoed."""
 
-    return sorted(
-        {key for key in keys if isinstance(key, str) and KEY_NAME_PATTERN.fullmatch(key)}
-    )
+    known: set[str] = set()
+    unknown: set[Any] = set()
+    for key in keys:
+        if isinstance(key, str) and key in allowed:
+            known.add(key)
+        else:
+            unknown.add(key)
+    return sorted(known), len(unknown)
 
 
 def is_safe_excerpt_value(field: str, value: Any) -> bool:
@@ -93,8 +129,6 @@ def is_safe_excerpt_value(field: str, value: Any) -> bool:
         return type(value) is int
     if field in REVIEW_EXCERPT_BOOL_FIELDS:
         return type(value) is bool
-    if field == "language":
-        return isinstance(value, str) and LANGUAGE_PATTERN.fullmatch(value) is not None
     if field == "weighted_vote_score":
         if type(value) in (int, float):
             return math.isfinite(value)
@@ -134,12 +168,19 @@ def summarize_review_entry(review: Any) -> dict[str, Any]:
             summary[field] = review[field]
         else:
             dropped_fields.append(field)
+    # The raw language value is provider-controlled text; keep only its presence.
+    if isinstance(review.get("language"), str):
+        summary["language_redacted"] = True
+    elif "language" in review:
+        dropped_fields.append("language")
     if dropped_fields:
         summary["excerpt_fields_dropped"] = sorted(dropped_fields)
 
     author = review.get("author")
     if isinstance(author, dict):
-        summary["author_fields_present"] = safe_key_names(author.keys())
+        author_fields, author_unknown = known_key_names(author.keys(), AUTHOR_KEYS)
+        summary["author_fields_present"] = author_fields
+        summary["author_unknown_key_count"] = author_unknown
         summary["author_summary_redacted"] = True
 
     reactions = review.get("reactions")
@@ -167,15 +208,19 @@ def summarize_reviews_payload(
     if not isinstance(payload, dict):
         return {"payload_type": json_type_name(payload)}
 
+    top_level_keys, top_level_unknown = known_key_names(payload.keys(), TOP_LEVEL_KEYS)
     summary: dict[str, Any] = {
-        "top_level_keys": safe_key_names(payload.keys()),
+        "top_level_keys": top_level_keys,
+        "top_level_unknown_key_count": top_level_unknown,
     }
 
     response = payload.get("response")
     if not isinstance(response, dict):
         return summary
 
-    summary["response_keys"] = safe_key_names(response.keys())
+    summary["response_keys"], summary["response_unknown_key_count"] = known_key_names(
+        response.keys(), RESPONSE_KEYS
+    )
 
     query_summary = response.get("query_summary")
     if isinstance(query_summary, dict):
@@ -193,22 +238,19 @@ def summarize_reviews_payload(
     reviews = response.get("reviews")
     if isinstance(reviews, list):
         summary["reviews_count"] = len(reviews)
-        summary["review_fields_present"] = safe_key_names(
-            key
-            for review in reviews
-            if isinstance(review, dict)
-            for key in review.keys()
+        summary["review_fields_present"], summary["review_unknown_key_count"] = known_key_names(
+            (key for review in reviews if isinstance(review, dict) for key in review.keys()),
+            REVIEW_KEYS,
         )
-        author_fields = safe_key_names(
-            key
+        authors = [
+            review["author"]
             for review in reviews
-            if isinstance(review, dict)
-            for author in [review.get("author")]
-            if isinstance(author, dict)
-            for key in author.keys()
-        )
-        if author_fields:
-            summary["author_fields_present"] = author_fields
+            if isinstance(review, dict) and isinstance(review.get("author"), dict)
+        ]
+        if authors:
+            summary["author_fields_present"], summary["author_unknown_key_count"] = (
+                known_key_names((key for author in authors for key in author.keys()), AUTHOR_KEYS)
+            )
         summary["reviews_excerpt"] = [
             summarize_review_entry(review)
             for review in reviews[:excerpt_count]

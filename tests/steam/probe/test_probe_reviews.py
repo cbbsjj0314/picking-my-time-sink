@@ -8,6 +8,8 @@ from steam.probe.common import RequestResult
 from steam.probe.probe_reviews import build_probe_snapshot, summarize_reviews_payload
 
 MARKER = "PRIVATE-TEXT-MARKER"
+# Identifier-shaped, so it passes a key-name or language syntax check.
+IDENTIFIER_MARKER = "private_review_text"
 
 
 def make_result(body: bytes) -> RequestResult:
@@ -79,6 +81,7 @@ def test_summarize_reviews_payload_redacts_third_party_review_content() -> None:
     serialized = json.dumps(summary, sort_keys=True)
 
     assert summary["top_level_keys"] == ["response"]
+    assert summary["top_level_unknown_key_count"] == 0
     assert summary["response_keys"] == [
         "cursor",
         "day_range_used",
@@ -86,6 +89,11 @@ def test_summarize_reviews_payload_redacts_third_party_review_content() -> None:
         "reviews",
         "total_matching",
     ]
+    assert summary["response_unknown_key_count"] == 0
+    # The review entry's `success` field is not a known review field.
+    assert summary["review_unknown_key_count"] == 1
+    assert "success" not in summary["review_fields_present"]
+    assert summary["author_unknown_key_count"] == 0
     assert summary["day_range_used"] == 0
     assert summary["total_matching"] == 100
     assert summary["cursor_present"] is True
@@ -110,7 +118,10 @@ def test_summarize_reviews_payload_redacts_third_party_review_content() -> None:
         "steamid",
     ]
     assert excerpt["weighted_vote_score"] == "0.960129141807556152"
-    assert excerpt["language"] == "english"
+    assert excerpt["author_unknown_key_count"] == 0
+    assert excerpt["language_redacted"] is True
+    assert "language" not in excerpt
+    assert "english" not in serialized
     assert "excerpt_fields_dropped" not in excerpt
     assert "author" not in excerpt
     assert "review" not in excerpt
@@ -134,7 +145,7 @@ def test_probe_uses_ingest_request_contract() -> None:
 def test_summarize_reviews_payload_without_response_envelope_stays_bounded() -> None:
     summary = summarize_reviews_payload({"reviews": [{"review": "REVIEW-TEXT-SECRET"}]})
 
-    assert summary == {"top_level_keys": ["reviews"]}
+    assert summary == {"top_level_keys": ["reviews"], "top_level_unknown_key_count": 0}
 
 
 def test_malformed_json_stores_only_a_non_json_marker() -> None:
@@ -200,7 +211,7 @@ def test_query_summary_keeps_only_allowlisted_integer_counts() -> None:
 def test_unexpected_value_types_in_allowed_review_fields_are_dropped() -> None:
     review = {
         "comment_count": MARKER,
-        "language": MARKER + " with spaces",
+        "language": [MARKER],
         "steam_purchase": MARKER,
         "timestamp_created": 1770258718,
         "voted_up": 1,
@@ -268,7 +279,8 @@ def test_valid_sanitized_envelope_keeps_bounded_structure() -> None:
     assert summary["reviews_excerpt"][0] == {
         "author_fields_present": ["personaname", "steamid"],
         "author_summary_redacted": True,
-        "language": "schinese",
+        "author_unknown_key_count": 0,
+        "language_redacted": True,
         "recommendationid_redacted": True,
         "review_text_length": len(MARKER),
         "review_text_redacted": True,
@@ -276,3 +288,64 @@ def test_valid_sanitized_envelope_keeps_bounded_structure() -> None:
         "weighted_vote_score": 0.5,
     }
     assert MARKER not in serialized
+
+
+def test_unknown_identifier_shaped_keys_and_language_are_never_persisted() -> None:
+    body = {
+        IDENTIFIER_MARKER: 1,
+        "response": {
+            IDENTIFIER_MARKER: 1,
+            "query_summary": {"total_negative": 20, "total_positive": 80, "total_reviews": 100},
+            "reviews": [
+                {
+                    IDENTIFIER_MARKER: 1,
+                    "author": {IDENTIFIER_MARKER: 1, "steamid": MARKER},
+                    "language": IDENTIFIER_MARKER,
+                    "voted_up": True,
+                },
+                {
+                    IDENTIFIER_MARKER: 2,
+                    "other_unknown_field": 1,
+                    "author": {IDENTIFIER_MARKER: 2, "playtime_forever": 10},
+                    "votes_up": 3,
+                },
+            ],
+        },
+    }
+
+    snapshot, serialized = persisted_snapshot(json.dumps(body).encode("utf-8"))
+    summary = snapshot["response"]["payload_excerpt_or_json"]
+
+    assert IDENTIFIER_MARKER not in serialized
+    assert "other_unknown_field" not in serialized
+    assert MARKER not in serialized
+    assert summary["top_level_keys"] == ["response"]
+    assert summary["top_level_unknown_key_count"] == 1
+    assert summary["response_keys"] == ["query_summary", "reviews"]
+    assert summary["response_unknown_key_count"] == 1
+    assert summary["review_fields_present"] == ["author", "language", "voted_up", "votes_up"]
+    # Distinct unknown names across all reviews, not occurrences.
+    assert summary["review_unknown_key_count"] == 2
+    assert summary["author_fields_present"] == ["playtime_forever", "steamid"]
+    assert summary["author_unknown_key_count"] == 1
+    assert summary["query_summary"] == {
+        "total_negative": 20,
+        "total_positive": 80,
+        "total_reviews": 100,
+    }
+    assert summary["reviews_count"] == 2
+    assert summary["reviews_excerpt"] == [
+        {
+            "author_fields_present": ["steamid"],
+            "author_summary_redacted": True,
+            "author_unknown_key_count": 1,
+            "language_redacted": True,
+            "voted_up": True,
+        },
+        {
+            "author_fields_present": ["playtime_forever"],
+            "author_summary_redacted": True,
+            "author_unknown_key_count": 1,
+            "votes_up": 3,
+        },
+    ]
