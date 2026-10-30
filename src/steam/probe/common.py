@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import datetime as dt
 import hashlib
+import http.client
 import json
 import logging
 import os
@@ -268,7 +269,17 @@ def request_with_retry(
         except urllib.error.HTTPError as exc:
             status_code = exc.code
             response_headers = dict(exc.headers.items()) if exc.headers is not None else {}
-            body = exc.read()
+            try:
+                body = exc.read()
+            except (http.client.IncompleteRead, ConnectionError, TimeoutError) as read_exc:
+                # Keep the received status/headers; partial bytes are never used as a body.
+                body = b""
+                log.warning(
+                    "Failed to read HTTP error body from %s (status=%s, error=%s)",
+                    log_url,
+                    status_code,
+                    type(read_exc).__name__,
+                )
 
             attempt_log["status_code"] = status_code
             attempt_log["error"] = f"HTTP {status_code}"
@@ -304,6 +315,9 @@ def request_with_retry(
             else:
                 error_type = "url_error"
 
+            last_status_code = None
+            last_headers = {}
+            last_body = b""
             last_error = {
                 "type": error_type,
                 "message": message or "URL error",
@@ -315,9 +329,29 @@ def request_with_retry(
             retryable = True
             log.warning("Request timeout for %s (attempt=%s)", log_url, attempt)
 
+            last_status_code = None
+            last_headers = {}
+            last_body = b""
             last_error = {
                 "type": "timeout",
                 "message": message,
+            }
+
+        except (http.client.IncompleteRead, ConnectionError) as exc:
+            # Raw exception text can carry byte counts or peer details; log the class name only.
+            error_name = type(exc).__name__
+            attempt_log["error"] = error_name
+            retryable = True
+            log.warning(
+                "Transport failure for %s (attempt=%s, error=%s)", log_url, attempt, error_name
+            )
+
+            last_status_code = None
+            last_headers = {}
+            last_body = b""
+            last_error = {
+                "type": "url_error",
+                "message": error_name,
             }
 
         if retryable and attempt < max_attempts:

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import http.client
 import json
+import urllib.parse
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -10,6 +12,7 @@ import pytest
 from steam.ingest import fetch_price_1h
 from steam.normalize import bronze_to_silver_price
 from steam.normalize.silver_to_gold_price import process_silver_rows
+from steam.probe import common
 from steam.probe.common import RequestResult
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -780,3 +783,65 @@ def test_run_writes_bronze_and_counts_rate_limits_per_request_not_per_app(
     assert meta["time_budget_exceeded"] is False
     assert meta["records_out"] == 150
     assert by_appid(rows)[150]["fetch_failure"] == {"reason": "missing_key", "stage": "primary"}
+
+
+class FakeTransportResponse:
+    """Minimal urlopen response for driving the real shared request helper."""
+
+    def __init__(self, *, body: bytes = b"", read_error: BaseException | None = None) -> None:
+        self.headers = {"Content-Type": "application/json"}
+        self._body = body
+        self._read_error = read_error
+
+    def getcode(self) -> int:
+        return 200
+
+    def read(self) -> bytes:
+        if self._read_error is not None:
+            raise self._read_error
+        return self._body
+
+    def __enter__(self) -> FakeTransportResponse:
+        return self
+
+    def __exit__(self, exc_type, exc, exc_tb) -> bool:  # noqa: ANN001
+        return False
+
+
+def test_transport_failures_are_retried_in_session_and_isolated_to_one_app(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    clock = FakeClock()
+    calls: list[tuple[str, float]] = []
+
+    def fake_urlopen(request, timeout):  # noqa: ANN001
+        del timeout
+        query = urllib.parse.parse_qs(urllib.parse.urlsplit(request.full_url).query)
+        appids = query["appids"][0]
+        calls.append((appids, clock.now))
+        clock.now += 0.2
+        if "570" in appids.split(","):
+            # Truncated JSON-looking bytes must not become an app-level answer.
+            return FakeTransportResponse(
+                read_error=http.client.IncompleteRead(b'{"570": {"success": true}}', 1000)
+            )
+        return FakeTransportResponse(body=json.dumps({"730": paid(100)}).encode("utf-8"))
+
+    monkeypatch.setattr(common.urllib.request, "urlopen", fake_urlopen)
+    session = make_session(clock)
+
+    records = fetch_price_1h.fetch_price_records(
+        targets_for([730, 570]),
+        session=session,
+        batch_size=100,
+        now_iso=lambda: COLLECTED_AT,
+    )
+
+    failures = {record["steam_appid"]: record["fetch_failure"] for record in records}
+    assert failures == {730: None, 570: {"reason": "network_error", "stage": "primary"}}
+    assert by_appid(records)[570]["http_status"] is None
+    single_570 = [appids for appids, _ in calls if appids == "570"]
+    assert len(single_570) == 8  # 4 attempts in the first pass + 4 in the re-collect pass
+    for (_, previous_start), (_, current_start) in zip(calls, calls[1:], strict=False):
+        assert current_start - (previous_start + 0.2) >= 1.5 - 1e-9
+    assert session.time_budget_exceeded is False

@@ -1,11 +1,12 @@
 from __future__ import annotations
 
+import http.client
 import json
 from pathlib import Path
 
 import pytest
 
-from steam.probe import probe_rankings
+from steam.probe import common, probe_rankings
 from steam.probe.common import RequestResult
 
 FIXTURE_DIR = Path("tests/fixtures/steam/rankings")
@@ -110,3 +111,26 @@ def test_run_writes_fixture_compatible_payload_artifacts(
 
         assert rows
         assert rows[0]["title"]
+
+
+def test_run_keeps_job_level_failure_for_final_transport_error(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fake_urlopen(request, timeout):  # noqa: ANN001
+        del request, timeout
+        raise http.client.RemoteDisconnected("raw-peer-detail")
+
+    monkeypatch.setattr(common.urllib.request, "urlopen", fake_urlopen)
+    monkeypatch.setattr(common.time, "sleep", lambda _seconds: None)
+
+    with pytest.raises(ValueError, match="Steam rankings fetch failed.*url_error"):
+        probe_rankings.run(
+            topsellers_global_path=tmp_path / "topsellers_global.payload.json",
+            topsellers_kr_path=tmp_path / "topsellers_kr.payload.json",
+            mostplayed_global_path=tmp_path / "mostplayed_global.payload.json",
+            mostplayed_kr_path=tmp_path / "mostplayed_kr.payload.json",
+            max_attempts=2,
+        )
+
+    assert list(tmp_path.iterdir()) == []
