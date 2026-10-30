@@ -108,7 +108,7 @@ Ordinary work는 Human PR review를 따른다. Fresh-context review는 concrete 
 
 Fresh-context review의 원본 AI conversation 또는 session transcript는 public independent review evidence로 사용하지 않는다. 대신 검토한 contract와 해당 ticket, blocking findings, missing evidence, remaining uncertainty, final status를 포함한 짧은 review 결과를 human-authored GitHub PR comment 또는 GitHub review로 기록한다. Implementation agent 자신의 완료 보고, 자체 검토 또는 자체 수정 결과는 independent review evidence가 될 수 없다.
 
-이 문서에서 `human-authored`는 AI가 초안을 준비할 수 있되, Human이 내용을 실질적으로 검토하고 자신의 결정으로 채택하며 official GitHub evidence로의 게시를 통제한다는 뜻이다. AI agent가 Human의 GitHub credential로 자율 게시한 comment나 review는 human-authored evidence가 아니다. 이는 implementation report, PR description과 허가된 Draft PR 생성을 막지 않으며, 이들은 review 또는 approval evidence와 구분한다.
+이 문서에서 `human-authored`는 AI가 초안을 준비할 수 있되, Human이 내용을 실질적으로 검토하고 자신의 결정으로 채택한다는 뜻이다. Independent review evidence는 Human이 게시할 정확한 내용을 검토·채택하고 게시를 명시적으로 승인한 경우에 한해 AI agent가 GitHub에 게시할 수 있다. AI agent가 Human의 GitHub credential로 자율 게시한 comment나 review는 human-authored evidence가 아니다. Human Gate approval evidence에는 아래 Human Gate 절의 더 엄격한 게시 요건이 적용된다. 이는 implementation report, PR description과 허가된 Draft PR 생성을 막지 않으며, 이들은 review 또는 approval evidence와 구분한다.
 
 ### Fresh-context trigger 후보
 
@@ -146,9 +146,9 @@ Implementation agent가 수정한 사실만으로 `Passed`가 되지 않으며, 
 - Secrets, auth, deploy, read-only를 넘는 CI permission, release decision.
 - Category-to-game trusted semantics, Combined semantics, broad tooling adoption.
 
-`Human Gate Required: Yes`의 실제 approval evidence는 human-authored GitHub PR comment 또는 human-authored GitHub review로 제한한다. PR 본문에 기입된 상태값이나 implementation agent의 자기 보고만으로는 Human Gate approval을 증명할 수 없다. AI conversation 또는 session transcript, 이를 가리키는 모호한 decision reference, implementation agent의 완료 보고도 approval evidence가 아니다. `human-authored`의 의미는 Review 절의 정의를 따른다.
+`Human Gate Required: Yes`의 실제 approval evidence는 human-authored GitHub PR comment 또는 human-authored GitHub review로 제한한다. PR 본문에 기입된 상태값이나 implementation agent의 자기 보고만으로는 Human Gate approval을 증명할 수 없다. AI conversation 또는 session transcript, 이를 가리키는 모호한 decision reference, implementation agent의 완료 보고도 approval evidence가 아니다. AI는 approval comment/review의 초안을 준비할 수 있으나, Human이 내용을 실질적으로 검토·채택하고 GitHub에 직접 게시해야 한다. AI agent가 게시한 것은 Human이 사전에 승인했더라도 Human Gate approval evidence가 아니며, agent-autonomous approval은 금지된다. 이 요건은 Independent review evidence의 게시 규칙과 구분된다.
 
-Human Gate가 implementation merge 뒤의 mutation 또는 execution boundary에 적용되면 해당 implementation PR의 post-merge human-authored GitHub comment 또는 review를 approval evidence로 사용할 수 있다. 이 evidence는 승인하는 exact gated scope를 명시해야 한다. Implementation PR merge 자체는 Human Gate approval evidence가 아니다.
+Human Gate가 implementation merge 뒤의 mutation 또는 execution boundary에 적용되면 해당 implementation PR의 post-merge human-authored GitHub comment 또는 review를 approval evidence로 사용할 수 있다. 이 evidence는 승인하는 exact gated scope를 명시해야 하며 위 게시 요건이 동일하게 적용된다. Implementation PR merge 자체는 Human Gate approval evidence가 아니다.
 
 Human-authored GitHub approval evidence가 없으면 Human Gate는 `Pending`이다. 기본적으로 Pending 상태의 PR은 accepted 또는 merge-ready로 취급하지 않는다.
 
