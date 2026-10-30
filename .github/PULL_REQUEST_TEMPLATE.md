@@ -1,5 +1,5 @@
 <!--
-Canonical PR completion interface. Codex-created PRs open as Draft; humans decide Ready and merge.
+Canonical PR completion interface. AI-agent-created PRs open as Draft; humans decide Ready and merge.
 PR title은 변경 결과를 짧게 요약한다. 본문은 간결한 한국어로 쓰고 technical identifier를 보존한다.
 Ordinary PR은 Summary / Changes / Validation으로 충분하다. Ticket이나 governance field를 채우기 위해 만들지 않는다.
 필요한 deferred scope, concrete uncertainty, caveat만 해당 section에 덧붙인다.
@@ -48,7 +48,7 @@ Ticket 내용을 장문으로 복제하지 않는다. 실제로 요구되는 fie
 
 Required Fresh-context review가 미완료이면 Pending이다. Blocking finding 또는 required evidence 누락이 남으면 Findings open이다.
 Passed는 Fresh-context reviewer가 해결을 최종 확인한 경우에만 사용한다.
-Implementation agent의 자체 검증/수정/완료 보고와 원본 ChatGPT conversation은 independent review evidence가 아니다.
+Implementation agent의 자체 검증/수정/완료 보고와 원본 AI conversation/session transcript는 independent review evidence가 아니다.
 Public review evidence는 reviewed contract/ticket, findings, missing evidence, uncertainty, final status를 포함한 human-authored GitHub PR comment 또는 review다.
 
 Human Gate Required: Yes이면 다음을 포함한다.
@@ -59,7 +59,8 @@ Human Gate Required: Yes이면 다음을 포함한다.
 - Rollback / Mitigation: bounded mitigation
 
 Approval evidence는 exact gated scope를 승인하는 human-authored GitHub PR comment 또는 review여야 한다.
-PR body의 상태값, agent의 완료 보고, ChatGPT conversation 또는 모호한 decision reference는 approval evidence가 아니다.
+PR body의 상태값, agent의 완료 보고, AI conversation/session transcript 또는 모호한 decision reference는 approval evidence가 아니다.
+AI agent가 Human의 GitHub credential로 자율 게시한 comment/review는 human-authored evidence가 아니다.
 Human-authored approval evidence가 없으면 Pending으로 유지한다.
 Gate scope와 pre-gate allowed work/merge가 정해져 있으면 해당 contract와 evidence를 기록한다.
 PR merge 자체를 Human Gate approval로 취급하지 않는다.

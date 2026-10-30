@@ -13,8 +13,8 @@
 ## Canonical workflow and authority
 
 - Follow `docs/runbook/agent-workflow.md` as the canonical source for Default workflow, repository identity preflight, risk-triggered escalation, scoped authority, validation, Draft PR, completion evidence, and required review / Human Gate. Use `.github/PULL_REQUEST_TEMPLATE.md` as the PR-native completion interface.
-- Open every Codex-created PR as Draft. Humans decide Ready for review and merge; Codex must not mark a PR Ready or merge it.
-- Codex must not create releases/tags, force-push, or push directly to `main`. A specific human override in a separate task applies only to its explicitly authorized scope, including any exception to the Draft / Ready / merge boundary.
+- Open every AI-agent-created PR as Draft. Humans decide Ready for review and merge; AI agents must not mark a PR Ready or merge it.
+- AI agents must not create releases/tags, force-push, or push directly to `main`. A specific human override in a separate task applies only to its explicitly authorized scope, including any exception to the Draft / Ready / merge boundary.
 
 ## Validation
 

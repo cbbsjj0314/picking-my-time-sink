@@ -18,7 +18,7 @@ Non-trivial change는 편집 전에 짧은 plan과 최소 observable success cri
 
 Ordinary work에는 canonical ticket, full handoff envelope, `Risk Level`, `Review Level`, `Human Gate Required`, Fresh-context review, AC → evidence mapping 또는 private planning-state update를 일괄 요구하지 않는다. `Default`는 별도로 입력하거나 등록할 mode/status field가 아니다. 기존 ticket과 historical record는 migration하거나 backfill하지 않는다.
 
-Codex는 요청된 scope를 구현하고 검증한 뒤 집중된 branch/commit과 Draft PR을 준비한다. 별도의 local-only, read-only 또는 publication 제한이 있으면 그 제한을 따른다. Human은 위험한 scope를 승인하고, review와 최종 merge 및 release를 결정한다.
+Implementation agent는 요청된 scope를 구현하고 검증한 뒤 집중된 branch/commit과 Draft PR을 준비한다. 별도의 local-only, read-only 또는 publication 제한이 있으면 그 제한을 따른다. Human은 위험한 scope를 승인하고, review와 최종 merge 및 release를 결정한다.
 
 ## Repository Identity Preflight
 
@@ -66,7 +66,7 @@ A8 같은 destructive recovery rotation/delete는 별도 Human selection과 expl
 
 ## Draft PR Invariant
 
-Codex가 생성하는 모든 PR은 Draft로 연다. Human이 Ready for review 여부와 최종 merge 여부를 결정한다. Codex는 PR을 Ready로 전환하거나 merge하지 않는다. `main` 직접 push, force-push, release/tag 생성도 하지 않는다. 별도 task의 specific Human override는 명시적으로 승인한 범위에만 적용한다.
+AI agent가 생성하는 모든 PR은 Draft로 연다. Human이 Ready for review 여부와 최종 merge 여부를 결정한다. AI agent는 PR을 Ready로 전환하거나 merge하지 않는다. `main` 직접 push, force-push, release/tag 생성도 하지 않는다. 별도 task의 specific Human override는 명시적으로 승인한 범위에만 적용한다.
 
 `Draft`는 required validation, CI, review 또는 Human Gate evidence를 생략한다는 뜻이 아니다. Draft PR 준비와 implementation evidence 작성은 acceptance 또는 merge-ready 판정과 다르다.
 
@@ -88,7 +88,7 @@ Required task checks와 applicable canonical validation을 충족하고, 요구�
 
 추가 또는 반복 validation은 check failure, 성공 뒤 relevant change, new concrete inconsistency/risk, missing required evidence 또는 reviewer 요청이 있을 때 수행한다. 이 stopping rule은 required CI, Fresh-context review나 Human Gate를 면제하지 않는다.
 
-## Codex boundaries
+## Agent boundaries
 
 `AGENTS.md`의 security/privacy/data boundaries와 `docs/data-governance.md`를 유지한다. Secrets, credential, raw/private runtime evidence를 public diff나 PR body에 넣지 않는다. Local/private evidence를 current durable docs의 binding 없이 live scheduler authority로 취급하지 않는다. Scope 밖의 scheduler, DB, provider fetch, schema, API 또는 web behavior를 변경하지 않는다.
 
@@ -106,7 +106,9 @@ Ordinary work는 Human PR review를 따른다. Fresh-context review는 concrete 
 
 수정이 필요하면 원래 implementation 흐름으로 되돌린다. Implementation agent가 수정했다는 사실만으로 review를 통과한 것으로 보지 않는다. 수정 뒤 Fresh-context reviewer가 blocking findings와 required evidence가 해결됐는지 다시 확인해야 한다.
 
-Fresh-context review의 원본 ChatGPT conversation은 public independent review evidence로 사용하지 않는다. 대신 검토한 contract와 해당 ticket, blocking findings, missing evidence, remaining uncertainty, final status를 포함한 짧은 review 결과를 human-authored GitHub PR comment 또는 GitHub review로 기록한다. Implementation agent 자신의 완료 보고, 자체 검토 또는 자체 수정 결과는 independent review evidence가 될 수 없다.
+Fresh-context review의 원본 AI conversation 또는 session transcript는 public independent review evidence로 사용하지 않는다. 대신 검토한 contract와 해당 ticket, blocking findings, missing evidence, remaining uncertainty, final status를 포함한 짧은 review 결과를 human-authored GitHub PR comment 또는 GitHub review로 기록한다. Implementation agent 자신의 완료 보고, 자체 검토 또는 자체 수정 결과는 independent review evidence가 될 수 없다.
+
+이 문서에서 `human-authored`는 AI가 초안을 준비할 수 있되, Human이 내용을 실질적으로 검토하고 자신의 결정으로 채택하며 official GitHub evidence로의 게시를 통제한다는 뜻이다. AI agent가 Human의 GitHub credential로 자율 게시한 comment나 review는 human-authored evidence가 아니다. 이는 implementation report, PR description과 허가된 Draft PR 생성을 막지 않으며, 이들은 review 또는 approval evidence와 구분한다.
 
 ### Fresh-context trigger 후보
 
@@ -132,7 +134,7 @@ Independent review evidence가 요구될 때 다음 네 값을 사용한다. Ord
 - `Findings open`: Blocking finding 또는 required evidence 누락이 남아 있다. `Independent Review Evidence`는 finding이 기록된 human-authored GitHub PR comment 또는 GitHub review를 가리킨다.
 - `Passed`: Fresh-context reviewer가 blocking findings와 required evidence가 해결됐음을 최종 재확인했다. `Independent Review Evidence`는 최종 재확인 결과가 기록된 human-authored GitHub PR comment 또는 GitHub review를 가리킨다.
 
-Implementation agent가 수정한 사실만으로 `Passed`가 되지 않으며, Fresh-context reviewer의 재확인 없이 `Findings open`을 `Passed`로 바꾸지 않는다. Implementation agent 자신의 완료 보고나 자체 수정 결과, Fresh-context review의 원본 ChatGPT conversation은 independent review evidence가 아니다.
+Implementation agent가 수정한 사실만으로 `Passed`가 되지 않으며, Fresh-context reviewer의 재확인 없이 `Findings open`을 `Passed`로 바꾸지 않는다. Implementation agent 자신의 완료 보고나 자체 수정 결과, Fresh-context review의 원본 AI conversation 또는 session transcript는 independent review evidence가 아니다.
 
 ## Human Gate
 
@@ -144,7 +146,7 @@ Implementation agent가 수정한 사실만으로 `Passed`가 되지 않으며, 
 - Secrets, auth, deploy, read-only를 넘는 CI permission, release decision.
 - Category-to-game trusted semantics, Combined semantics, broad tooling adoption.
 
-`Human Gate Required: Yes`의 실제 approval evidence는 human-authored GitHub PR comment 또는 human-authored GitHub review로 제한한다. PR 본문에 기입된 상태값이나 implementation agent의 자기 보고만으로는 Human Gate approval을 증명할 수 없다. ChatGPT conversation, ChatGPT conversation을 가리키는 모호한 decision reference, implementation agent의 완료 보고도 approval evidence가 아니다.
+`Human Gate Required: Yes`의 실제 approval evidence는 human-authored GitHub PR comment 또는 human-authored GitHub review로 제한한다. PR 본문에 기입된 상태값이나 implementation agent의 자기 보고만으로는 Human Gate approval을 증명할 수 없다. AI conversation 또는 session transcript, 이를 가리키는 모호한 decision reference, implementation agent의 완료 보고도 approval evidence가 아니다. `human-authored`의 의미는 Review 절의 정의를 따른다.
 
 Human Gate가 implementation merge 뒤의 mutation 또는 execution boundary에 적용되면 해당 implementation PR의 post-merge human-authored GitHub comment 또는 review를 approval evidence로 사용할 수 있다. 이 evidence는 승인하는 exact gated scope를 명시해야 한다. Implementation PR merge 자체는 Human Gate approval evidence가 아니다.
 
@@ -165,7 +167,7 @@ Yes
 
 `Pre-Gate Allowed Work`에는 implementation PR merge가 명시되어야 한다. 또한 merged implementation 자체가 gated live mutation 또는 authority를 실행하거나 자동 활성화하지 않아야 하고, ticket과 repo가 요구하는 validation 및 CI와 required review gate가 충족되어야 하며, blocking finding 또는 required evidence gap이 남아 있지 않아야 한다. `Review Level: Fresh-context`이면 `Independent Review Status: Passed`여야 한다. 이 조건을 모두 충족해도 human이 별도의 PR merge decision을 내려야만 implementation PR을 merge할 수 있다.
 
-`Pre-Gate Merge Allowed: Yes`는 automatic merge, Codex 또는 implementation agent의 merge authority, required validation·CI·review 생략, human merge decision 생략, Human Gate approval, whole-ticket acceptance, ticket closure, release approval 또는 live mutation/execution authorization을 의미하지 않는다.
+`Pre-Gate Merge Allowed: Yes`는 automatic merge, AI agent(implementation agent 포함)의 merge authority, required validation·CI·review 생략, human merge decision 생략, Human Gate approval, whole-ticket acceptance, ticket closure, release approval 또는 live mutation/execution authorization을 의미하지 않는다.
 
 Gate scope 또는 pre-gate allowed work가 모호하거나, pre-gate merge permission이 없거나, 위 조건 중 하나라도 충족되지 않으면 phase-scoped pre-gate merge를 적용하지 않는다. Explicit declaration이 없는 legacy ticket에도 자동 소급하지 않으며 기존 fail-closed default를 유지한다.
 
@@ -179,7 +181,7 @@ Code change에 대한 기본 repo-root local check는 다음과 같다.
 ./scripts/check.sh
 ```
 
-이것이 full gate이며, focused Python check와 web check를 순서대로 실행한다. Codex는 ticket과 관련된 focused check를 먼저 실행할 수 있다.
+이것이 full gate이며, focused Python check와 web check를 순서대로 실행한다. Implementation agent는 ticket과 관련된 focused check를 먼저 실행할 수 있다.
 
 ```bash
 ./scripts/check-python.sh
