@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import http.client
 import json
 import urllib.parse
 from pathlib import Path
@@ -9,6 +10,7 @@ import pytest
 
 from steam.ingest import fetch_reviews_daily
 from steam.normalize import bronze_to_silver_reviews, silver_to_gold_reviews
+from steam.probe import common
 from steam.probe.common import RequestResult
 
 COLLECTED_AT = "2026-10-27T00:30:00Z"
@@ -690,3 +692,70 @@ def test_build_bronze_record_uses_collected_at_field_with_same_value() -> None:
     assert record["collected_at"] == "2026-03-06T21:46:06Z"
     assert "collected_at_utc" not in record
     assert record["total_reviews"] == 100
+
+
+class FakeTransportResponse:
+    """Minimal urlopen response for driving the real shared request helper."""
+
+    def __init__(self, *, body: bytes = b"", read_error: BaseException | None = None) -> None:
+        self.headers = {"Content-Type": "application/json"}
+        self._body = body
+        self._read_error = read_error
+
+    def getcode(self) -> int:
+        return 200
+
+    def read(self) -> bytes:
+        if self._read_error is not None:
+            raise self._read_error
+        return self._body
+
+    def __enter__(self) -> FakeTransportResponse:
+        return self
+
+    def __exit__(self, exc_type, exc, exc_tb) -> bool:  # noqa: ANN001
+        return False
+
+
+def test_transport_failures_are_retried_in_session_and_isolated_to_one_app(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    clock = FakeClock()
+    calls: list[tuple[int, float]] = []
+
+    def fake_urlopen(request, timeout):  # noqa: ANN001
+        del timeout
+        query = urllib.parse.parse_qs(urllib.parse.urlsplit(request.full_url).query)
+        appid = json.loads(query["input_json"][0])["appid"]
+        calls.append((appid, clock.now))
+        clock.now += 1.0
+        if appid == 570:
+            raise ConnectionResetError(104, "raw-peer-detail")
+        if len(calls) == 1:
+            return FakeTransportResponse(
+                read_error=http.client.IncompleteRead(b'{"response": {}}', 1000)
+            )
+        return FakeTransportResponse(body=json.dumps(envelope(100, 80, 20)).encode("utf-8"))
+
+    monkeypatch.setattr(common.urllib.request, "urlopen", fake_urlopen)
+    session = make_session(clock)
+
+    records = fetch_reviews_daily.fetch_reviews_records(
+        targets_for([730, 570, 440]),
+        session=session,
+        now_iso=lambda: COLLECTED_AT,
+    )
+
+    assert [call[0] for call in calls] == [730, 730, 570, 570, 570, 570, 440]
+    for (_, previous_start), (_, current_start) in zip(calls, calls[1:], strict=False):
+        assert current_start - (previous_start + 1.0) >= 2.0 - 1e-9
+    assert [record["fetch_failure"] for record in records] == [
+        None,
+        {"reason": "network_error"},
+        None,
+    ]
+    assert records[0]["total_reviews"] == 100
+    assert [attempt["error"] for attempt in records[0]["attempts"]] == ["IncompleteRead", None]
+    assert records[1]["http_status"] is None
+    assert records[1]["total_reviews"] is None
+    assert [attempt["error"] for attempt in records[1]["attempts"]] == ["ConnectionResetError"] * 4

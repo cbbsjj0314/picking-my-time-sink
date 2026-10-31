@@ -1,8 +1,13 @@
 from __future__ import annotations
 
+import email.message
+import io
+import urllib.error
+
 import pytest
 
 from steam.ingest import fetch_ccu_30m
+from steam.probe import common
 from steam.probe.common import RequestResult
 
 
@@ -122,3 +127,41 @@ def test_fetch_ccu_for_app_maps_abnormal_payload_to_missing_reason(
 
     assert result["ccu"] is None
     assert result["missing_reason"] == "missing_player_count"
+
+
+def test_fetch_ccu_for_app_maps_http_500_then_transport_failure_to_request_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The final transport attempt must not inherit the earlier HTTP 500 status."""
+
+    responses: list[BaseException] = [
+        urllib.error.HTTPError(
+            "https://example.com", 500, "error", email.message.Message(), io.BytesIO(b"")
+        ),
+        ConnectionResetError(104, "raw-peer-detail"),
+    ]
+
+    def fake_urlopen(request, timeout):  # noqa: ANN001
+        del request, timeout
+        raise responses.pop(0)
+
+    monkeypatch.delenv("STEAM_API_KEY", raising=False)
+    monkeypatch.setattr(common.urllib.request, "urlopen", fake_urlopen)
+    monkeypatch.setattr(common.time, "sleep", lambda _seconds: None)
+
+    result = fetch_ccu_30m.fetch_ccu_for_app(
+        steam_appid=730,
+        timeout_seconds=1.0,
+        max_attempts=2,
+        backoff_base_seconds=0.5,
+        jitter_max_seconds=0.0,
+        max_backoff_seconds=2.0,
+    )
+
+    assert result["missing_reason"] == "request_error:url_error"
+    assert result["status_code"] is None
+    assert result["ccu"] is None
+    assert [attempt["error"] for attempt in result["attempts"]] == [
+        "HTTP 500",
+        "ConnectionResetError",
+    ]

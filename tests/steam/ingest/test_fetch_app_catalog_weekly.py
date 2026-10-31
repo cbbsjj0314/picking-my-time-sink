@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import http.client
 import json
 from pathlib import Path
 
@@ -7,6 +8,7 @@ import pytest
 
 from steam.ingest import fetch_app_catalog_weekly
 from steam.ingest.app_catalog_latest_summary import DEFAULT_APP_CATALOG_LATEST_SUMMARY_PATH
+from steam.probe import common
 from steam.probe.common import RequestResult
 
 
@@ -635,3 +637,68 @@ def test_default_latest_summary_path_is_canonical_runtime_path() -> None:
         DEFAULT_APP_CATALOG_LATEST_SUMMARY_PATH
         == Path("tmp/steam/app_catalog/latest.summary.json")
     )
+
+
+class FakeTransportResponse:
+    """Minimal urlopen response for driving the real shared request helper."""
+
+    def __init__(self, *, body: bytes = b"", read_error: BaseException | None = None) -> None:
+        self.headers = {"Content-Type": "application/json"}
+        self._body = body
+        self._read_error = read_error
+
+    def getcode(self) -> int:
+        return 200
+
+    def read(self) -> bytes:
+        if self._read_error is not None:
+            raise self._read_error
+        return self._body
+
+    def __enter__(self) -> FakeTransportResponse:
+        return self
+
+    def __exit__(self, exc_type, exc, exc_tb) -> bool:  # noqa: ANN001
+        return False
+
+
+def test_run_keeps_job_level_failure_when_final_attempt_is_transport_error(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """A rejected earlier page must not be parsed after the final transport failure."""
+
+    responses = [
+        FakeTransportResponse(
+            body=json.dumps({"response": {"apps": [], "have_more_results": "yes"}}).encode()
+        ),
+        FakeTransportResponse(read_error=http.client.IncompleteRead(b'{"response": {', 1000)),
+    ]
+
+    def fake_urlopen(request, timeout):  # noqa: ANN001
+        del request, timeout
+        return responses.pop(0)
+
+    monkeypatch.setenv("STEAM_API_KEY", "fake-test-key")
+    monkeypatch.setattr(common.urllib.request, "urlopen", fake_urlopen)
+    monkeypatch.setattr(common.time, "sleep", lambda _seconds: None)
+    meta_path = tmp_path / "meta.json"
+
+    with pytest.raises(RuntimeError, match="non-JSON payload"):
+        fetch_app_catalog_weekly.run(
+            output_path=tmp_path / "snapshot.jsonl",
+            checkpoint_path=tmp_path / "checkpoint.json",
+            latest_summary_path=tmp_path / "latest.summary.json",
+            timeout_seconds=1.0,
+            max_attempts=2,
+            backoff_base_seconds=0.5,
+            jitter_max_seconds=0.0,
+            max_backoff_seconds=2.0,
+            max_results=1000,
+            meta_path=meta_path,
+        )
+
+    meta = json.loads(meta_path.read_text(encoding="utf-8"))
+    assert meta["success"] is False
+    assert meta["http_status"] is None
+    assert meta["error_type"] == "RuntimeError"
